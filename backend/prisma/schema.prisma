@@ -1,0 +1,417 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "maintenance_inventory", "it_inventory"]
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum Role {
+  MANAGER
+  MECHANIC
+  IT_TEAM
+  PRODUCTION
+  ADMIN
+
+  @@schema("public")
+}
+
+enum Workstream {
+  MAINTENANCE
+  IT
+
+  @@schema("public")
+}
+
+enum TicketCategory {
+  PRODUCTION_MACHINE
+  FACTORY_FACILITY
+  OTHER_MACHINE
+  WORKSTATION
+  LAPTOP
+  NETWORK_GEAR
+  SERVER
+  SOFTWARE
+
+  @@schema("public")
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  FIRST_LINE_REVIEW
+  JOB_COMPLETED
+  FINAL_REVIEW
+  CLOSED
+
+  @@schema("public")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@schema("public")
+}
+
+enum OnHoldReason {
+  VENDOR
+  MATERIAL
+  APPROVAL
+
+  @@schema("public")
+}
+
+enum AttachmentType {
+  PRE_FIX_PHOTO
+  POST_FIX_PHOTO
+  INVOICE
+  OTHER
+
+  @@schema("public")
+}
+
+enum NotificationType {
+  TICKET_CREATED
+  TICKET_ASSIGNED
+  STATUS_CHANGED
+  APPROVAL_REQUESTED
+  APPROVAL_DECIDED
+  SLA_BREACHED
+  COMMENT_ADDED
+  ON_HOLD
+  RESUMED
+  TICKET_CLOSED
+  ASSET_EXPIRING
+  ASSET_DOWNTIME
+
+  @@schema("public")
+}
+
+enum AssetStatus {
+  ACTIVE
+  DOWN
+  RETIRED
+
+  @@schema("public")
+}
+
+enum MaintenanceAssetCategory {
+  PRODUCTION_MACHINE
+  PLANT_EQUIPMENT
+  PERIPHERAL_ATTACHMENT
+  PHYSICAL_TOOL
+
+  @@schema("maintenance_inventory")
+}
+
+enum ITAssetCategory {
+  WORKSTATION
+  LAPTOP
+  NETWORK_GEAR
+  SERVER
+  SOFTWARE_LICENSE
+
+  @@schema("it_inventory")
+}
+
+// ---------------------------------------------------------------------------
+// PUBLIC / CORE SCHEMA
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(cuid())
+  employeeId   String     @unique
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         Role
+  workstream   Workstream?
+  department   String?
+  phone        String?
+  active       Boolean    @default(true)
+  mustResetPassword Boolean @default(true)
+  createdById  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  reportedTickets  Ticket[]        @relation("ReportedBy")
+  assignedTickets  Ticket[]        @relation("AssignedTo")
+  managedTickets   Ticket[]        @relation("ManagedBy")
+  approvedTickets  Ticket[]        @relation("ApprovedBy")
+  closedTickets    Ticket[]        @relation("ClosedBy")
+  comments         TicketComment[]
+  attachments      TicketAttachment[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  statusChanges    TicketStatusHistory[]
+  refreshTokens    RefreshToken[]
+
+  @@schema("public")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  @@schema("public")
+}
+
+model SequenceCounter {
+  key   String @id
+  value Int    @default(0)
+
+  @@schema("public")
+}
+
+model Ticket {
+  id             String         @id @default(cuid())
+  ticketNumber   String         @unique
+  workstream     Workstream
+  category       TicketCategory
+  title          String
+  description    String
+  plantLocation  String?
+
+  // asset link (cross-schema — plain id reference, joined at the app layer)
+  maintenanceAssetId String?
+  itAssetId          String?
+
+  status         TicketStatus   @default(OPEN)
+  priority       Priority?
+
+  onHold         Boolean        @default(false)
+  onHoldReason   OnHoldReason?
+  onHoldDetail   String?
+  onHoldSince    DateTime?
+  resumeStatus   TicketStatus?
+
+  reportedById   String
+  reportedBy     User           @relation("ReportedBy", fields: [reportedById], references: [id])
+  assignedToId   String?
+  assignedTo     User?          @relation("AssignedTo", fields: [assignedToId], references: [id])
+  managerId      String?
+  manager        User?          @relation("ManagedBy", fields: [managerId], references: [id])
+
+  diagnosis         String?
+  recommendedFix     String?
+  approvedById   String?
+  approvedBy     User?          @relation("ApprovedBy", fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+
+  effortEstimateHours Float?
+  targetCompletionDate DateTime?
+  slaBreached    Boolean        @default(false)
+
+  actualCost     Float?
+
+  closedById     String?
+  closedBy       User?          @relation("ClosedBy", fields: [closedById], references: [id])
+  closedAt       DateTime?
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  comments       TicketComment[]
+  attachments    TicketAttachment[]
+  costEntries    TicketCostEntry[]
+  statusHistory  TicketStatusHistory[]
+
+  @@schema("public")
+}
+
+model TicketStatusHistory {
+  id           String       @id @default(cuid())
+  ticketId     String
+  ticket       Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus   TicketStatus?
+  toStatus     TicketStatus
+  changedById  String
+  changedBy    User         @relation(fields: [changedById], references: [id])
+  comment      String?
+  createdAt    DateTime     @default(now())
+
+  @@schema("public")
+}
+
+model TicketComment {
+  id         String   @id @default(cuid())
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@schema("public")
+}
+
+model TicketAttachment {
+  id           String         @id @default(cuid())
+  ticketId     String
+  ticket       Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type         AttachmentType
+  fileUrl      String
+  fileName     String
+  mimeType     String
+  size         Int
+  uploadedById String
+  uploadedBy   User           @relation(fields: [uploadedById], references: [id])
+  uploadedAt   DateTime       @default(now())
+
+  @@schema("public")
+}
+
+model TicketCostEntry {
+  id           String   @id @default(cuid())
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  description  String
+  amount       Float
+  sparePartUsed Boolean @default(false)
+  createdAt    DateTime @default(now())
+
+  @@schema("public")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  message   String
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@schema("public")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  entityType   String
+  entityId     String
+  field        String?
+  oldValue     String?
+  newValue     String?
+  action       String
+  changedById  String
+  changedBy    User     @relation(fields: [changedById], references: [id])
+  changedAt    DateTime @default(now())
+
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// MAINTENANCE INVENTORY SCHEMA
+// ---------------------------------------------------------------------------
+
+model MaintenanceAsset {
+  id                String                    @id @default(cuid())
+  itemCode          String                    @unique
+  name              String
+  category          MaintenanceAssetCategory
+  model             String?
+  manufacturer      String?
+  plantLocation     String?
+  specifications    String?
+  purchaseDate      DateTime?
+  warrantyStartDate DateTime?
+  warrantyEndDate   DateTime?
+  status            AssetStatus               @default(ACTIVE)
+  statusSince       DateTime?
+  expiryAlertedAt    DateTime?
+  downtimeAlertedAt  DateTime?
+  qrCodeUrl         String?
+  createdById       String
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  photos            MaintenanceAssetPhoto[]
+  invoices          MaintenanceAssetInvoice[]
+
+  @@schema("maintenance_inventory")
+}
+
+model MaintenanceAssetPhoto {
+  id         String            @id @default(cuid())
+  assetId    String
+  asset      MaintenanceAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fileUrl    String
+  caption    String?
+  uploadedAt DateTime          @default(now())
+
+  @@schema("maintenance_inventory")
+}
+
+model MaintenanceAssetInvoice {
+  id            String            @id @default(cuid())
+  assetId       String
+  asset         MaintenanceAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fileUrl       String
+  invoiceNumber String?
+  amount        Float?
+  uploadedAt    DateTime          @default(now())
+
+  @@schema("maintenance_inventory")
+}
+
+// ---------------------------------------------------------------------------
+// IT INVENTORY SCHEMA
+// ---------------------------------------------------------------------------
+
+model ITAsset {
+  id               String          @id @default(cuid())
+  itemCode         String          @unique
+  name             String
+  category         ITAssetCategory
+  serialNumber     String?
+  specifications   String?
+  ipAddress        String?
+  macAddress       String?
+  vendor           String?
+  purchaseDate     DateTime?
+  warrantyEndDate  DateTime?
+  licenseExpiryDate DateTime?
+  costCenter       String?
+  assignedToUserId String?
+  status           AssetStatus     @default(ACTIVE)
+  statusSince      DateTime?
+  expiryAlertedAt   DateTime?
+  downtimeAlertedAt DateTime?
+  qrCodeUrl        String?
+  createdById      String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  invoices         ITAssetInvoice[]
+
+  @@schema("it_inventory")
+}
+
+model ITAssetInvoice {
+  id            String   @id @default(cuid())
+  assetId       String
+  asset         ITAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fileUrl       String
+  invoiceNumber String?
+  amount        Float?
+  uploadedAt    DateTime @default(now())
+
+  @@schema("it_inventory")
+}
