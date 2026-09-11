@@ -371,6 +371,32 @@ export default function TicketDetailPage() {
               <span className="text-soliflex-gray-400">Category</span>
               <span>{ticket.category.replace("_", " ")}</span>
             </div>
+            {isManager && ticket.status !== "CLOSED" ? (
+              <div className="flex items-center justify-between">
+                <span className="text-soliflex-gray-400">Priority</span>
+                <select
+                  value={ticket.priority ?? ""}
+                  onChange={(e) => id && handleAction(() => mutations.updatePriority.mutateAsync({ id, priority: e.target.value as NonNullable<typeof ticket.priority> }))}
+                  className="rounded-md border border-soliflex-gray-200 px-2 py-1 text-xs font-semibold"
+                >
+                  {!ticket.priority && (
+                    <option value="" disabled>
+                      Set priority
+                    </option>
+                  )}
+                  {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-soliflex-gray-400">Priority</span>
+                <PriorityBadge priority={ticket.priority} />
+              </div>
+            )}
             {ticket.effortEstimateHours && (
               <div className="flex items-center justify-between">
                 <span className="text-soliflex-gray-400">Effort estimate</span>

@@ -3,13 +3,15 @@ import { z } from "zod";
 import QRCode from "qrcode";
 import path from "path";
 import fs from "fs";
+import { parse as parseCsv } from "csv-parse/sync";
 import { MaintenanceAssetCategory, AssetStatus, Role } from "@prisma/client";
 import { requireAuth, requireRole } from "../../middleware/auth";
-import { upload } from "../../middleware/upload";
+import { upload, csvUpload } from "../../middleware/upload";
 import { prisma } from "../../lib/prisma";
 import { nextSequenceValue, formatAssetItemCode } from "../sequences/sequence.service";
 import { recordAudit } from "../audit/audit.service";
 import { publicUrlForFile } from "../../lib/storage";
+import { buildCsv } from "../../lib/csv";
 import { env } from "../../config/env";
 import { ApiError } from "../../middleware/errors";
 
@@ -34,6 +36,37 @@ router.get("/", async (req, res) => {
   res.json(assets);
 });
 
+const BULK_IMPORT_HEADERS = [
+  "name",
+  "category",
+  "model",
+  "manufacturer",
+  "plantLocation",
+  "specifications",
+  "purchaseDate",
+  "warrantyStartDate",
+  "warrantyEndDate",
+];
+
+router.get("/template", requireRole(Role.ADMIN, Role.PRODUCTION, Role.MANAGER), (_req, res) => {
+  const csv = buildCsv(BULK_IMPORT_HEADERS, [
+    [
+      "Extrusion Line 4",
+      "PRODUCTION_MACHINE",
+      "EX-4000",
+      "Reifenhauser",
+      "Plant A - Bay 4",
+      "Blown film extrusion line, 3-layer",
+      "2024-01-15",
+      "2024-01-15",
+      "2027-01-15",
+    ],
+  ]);
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", "attachment; filename=maintenance-assets-template.csv");
+  res.send(csv);
+});
+
 router.get("/:id", async (req, res) => {
   const asset = await prisma.maintenanceAsset.findUnique({ where: { id: req.params.id }, include: { photos: true, invoices: true } });
   if (!asset) throw new ApiError(404, "Asset not found");
@@ -52,11 +85,7 @@ const createSchema = z.object({
   warrantyEndDate: z.string().optional(),
 });
 
-// Onboarding restricted to Admin team (factory/facility) and Production team (production machines) per spec §1;
-// Managers retain full access.
-router.post("/", requireRole(Role.ADMIN, Role.PRODUCTION, Role.MANAGER), async (req, res) => {
-  const data = createSchema.parse(req.body);
-
+async function createMaintenanceAssetRecord(data: z.infer<typeof createSchema>, createdById: string) {
   const asset = await prisma.$transaction(async (tx) => {
     const seq = await nextSequenceValue(tx as typeof prisma, "asset:MAINTENANCE", 0);
     const itemCode = formatAssetItemCode("MAINTENANCE", seq);
@@ -73,21 +102,73 @@ router.post("/", requireRole(Role.ADMIN, Role.PRODUCTION, Role.MANAGER), async (
         warrantyStartDate: data.warrantyStartDate ? new Date(data.warrantyStartDate) : undefined,
         warrantyEndDate: data.warrantyEndDate ? new Date(data.warrantyEndDate) : undefined,
         statusSince: new Date(),
-        createdById: req.user!.sub,
+        createdById,
       },
     });
-    await recordAudit(tx, { entityType: "MaintenanceAsset", entityId: created.id, action: "CREATE", changedById: req.user!.sub, newValue: itemCode });
+    await recordAudit(tx, { entityType: "MaintenanceAsset", entityId: created.id, action: "CREATE", changedById: createdById, newValue: itemCode });
     return created;
   });
 
   const qrFileName = `qr-${asset.id}.png`;
   await QRCode.toFile(path.join(env.uploadDir, qrFileName), asset.itemCode, { width: 300 });
-  const updated = await prisma.maintenanceAsset.update({
+  return prisma.maintenanceAsset.update({
     where: { id: asset.id },
     data: { qrCodeUrl: publicUrlForFile(qrFileName) },
   });
+}
 
+// Onboarding restricted to Admin team (factory/facility) and Production team (production machines) per spec §1;
+// Managers retain full access.
+router.post("/", requireRole(Role.ADMIN, Role.PRODUCTION, Role.MANAGER), async (req, res) => {
+  const data = createSchema.parse(req.body);
+  const updated = await createMaintenanceAssetRecord(data, req.user!.sub);
   res.status(201).json(updated);
+});
+
+router.post("/bulk-import", requireRole(Role.ADMIN, Role.PRODUCTION, Role.MANAGER), csvUpload.single("file"), async (req, res) => {
+  if (!req.file) throw new ApiError(400, "No CSV file uploaded");
+
+  let records: Record<string, string>[];
+  try {
+    records = parseCsv(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true });
+  } catch (e) {
+    throw new ApiError(400, `Could not parse CSV: ${(e as Error).message}`);
+  }
+  if (records.length === 0) {
+    throw new ApiError(400, "CSV has no data rows");
+  }
+  if (records.length > 500) {
+    throw new ApiError(400, "CSV has too many rows (max 500 per upload)");
+  }
+
+  const errors: { row: number; message: string }[] = [];
+  let imported = 0;
+
+  for (let i = 0; i < records.length; i++) {
+    const rowNumber = i + 2; // account for the header row and 1-based row numbering
+    const parsed = createSchema.safeParse({
+      ...records[i],
+      model: records[i].model || undefined,
+      manufacturer: records[i].manufacturer || undefined,
+      plantLocation: records[i].plantLocation || undefined,
+      specifications: records[i].specifications || undefined,
+      purchaseDate: records[i].purchaseDate || undefined,
+      warrantyStartDate: records[i].warrantyStartDate || undefined,
+      warrantyEndDate: records[i].warrantyEndDate || undefined,
+    });
+    if (!parsed.success) {
+      errors.push({ row: rowNumber, message: parsed.error.issues.map((iss) => `${iss.path.join(".")}: ${iss.message}`).join("; ") });
+      continue;
+    }
+    try {
+      await createMaintenanceAssetRecord(parsed.data, req.user!.sub);
+      imported++;
+    } catch (e) {
+      errors.push({ row: rowNumber, message: (e as Error).message });
+    }
+  }
+
+  res.json({ imported, failed: errors.length, errors });
 });
 
 const updateSchema = createSchema.partial().extend({ status: z.nativeEnum(AssetStatus).optional() });

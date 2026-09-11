@@ -36,6 +36,24 @@ export async function uploadMaintenanceAssetPhotos(id: string, files: File[], ca
   return res.data;
 }
 
+export interface BulkImportResult {
+  imported: number;
+  failed: number;
+  errors: { row: number; message: string }[];
+}
+
+export async function downloadMaintenanceAssetTemplate() {
+  const res = await api.get("/assets/maintenance/template", { responseType: "blob" });
+  return res.data as Blob;
+}
+
+export async function bulkImportMaintenanceAssets(file: File): Promise<BulkImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await api.post("/assets/maintenance/bulk-import", form, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data;
+}
+
 export async function uploadMaintenanceAssetInvoice(id: string, file: File, invoiceNumber?: string, amount?: number) {
   const form = new FormData();
   form.append("file", file);
@@ -71,6 +89,18 @@ export interface CreateITAssetInput {
 
 export async function createITAsset(input: CreateITAssetInput): Promise<ITAsset> {
   const res = await api.post("/assets/it", input);
+  return res.data;
+}
+
+export async function downloadITAssetTemplate() {
+  const res = await api.get("/assets/it/template", { responseType: "blob" });
+  return res.data as Blob;
+}
+
+export async function bulkImportITAssets(file: File): Promise<BulkImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await api.post("/assets/it/bulk-import", form, { headers: { "Content-Type": "multipart/form-data" } });
   return res.data;
 }
 

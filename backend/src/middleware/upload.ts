@@ -31,3 +31,17 @@ export const upload = multer({
     cb(null, true);
   },
 });
+
+// In-memory upload for CSV bulk-import files: the file is parsed once and
+// discarded, so there's no reason to write it to the uploads volume.
+export const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (path.extname(file.originalname).toLowerCase() !== ".csv") {
+      cb(new Error("Please upload a .csv file."));
+      return;
+    }
+    cb(null, true);
+  },
+});

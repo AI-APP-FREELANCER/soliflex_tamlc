@@ -59,6 +59,12 @@ router.post("/:id/assign", requireRole(Role.MANAGER), async (req, res) => {
   res.json(ticket);
 });
 
+const priorityUpdateSchema = z.object({ priority: z.nativeEnum(Priority) });
+router.patch("/:id/priority", requireRole(Role.MANAGER), async (req, res) => {
+  const data = priorityUpdateSchema.parse(req.body);
+  res.json(await tickets.updatePriority(actorFromReq(req), req.params.id, data.priority));
+});
+
 router.post("/:id/start-progress", async (req, res) => {
   res.json(await tickets.startProgress(actorFromReq(req), req.params.id));
 });

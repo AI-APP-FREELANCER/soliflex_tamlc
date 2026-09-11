@@ -1,19 +1,21 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, UploadCloud } from "lucide-react";
 import { useWorkstreamStore } from "../../store/workstream.store";
 import { useAuthStore } from "../../store/auth.store";
-import { fetchMaintenanceAssets, fetchITAssets } from "./api";
+import { fetchMaintenanceAssets, fetchITAssets, downloadMaintenanceAssetTemplate, bulkImportMaintenanceAssets, downloadITAssetTemplate, bulkImportITAssets } from "./api";
 import { Spinner, EmptyState } from "../../components/Spinner";
 import { CreateMaintenanceAssetModal } from "./CreateMaintenanceAssetModal";
 import { CreateITAssetModal } from "./CreateITAssetModal";
+import { BulkImportModal } from "./BulkImportModal";
 
 export default function AssetsPage() {
   const workstream = useWorkstreamStore((s) => s.workstream);
   const user = useAuthStore((s) => s.user);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const navigate = useNavigate();
 
   const maintenanceQuery = useQuery({
@@ -41,9 +43,14 @@ export default function AssetsPage() {
         <h1 className="mr-auto text-xl font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Assets</h1>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assets" className="rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm" />
         {canCreate && (
-          <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-soliflex-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600">
-            <Plus className="h-4 w-4" /> Onboard asset
-          </button>
+          <>
+            <button onClick={() => setBulkImportOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold text-soliflex-gray-700 hover:bg-soliflex-gray-200">
+              <UploadCloud className="h-4 w-4" /> Bulk upload
+            </button>
+            <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-soliflex-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600">
+              <Plus className="h-4 w-4" /> Onboard asset
+            </button>
+          </>
         )}
       </div>
 
@@ -78,6 +85,26 @@ export default function AssetsPage() {
 
       {createOpen && workstream === "MAINTENANCE" && <CreateMaintenanceAssetModal onClose={() => setCreateOpen(false)} />}
       {createOpen && workstream === "IT" && <CreateITAssetModal onClose={() => setCreateOpen(false)} />}
+      {bulkImportOpen && workstream === "MAINTENANCE" && (
+        <BulkImportModal
+          title="Bulk upload maintenance assets"
+          templateFileName="maintenance-assets-template.csv"
+          downloadTemplate={downloadMaintenanceAssetTemplate}
+          bulkImport={bulkImportMaintenanceAssets}
+          invalidateKey="maintenance-assets"
+          onClose={() => setBulkImportOpen(false)}
+        />
+      )}
+      {bulkImportOpen && workstream === "IT" && (
+        <BulkImportModal
+          title="Bulk upload IT assets"
+          templateFileName="it-assets-template.csv"
+          downloadTemplate={downloadITAssetTemplate}
+          bulkImport={bulkImportITAssets}
+          invalidateKey="it-assets"
+          onClose={() => setBulkImportOpen(false)}
+        />
+      )}
     </div>
   );
 }

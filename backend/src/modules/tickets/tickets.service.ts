@@ -175,6 +175,24 @@ export async function assignTicket(actor: Actor, ticketId: string, assignedToId:
   });
 }
 
+export async function updatePriority(actor: Actor, ticketId: string, priority: Priority) {
+  const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+  if (actor.role !== Role.MANAGER) {
+    throw new ApiError(403, "Only a manager can change ticket priority");
+  }
+  if (ticket.status === TicketStatus.CLOSED) {
+    throw new ApiError(400, "Cannot change priority on a closed ticket");
+  }
+  if (ticket.priority === priority) {
+    return getTicket(ticketId);
+  }
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.ticket.update({ where: { id: ticketId }, data: { priority } });
+    await recordAudit(tx, { entityType: "Ticket", entityId: ticketId, field: "priority", oldValue: ticket.priority ?? undefined, newValue: priority, action: "UPDATE", changedById: actor.id });
+    return updated;
+  });
+}
+
 export async function startProgress(actor: Actor, ticketId: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "START_PROGRESS");

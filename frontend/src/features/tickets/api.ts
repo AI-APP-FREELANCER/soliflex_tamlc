@@ -40,6 +40,11 @@ export async function assignTicket(id: string, data: { assignedToId: string; pri
   return res.data;
 }
 
+export async function updatePriority(id: string, priority: Priority) {
+  const res = await api.patch(`/tickets/${id}/priority`, { priority });
+  return res.data;
+}
+
 export async function startProgress(id: string) {
   const res = await api.post(`/tickets/${id}/start-progress`);
   return res.data;
