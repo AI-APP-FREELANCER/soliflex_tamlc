@@ -4,32 +4,35 @@ CREATE SCHEMA IF NOT EXISTS "it_inventory";
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "maintenance_inventory";
 
--- CreateEnum
-CREATE TYPE "public"."Role" AS ENUM ('MANAGER', 'MECHANIC', 'IT_TEAM', 'PRODUCTION', 'ADMIN');
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "tms";
 
 -- CreateEnum
-CREATE TYPE "public"."Workstream" AS ENUM ('MAINTENANCE', 'IT');
+CREATE TYPE "tms"."Role" AS ENUM ('MANAGER', 'MECHANIC', 'IT_TEAM', 'PRODUCTION', 'ADMIN');
 
 -- CreateEnum
-CREATE TYPE "public"."TicketCategory" AS ENUM ('PRODUCTION_MACHINE', 'FACTORY_FACILITY', 'OTHER_MACHINE', 'WORKSTATION', 'LAPTOP', 'NETWORK_GEAR', 'SERVER', 'SOFTWARE');
+CREATE TYPE "tms"."Workstream" AS ENUM ('MAINTENANCE', 'IT');
 
 -- CreateEnum
-CREATE TYPE "public"."TicketStatus" AS ENUM ('OPEN', 'ASSIGNED', 'IN_PROGRESS', 'FIRST_LINE_REVIEW', 'JOB_COMPLETED', 'FINAL_REVIEW', 'CLOSED');
+CREATE TYPE "tms"."TicketCategory" AS ENUM ('PRODUCTION_MACHINE', 'FACTORY_FACILITY', 'OTHER_MACHINE', 'WORKSTATION', 'LAPTOP', 'NETWORK_GEAR', 'SERVER', 'SOFTWARE');
 
 -- CreateEnum
-CREATE TYPE "public"."Priority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
+CREATE TYPE "tms"."TicketStatus" AS ENUM ('OPEN', 'ASSIGNED', 'IN_PROGRESS', 'FIRST_LINE_REVIEW', 'JOB_COMPLETED', 'FINAL_REVIEW', 'CLOSED');
 
 -- CreateEnum
-CREATE TYPE "public"."OnHoldReason" AS ENUM ('VENDOR', 'MATERIAL', 'APPROVAL');
+CREATE TYPE "tms"."Priority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
 
 -- CreateEnum
-CREATE TYPE "public"."AttachmentType" AS ENUM ('PRE_FIX_PHOTO', 'POST_FIX_PHOTO', 'INVOICE', 'OTHER');
+CREATE TYPE "tms"."OnHoldReason" AS ENUM ('VENDOR', 'MATERIAL', 'APPROVAL');
 
 -- CreateEnum
-CREATE TYPE "public"."NotificationType" AS ENUM ('TICKET_CREATED', 'TICKET_ASSIGNED', 'STATUS_CHANGED', 'APPROVAL_REQUESTED', 'APPROVAL_DECIDED', 'SLA_BREACHED', 'COMMENT_ADDED', 'ON_HOLD', 'RESUMED', 'TICKET_CLOSED');
+CREATE TYPE "tms"."AttachmentType" AS ENUM ('PRE_FIX_PHOTO', 'POST_FIX_PHOTO', 'INVOICE', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "public"."AssetStatus" AS ENUM ('ACTIVE', 'DOWN', 'RETIRED');
+CREATE TYPE "tms"."NotificationType" AS ENUM ('TICKET_CREATED', 'TICKET_ASSIGNED', 'STATUS_CHANGED', 'APPROVAL_REQUESTED', 'APPROVAL_DECIDED', 'SLA_BREACHED', 'COMMENT_ADDED', 'ON_HOLD', 'RESUMED', 'TICKET_CLOSED');
+
+-- CreateEnum
+CREATE TYPE "tms"."AssetStatus" AS ENUM ('ACTIVE', 'DOWN', 'RETIRED');
 
 -- CreateEnum
 CREATE TYPE "maintenance_inventory"."MaintenanceAssetCategory" AS ENUM ('PRODUCTION_MACHINE', 'PLANT_EQUIPMENT', 'PERIPHERAL_ATTACHMENT', 'PHYSICAL_TOOL');
@@ -38,14 +41,14 @@ CREATE TYPE "maintenance_inventory"."MaintenanceAssetCategory" AS ENUM ('PRODUCT
 CREATE TYPE "it_inventory"."ITAssetCategory" AS ENUM ('WORKSTATION', 'LAPTOP', 'NETWORK_GEAR', 'SERVER', 'SOFTWARE_LICENSE');
 
 -- CreateTable
-CREATE TABLE "public"."User" (
+CREATE TABLE "tms"."User" (
     "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
-    "role" "public"."Role" NOT NULL,
-    "workstream" "public"."Workstream",
+    "role" "tms"."Role" NOT NULL,
+    "workstream" "tms"."Workstream",
     "department" TEXT,
     "phone" TEXT,
     "active" BOOLEAN NOT NULL DEFAULT true,
@@ -58,7 +61,7 @@ CREATE TABLE "public"."User" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."RefreshToken" (
+CREATE TABLE "tms"."RefreshToken" (
     "id" TEXT NOT NULL,
     "token" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -70,7 +73,7 @@ CREATE TABLE "public"."RefreshToken" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."SequenceCounter" (
+CREATE TABLE "tms"."SequenceCounter" (
     "key" TEXT NOT NULL,
     "value" INTEGER NOT NULL DEFAULT 0,
 
@@ -78,23 +81,23 @@ CREATE TABLE "public"."SequenceCounter" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."Ticket" (
+CREATE TABLE "tms"."Ticket" (
     "id" TEXT NOT NULL,
     "ticketNumber" TEXT NOT NULL,
-    "workstream" "public"."Workstream" NOT NULL,
-    "category" "public"."TicketCategory" NOT NULL,
+    "workstream" "tms"."Workstream" NOT NULL,
+    "category" "tms"."TicketCategory" NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "plantLocation" TEXT,
     "maintenanceAssetId" TEXT,
     "itAssetId" TEXT,
-    "status" "public"."TicketStatus" NOT NULL DEFAULT 'OPEN',
-    "priority" "public"."Priority",
+    "status" "tms"."TicketStatus" NOT NULL DEFAULT 'OPEN',
+    "priority" "tms"."Priority",
     "onHold" BOOLEAN NOT NULL DEFAULT false,
-    "onHoldReason" "public"."OnHoldReason",
+    "onHoldReason" "tms"."OnHoldReason",
     "onHoldDetail" TEXT,
     "onHoldSince" TIMESTAMP(3),
-    "resumeStatus" "public"."TicketStatus",
+    "resumeStatus" "tms"."TicketStatus",
     "reportedById" TEXT NOT NULL,
     "assignedToId" TEXT,
     "managerId" TEXT,
@@ -115,11 +118,11 @@ CREATE TABLE "public"."Ticket" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."TicketStatusHistory" (
+CREATE TABLE "tms"."TicketStatusHistory" (
     "id" TEXT NOT NULL,
     "ticketId" TEXT NOT NULL,
-    "fromStatus" "public"."TicketStatus",
-    "toStatus" "public"."TicketStatus" NOT NULL,
+    "fromStatus" "tms"."TicketStatus",
+    "toStatus" "tms"."TicketStatus" NOT NULL,
     "changedById" TEXT NOT NULL,
     "comment" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -128,7 +131,7 @@ CREATE TABLE "public"."TicketStatusHistory" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."TicketComment" (
+CREATE TABLE "tms"."TicketComment" (
     "id" TEXT NOT NULL,
     "ticketId" TEXT NOT NULL,
     "authorId" TEXT NOT NULL,
@@ -139,10 +142,10 @@ CREATE TABLE "public"."TicketComment" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."TicketAttachment" (
+CREATE TABLE "tms"."TicketAttachment" (
     "id" TEXT NOT NULL,
     "ticketId" TEXT NOT NULL,
-    "type" "public"."AttachmentType" NOT NULL,
+    "type" "tms"."AttachmentType" NOT NULL,
     "fileUrl" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
     "mimeType" TEXT NOT NULL,
@@ -154,7 +157,7 @@ CREATE TABLE "public"."TicketAttachment" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."TicketCostEntry" (
+CREATE TABLE "tms"."TicketCostEntry" (
     "id" TEXT NOT NULL,
     "ticketId" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -166,10 +169,10 @@ CREATE TABLE "public"."TicketCostEntry" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."Notification" (
+CREATE TABLE "tms"."Notification" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "type" "public"."NotificationType" NOT NULL,
+    "type" "tms"."NotificationType" NOT NULL,
     "message" TEXT NOT NULL,
     "link" TEXT,
     "read" BOOLEAN NOT NULL DEFAULT false,
@@ -179,7 +182,7 @@ CREATE TABLE "public"."Notification" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."AuditLog" (
+CREATE TABLE "tms"."AuditLog" (
     "id" TEXT NOT NULL,
     "entityType" TEXT NOT NULL,
     "entityId" TEXT NOT NULL,
@@ -206,7 +209,7 @@ CREATE TABLE "maintenance_inventory"."MaintenanceAsset" (
     "purchaseDate" TIMESTAMP(3),
     "warrantyStartDate" TIMESTAMP(3),
     "warrantyEndDate" TIMESTAMP(3),
-    "status" "public"."AssetStatus" NOT NULL DEFAULT 'ACTIVE',
+    "status" "tms"."AssetStatus" NOT NULL DEFAULT 'ACTIVE',
     "qrCodeUrl" TEXT,
     "createdById" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -242,7 +245,7 @@ CREATE TABLE "it_inventory"."ITAsset" (
     "licenseExpiryDate" TIMESTAMP(3),
     "costCenter" TEXT,
     "assignedToUserId" TEXT,
-    "status" "public"."AssetStatus" NOT NULL DEFAULT 'ACTIVE',
+    "status" "tms"."AssetStatus" NOT NULL DEFAULT 'ACTIVE',
     "qrCodeUrl" TEXT,
     "createdById" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -264,16 +267,16 @@ CREATE TABLE "it_inventory"."ITAssetInvoice" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_employeeId_key" ON "public"."User"("employeeId");
+CREATE UNIQUE INDEX "User_employeeId_key" ON "tms"."User"("employeeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_email_key" ON "public"."User"("email");
+CREATE UNIQUE INDEX "User_email_key" ON "tms"."User"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RefreshToken_token_key" ON "public"."RefreshToken"("token");
+CREATE UNIQUE INDEX "RefreshToken_token_key" ON "tms"."RefreshToken"("token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Ticket_ticketNumber_key" ON "public"."Ticket"("ticketNumber");
+CREATE UNIQUE INDEX "Ticket_ticketNumber_key" ON "tms"."Ticket"("ticketNumber");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MaintenanceAsset_itemCode_key" ON "maintenance_inventory"."MaintenanceAsset"("itemCode");
@@ -282,49 +285,49 @@ CREATE UNIQUE INDEX "MaintenanceAsset_itemCode_key" ON "maintenance_inventory"."
 CREATE UNIQUE INDEX "ITAsset_itemCode_key" ON "it_inventory"."ITAsset"("itemCode");
 
 -- AddForeignKey
-ALTER TABLE "public"."RefreshToken" ADD CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "tms"."RefreshToken" ADD CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "tms"."User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Ticket" ADD CONSTRAINT "Ticket_reportedById_fkey" FOREIGN KEY ("reportedById") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tms"."Ticket" ADD CONSTRAINT "Ticket_reportedById_fkey" FOREIGN KEY ("reportedById") REFERENCES "tms"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Ticket" ADD CONSTRAINT "Ticket_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "tms"."Ticket" ADD CONSTRAINT "Ticket_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "tms"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Ticket" ADD CONSTRAINT "Ticket_managerId_fkey" FOREIGN KEY ("managerId") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "tms"."Ticket" ADD CONSTRAINT "Ticket_managerId_fkey" FOREIGN KEY ("managerId") REFERENCES "tms"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Ticket" ADD CONSTRAINT "Ticket_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "tms"."Ticket" ADD CONSTRAINT "Ticket_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "tms"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Ticket" ADD CONSTRAINT "Ticket_closedById_fkey" FOREIGN KEY ("closedById") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "tms"."Ticket" ADD CONSTRAINT "Ticket_closedById_fkey" FOREIGN KEY ("closedById") REFERENCES "tms"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."TicketStatusHistory" ADD CONSTRAINT "TicketStatusHistory_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "public"."Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "tms"."TicketStatusHistory" ADD CONSTRAINT "TicketStatusHistory_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "tms"."Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."TicketStatusHistory" ADD CONSTRAINT "TicketStatusHistory_changedById_fkey" FOREIGN KEY ("changedById") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tms"."TicketStatusHistory" ADD CONSTRAINT "TicketStatusHistory_changedById_fkey" FOREIGN KEY ("changedById") REFERENCES "tms"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."TicketComment" ADD CONSTRAINT "TicketComment_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "public"."Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "tms"."TicketComment" ADD CONSTRAINT "TicketComment_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "tms"."Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."TicketComment" ADD CONSTRAINT "TicketComment_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tms"."TicketComment" ADD CONSTRAINT "TicketComment_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "tms"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."TicketAttachment" ADD CONSTRAINT "TicketAttachment_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "public"."Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "tms"."TicketAttachment" ADD CONSTRAINT "TicketAttachment_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "tms"."Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."TicketAttachment" ADD CONSTRAINT "TicketAttachment_uploadedById_fkey" FOREIGN KEY ("uploadedById") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tms"."TicketAttachment" ADD CONSTRAINT "TicketAttachment_uploadedById_fkey" FOREIGN KEY ("uploadedById") REFERENCES "tms"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."TicketCostEntry" ADD CONSTRAINT "TicketCostEntry_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "public"."Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "tms"."TicketCostEntry" ADD CONSTRAINT "TicketCostEntry_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "tms"."Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "tms"."Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "tms"."User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."AuditLog" ADD CONSTRAINT "AuditLog_changedById_fkey" FOREIGN KEY ("changedById") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tms"."AuditLog" ADD CONSTRAINT "AuditLog_changedById_fkey" FOREIGN KEY ("changedById") REFERENCES "tms"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "maintenance_inventory"."MaintenanceAssetPhoto" ADD CONSTRAINT "MaintenanceAssetPhoto_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "maintenance_inventory"."MaintenanceAsset"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -6,8 +6,8 @@
 -- the enum.
 
 
-ALTER TYPE "public"."NotificationType" ADD VALUE 'ASSET_EXPIRING';
-ALTER TYPE "public"."NotificationType" ADD VALUE 'ASSET_DOWNTIME';
+ALTER TYPE "tms"."NotificationType" ADD VALUE 'ASSET_EXPIRING';
+ALTER TYPE "tms"."NotificationType" ADD VALUE 'ASSET_DOWNTIME';
 
 -- AlterTable
 ALTER TABLE "it_inventory"."ITAsset" ADD COLUMN     "downtimeAlertedAt" TIMESTAMP(3),

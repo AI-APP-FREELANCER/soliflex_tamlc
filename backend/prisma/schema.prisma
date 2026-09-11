@@ -6,7 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["public", "maintenance_inventory", "it_inventory"]
+  schemas  = ["tms", "maintenance_inventory", "it_inventory"]
 }
 
 // ---------------------------------------------------------------------------
@@ -20,14 +20,14 @@ enum Role {
   PRODUCTION
   ADMIN
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum Workstream {
   MAINTENANCE
   IT
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum TicketCategory {
@@ -40,7 +40,7 @@ enum TicketCategory {
   SERVER
   SOFTWARE
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum TicketStatus {
@@ -52,7 +52,7 @@ enum TicketStatus {
   FINAL_REVIEW
   CLOSED
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum Priority {
@@ -61,7 +61,7 @@ enum Priority {
   HIGH
   CRITICAL
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum OnHoldReason {
@@ -69,7 +69,7 @@ enum OnHoldReason {
   MATERIAL
   APPROVAL
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum AttachmentType {
@@ -78,7 +78,7 @@ enum AttachmentType {
   INVOICE
   OTHER
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum NotificationType {
@@ -95,7 +95,7 @@ enum NotificationType {
   ASSET_EXPIRING
   ASSET_DOWNTIME
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum AssetStatus {
@@ -103,7 +103,7 @@ enum AssetStatus {
   DOWN
   RETIRED
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 enum MaintenanceAssetCategory {
@@ -126,7 +126,7 @@ enum ITAssetCategory {
 }
 
 // ---------------------------------------------------------------------------
-// PUBLIC / CORE SCHEMA
+// TMS / CORE SCHEMA
 // ---------------------------------------------------------------------------
 
 model User {
@@ -157,7 +157,7 @@ model User {
   statusChanges    TicketStatusHistory[]
   refreshTokens    RefreshToken[]
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model RefreshToken {
@@ -169,14 +169,14 @@ model RefreshToken {
   createdAt DateTime @default(now())
   revoked   Boolean  @default(false)
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model SequenceCounter {
   key   String @id
   value Int    @default(0)
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model Ticket {
@@ -232,7 +232,7 @@ model Ticket {
   costEntries    TicketCostEntry[]
   statusHistory  TicketStatusHistory[]
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model TicketStatusHistory {
@@ -246,7 +246,7 @@ model TicketStatusHistory {
   comment      String?
   createdAt    DateTime     @default(now())
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model TicketComment {
@@ -258,7 +258,7 @@ model TicketComment {
   body       String
   createdAt  DateTime @default(now())
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model TicketAttachment {
@@ -274,7 +274,7 @@ model TicketAttachment {
   uploadedBy   User           @relation(fields: [uploadedById], references: [id])
   uploadedAt   DateTime       @default(now())
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model TicketCostEntry {
@@ -286,7 +286,7 @@ model TicketCostEntry {
   sparePartUsed Boolean @default(false)
   createdAt    DateTime @default(now())
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model Notification {
@@ -299,7 +299,7 @@ model Notification {
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 model AuditLog {
@@ -314,7 +314,7 @@ model AuditLog {
   changedBy    User     @relation(fields: [changedById], references: [id])
   changedAt    DateTime @default(now())
 
-  @@schema("public")
+  @@schema("tms")
 }
 
 // ---------------------------------------------------------------------------
