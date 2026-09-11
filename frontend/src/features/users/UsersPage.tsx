@@ -1,19 +1,22 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Plus, KeyRound } from "lucide-react";
+import { Plus, KeyRound, Pencil, UploadCloud } from "lucide-react";
 import { fetchUsers, createUser, updateUser, resetPassword, CreateUserInput } from "./api";
 import { Modal } from "../../components/Modal";
 import { Avatar } from "../../components/Avatar";
 import { Spinner } from "../../components/Spinner";
 import { apiErrorMessage } from "../../lib/api";
-import type { Role, Workstream } from "../../lib/types";
+import { BulkImportUsersModal } from "./BulkImportUsersModal";
+import type { Role, User, Workstream } from "../../lib/types";
 
 const ROLES: Role[] = ["MANAGER", "MECHANIC", "IT_TEAM", "PRODUCTION", "ADMIN"];
 
 export default function UsersPage() {
   const { data: users = [], isLoading } = useQuery({ queryKey: ["users"], queryFn: () => fetchUsers() });
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [editUser, setEditUser] = useState<User | null>(null);
   const queryClient = useQueryClient();
 
   const toggleActive = useMutation({
@@ -34,9 +37,14 @@ export default function UsersPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold text-soliflex-ink">Users</h1>
-        <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-soliflex-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600">
-          <Plus className="h-4 w-4" /> New user
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setBulkImportOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold text-soliflex-gray-700 hover:bg-soliflex-gray-200">
+            <UploadCloud className="h-4 w-4" /> Bulk upload
+          </button>
+          <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-soliflex-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600">
+            <Plus className="h-4 w-4" /> New user
+          </button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-soliflex-gray-100 bg-white">
@@ -71,6 +79,9 @@ export default function UsersPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
+                    <button onClick={() => setEditUser(u)} className="flex items-center gap-1 text-xs font-medium text-soliflex-gray-500 hover:underline">
+                      <Pencil className="h-3 w-3" /> Edit
+                    </button>
                     <button onClick={() => toggleActive.mutate({ id: u.id, active: !u.active })} className="text-xs font-medium text-soliflex-gray-500 hover:underline">
                       {u.active ? "Deactivate" : "Activate"}
                     </button>
@@ -86,7 +97,68 @@ export default function UsersPage() {
       </div>
 
       {createOpen && <CreateUserModal onClose={() => setCreateOpen(false)} />}
+      {editUser && <EditUserModal user={editUser} onClose={() => setEditUser(null)} />}
+      {bulkImportOpen && <BulkImportUsersModal onClose={() => setBulkImportOpen(false)} />}
     </div>
+  );
+}
+
+function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
+  const [form, setForm] = useState({
+    name: user.name,
+    role: user.role,
+    workstream: user.workstream,
+    department: user.department ?? "",
+    phone: user.phone ?? "",
+  });
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () => updateUser(user.id, { ...form, department: form.department || undefined, phone: form.phone || undefined }),
+    onSuccess: () => {
+      toast.success("User updated");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      onClose();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  return (
+    <Modal title={`Edit ${user.name}`} onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-xs text-soliflex-gray-400">
+          Employee ID and email are fixed identifiers and can't be changed here.
+        </p>
+        <input placeholder="Full name" value={form.name} onChange={(e) => set("name", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        <div className="grid grid-cols-2 gap-3">
+          <select value={form.role} onChange={(e) => set("role", e.target.value as Role)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+            {ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <select value={form.workstream ?? ""} onChange={(e) => set("workstream", (e.target.value || null) as Workstream | null)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+            <option value="">No workstream</option>
+            <option value="MAINTENANCE">Maintenance</option>
+            <option value="IT">IT</option>
+          </select>
+        </div>
+        <input placeholder="Department" value={form.department} onChange={(e) => set("department", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        <input placeholder="Phone" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        <button
+          onClick={() => mutation.mutate()}
+          disabled={!form.name || mutation.isPending}
+          className="w-full rounded-lg bg-soliflex-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-soliflex-orange-600 disabled:opacity-50"
+        >
+          Save changes
+        </button>
+      </div>
+    </Modal>
   );
 }
 

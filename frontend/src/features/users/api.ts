@@ -30,3 +30,22 @@ export async function resetPassword(id: string): Promise<{ tempPassword: string 
   const res = await api.post(`/users/${id}/reset-password`);
   return res.data;
 }
+
+export interface UserBulkImportResult {
+  imported: number;
+  failed: number;
+  created: { name: string; email: string; tempPassword: string }[];
+  errors: { row: number; message: string }[];
+}
+
+export async function downloadUsersTemplate(): Promise<Blob> {
+  const res = await api.get("/users/template", { responseType: "blob" });
+  return res.data;
+}
+
+export async function bulkImportUsers(file: File): Promise<UserBulkImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await api.post("/users/bulk-import", form, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data;
+}

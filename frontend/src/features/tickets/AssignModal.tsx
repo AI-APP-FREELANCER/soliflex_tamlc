@@ -7,7 +7,7 @@ import type { Priority, Ticket } from "../../lib/types";
 
 export function AssignModal({ ticket, onClose }: { ticket: Ticket; onClose: () => void }) {
   const { data: users = [] } = useQuery({ queryKey: ["users", ticket.workstream], queryFn: () => fetchUsers(ticket.workstream) });
-  const assignable = users.filter((u) => u.role === "MECHANIC" || u.role === "IT_TEAM");
+  const assignable = users.filter((u) => u.active && (u.role === "MECHANIC" || u.role === "IT_TEAM"));
 
   const [assignedToId, setAssignedToId] = useState("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
