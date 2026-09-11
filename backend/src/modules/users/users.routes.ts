@@ -65,7 +65,7 @@ async function createUserRecord(data: z.infer<typeof createUserSchema>, createdB
   return { user, tempPassword };
 }
 
-router.post("/", requireRole(Role.MANAGER), async (req, res) => {
+router.post("/", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = createUserSchema.parse(req.body);
   const { user, tempPassword } = await createUserRecord(data, req.user!.sub);
   res.status(201).json({ user: sanitizeUser(user), tempPassword });
@@ -73,7 +73,7 @@ router.post("/", requireRole(Role.MANAGER), async (req, res) => {
 
 const BULK_IMPORT_HEADERS = ["employeeId", "name", "email", "role", "workstream", "department", "phone"];
 
-router.get("/template", requireRole(Role.MANAGER), (_req, res) => {
+router.get("/template", requireRole(Role.MANAGER, Role.ADMIN), (_req, res) => {
   const csv = buildCsv(BULK_IMPORT_HEADERS, [
     ["EMP-501", "Jane Doe", "jane.doe@soliflexpackaging.com", "MECHANIC", "MAINTENANCE", "Maintenance", "9876543210"],
   ]);
@@ -82,7 +82,7 @@ router.get("/template", requireRole(Role.MANAGER), (_req, res) => {
   res.send(csv);
 });
 
-router.post("/bulk-import", requireRole(Role.MANAGER), csvUpload.single("file"), async (req, res) => {
+router.post("/bulk-import", requireRole(Role.MANAGER, Role.ADMIN), csvUpload.single("file"), async (req, res) => {
   if (!req.file) throw new ApiError(400, "No CSV file uploaded");
 
   let records: Record<string, string>[];
@@ -133,7 +133,7 @@ const updateUserSchema = z.object({
   active: z.boolean().optional(),
 });
 
-router.patch("/:id", requireRole(Role.MANAGER), async (req, res) => {
+router.patch("/:id", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = updateUserSchema.parse(req.body);
   const before = await prisma.user.findUniqueOrThrow({ where: { id: req.params.id } });
   const user = await prisma.user.update({ where: { id: req.params.id }, data });
@@ -151,7 +151,7 @@ router.patch("/:id", requireRole(Role.MANAGER), async (req, res) => {
   res.json(sanitizeUser(user));
 });
 
-router.post("/:id/reset-password", requireRole(Role.MANAGER), async (req, res) => {
+router.post("/:id/reset-password", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const tempPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 12);
   const user = await prisma.user.update({

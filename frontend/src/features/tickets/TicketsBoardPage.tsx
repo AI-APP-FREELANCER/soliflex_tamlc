@@ -132,8 +132,8 @@ export default function TicketsBoardPage() {
         <DragOverlay>{activeTicket && <TicketCard ticket={activeTicket} />}</DragOverlay>
       </DndContext>
 
-      {assignTarget && user?.role === "MANAGER" && <AssignModal ticket={assignTarget} onClose={() => setAssignTarget(null)} />}
-      {closeTarget && user?.role === "MANAGER" && <CloseModal ticket={closeTarget} onClose={() => setCloseTarget(null)} />}
+      {assignTarget && (user?.role === "MANAGER" || user?.role === "ADMIN") && <AssignModal ticket={assignTarget} onClose={() => setAssignTarget(null)} />}
+      {closeTarget && (user?.role === "MANAGER" || user?.role === "ADMIN") && <CloseModal ticket={closeTarget} onClose={() => setCloseTarget(null)} />}
     </div>
   );
 }

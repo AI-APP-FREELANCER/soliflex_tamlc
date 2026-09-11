@@ -19,15 +19,15 @@ const IT_CATEGORIES = new Set<TicketCategory>([
  * - Maintenance tickets: Production team (Production Machines) or Admin team
  *   (Factory/Facility Maintenance & Other Machines).
  * - IT tickets: IT Department team only.
- * Managers can raise a ticket in any category as part of their oversight role.
+ * Managers and Admins can raise a ticket in any category — Admin is a
+ * superuser role, a strict superset of Manager's capabilities.
  */
 export function canCreateTicket(role: Role, workstream: Workstream, category: TicketCategory): boolean {
-  if (role === Role.MANAGER) return true;
+  if (role === Role.MANAGER || role === Role.ADMIN) return true;
 
   if (workstream === Workstream.MAINTENANCE) {
     if (!MAINTENANCE_CATEGORIES.has(category)) return false;
-    if (category === TicketCategory.PRODUCTION_MACHINE) return role === Role.PRODUCTION;
-    return role === Role.ADMIN;
+    return role === Role.PRODUCTION;
   }
 
   if (workstream === Workstream.IT) {

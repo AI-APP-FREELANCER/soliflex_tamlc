@@ -177,7 +177,7 @@ export async function assignTicket(actor: Actor, ticketId: string, assignedToId:
 
 export async function updatePriority(actor: Actor, ticketId: string, priority: Priority) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
-  if (actor.role !== Role.MANAGER) {
+  if (actor.role !== Role.MANAGER && actor.role !== Role.ADMIN) {
     throw new ApiError(403, "Only a manager can change ticket priority");
   }
   if (ticket.status === TicketStatus.CLOSED) {

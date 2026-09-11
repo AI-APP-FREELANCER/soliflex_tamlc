@@ -51,7 +51,7 @@ const BULK_IMPORT_HEADERS = [
   "costCenter",
 ];
 
-router.get("/template", requireRole(Role.IT_TEAM, Role.MANAGER), (_req, res) => {
+router.get("/template", requireRole(Role.IT_TEAM, Role.MANAGER, Role.ADMIN), (_req, res) => {
   const csv = buildCsv(BULK_IMPORT_HEADERS, [
     [
       "Server Rack 2 - App Server",
@@ -143,13 +143,13 @@ async function createITAssetRecord(data: z.infer<typeof createSchema>, createdBy
   });
 }
 
-router.post("/", requireRole(Role.IT_TEAM, Role.MANAGER), async (req, res) => {
+router.post("/", requireRole(Role.IT_TEAM, Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = createSchema.parse(req.body);
   const updated = await createITAssetRecord(data, req.user!.sub);
   res.status(201).json(updated);
 });
 
-router.post("/bulk-import", requireRole(Role.IT_TEAM, Role.MANAGER), csvUpload.single("file"), async (req, res) => {
+router.post("/bulk-import", requireRole(Role.IT_TEAM, Role.MANAGER, Role.ADMIN), csvUpload.single("file"), async (req, res) => {
   if (!req.file) throw new ApiError(400, "No CSV file uploaded");
 
   let records: Record<string, string>[];
@@ -198,7 +198,7 @@ router.post("/bulk-import", requireRole(Role.IT_TEAM, Role.MANAGER), csvUpload.s
 });
 
 const updateSchema = createSchema.partial().extend({ status: z.nativeEnum(AssetStatus).optional() });
-router.patch("/:id", requireRole(Role.IT_TEAM, Role.MANAGER), async (req, res) => {
+router.patch("/:id", requireRole(Role.IT_TEAM, Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = updateSchema.parse(req.body);
   const before = await prisma.iTAsset.findUniqueOrThrow({ where: { id: req.params.id } });
   const statusChanged = data.status !== undefined && data.status !== before.status;
@@ -220,7 +220,7 @@ router.patch("/:id", requireRole(Role.IT_TEAM, Role.MANAGER), async (req, res) =
 });
 
 const invoiceSchema = z.object({ invoiceNumber: z.string().optional(), amount: z.coerce.number().optional() });
-router.post("/:id/invoices", requireRole(Role.IT_TEAM, Role.MANAGER), upload.single("file"), async (req, res) => {
+router.post("/:id/invoices", requireRole(Role.IT_TEAM, Role.MANAGER, Role.ADMIN), upload.single("file"), async (req, res) => {
   if (!req.file) throw new ApiError(400, "No file uploaded");
   const data = invoiceSchema.parse(req.body);
   const invoice = await prisma.iTAssetInvoice.create({

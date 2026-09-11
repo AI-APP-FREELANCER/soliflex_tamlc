@@ -26,7 +26,7 @@ export default function App() {
           <Route path="/assets/:type/:id" element={<AssetDetailPage />} />
           <Route path="/reports" element={<DashboardPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
-          <Route element={<ProtectedRoute roles={["MANAGER"]} />}>
+          <Route element={<ProtectedRoute roles={["MANAGER", "ADMIN"]} />}>
             <Route path="/users" element={<UsersPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={["MANAGER", "ADMIN"]} />}>

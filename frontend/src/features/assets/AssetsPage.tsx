@@ -34,7 +34,8 @@ export default function AssetsPage() {
 
   const canCreate =
     user?.role === "MANAGER" ||
-    (workstream === "MAINTENANCE" && (user?.role === "ADMIN" || user?.role === "PRODUCTION")) ||
+    user?.role === "ADMIN" ||
+    (workstream === "MAINTENANCE" && user?.role === "PRODUCTION") ||
     (workstream === "IT" && user?.role === "IT_TEAM");
 
   return (

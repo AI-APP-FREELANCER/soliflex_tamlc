@@ -42,7 +42,7 @@ export default function TicketDetailPage() {
 
   if (isLoading || !ticket) return <Spinner />;
 
-  const isManager = user?.role === "MANAGER";
+  const isManager = user?.role === "MANAGER" || user?.role === "ADMIN";
   const isAssignee = ticket.assignedToId === user?.id;
   const isTechnician = user?.role === "MECHANIC" || user?.role === "IT_TEAM";
 

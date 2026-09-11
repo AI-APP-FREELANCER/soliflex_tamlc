@@ -53,14 +53,14 @@ const assignSchema = z.object({
   effortEstimateHours: z.number().optional(),
 });
 
-router.post("/:id/assign", requireRole(Role.MANAGER), async (req, res) => {
+router.post("/:id/assign", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = assignSchema.parse(req.body);
   const ticket = await tickets.assignTicket(actorFromReq(req), req.params.id, data.assignedToId, data.priority, data.targetCompletionDate, data.effortEstimateHours);
   res.json(ticket);
 });
 
 const priorityUpdateSchema = z.object({ priority: z.nativeEnum(Priority) });
-router.patch("/:id/priority", requireRole(Role.MANAGER), async (req, res) => {
+router.patch("/:id/priority", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = priorityUpdateSchema.parse(req.body);
   res.json(await tickets.updatePriority(actorFromReq(req), req.params.id, data.priority));
 });
@@ -76,7 +76,7 @@ router.post("/:id/submit-recommendation", async (req, res) => {
 });
 
 const decisionSchema = z.object({ approve: z.boolean(), comment: z.string().optional() });
-router.post("/:id/decide-recommendation", requireRole(Role.MANAGER), async (req, res) => {
+router.post("/:id/decide-recommendation", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = decisionSchema.parse(req.body);
   res.json(await tickets.decideRecommendation(actorFromReq(req), req.params.id, data.approve, data.comment));
 });
@@ -89,12 +89,12 @@ router.post("/:id/mark-job-completed", async (req, res) => {
   res.json(await tickets.markJobCompleted(actorFromReq(req), req.params.id));
 });
 
-router.post("/:id/mark-final-review", requireRole(Role.MANAGER), async (req, res) => {
+router.post("/:id/mark-final-review", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   res.json(await tickets.markFinalReview(actorFromReq(req), req.params.id));
 });
 
 const closeSchema = z.object({ confirmEquipmentOperational: z.boolean(), closingComment: z.string().optional() });
-router.post("/:id/close", requireRole(Role.MANAGER), async (req, res) => {
+router.post("/:id/close", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = closeSchema.parse(req.body);
   res.json(await tickets.closeTicket(actorFromReq(req), req.params.id, data.confirmEquipmentOperational, data.closingComment));
 });

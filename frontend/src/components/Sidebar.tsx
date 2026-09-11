@@ -68,7 +68,7 @@ export function Sidebar() {
         <NavLink to="/reports" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
           <BarChart3 className="h-4 w-4" /> Reports
         </NavLink>
-        {user?.role === "MANAGER" && (
+        {(user?.role === "MANAGER" || user?.role === "ADMIN") && (
           <NavLink to="/users" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
             <Users className="h-4 w-4" /> Users
           </NavLink>

@@ -21,9 +21,9 @@ export function categoriesFor(workstream: Workstream) {
 export function allowedWorkstreamsForCreate(role: Role): Workstream[] {
   switch (role) {
     case "MANAGER":
+    case "ADMIN":
       return ["MAINTENANCE", "IT"];
     case "PRODUCTION":
-    case "ADMIN":
       return ["MAINTENANCE"];
     case "IT_TEAM":
       return ["IT"];
@@ -33,10 +33,9 @@ export function allowedWorkstreamsForCreate(role: Role): Workstream[] {
 }
 
 export function allowedCategoriesForCreate(role: Role, workstream: Workstream): TicketCategory[] {
-  if (role === "MANAGER") return categoriesFor(workstream).map((c) => c.value);
+  if (role === "MANAGER" || role === "ADMIN") return categoriesFor(workstream).map((c) => c.value);
   if (workstream === "MAINTENANCE") {
     if (role === "PRODUCTION") return ["PRODUCTION_MACHINE"];
-    if (role === "ADMIN") return ["FACTORY_FACILITY", "OTHER_MACHINE"];
     return [];
   }
   if (workstream === "IT" && role === "IT_TEAM") return IT_CATEGORIES.map((c) => c.value);
