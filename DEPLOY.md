@@ -4,6 +4,21 @@ The app runs directly on the server with Node.js, PM2 (backend process manager),
 Nginx (reverse proxy + TLS via Certbot). The database is DigitalOcean's managed
 Postgres (`soliflex_ticketing`) — it is never run on this server.
 
+Live at: `tms.soliflexpackaging.com`, checked out on the server at
+`/home/tms-app/soliflex_ticket_mgmt_system`.
+
+**⚠️ This server hosts several unrelated apps under the same PM2 daemon** (at least
+a transport/logistics app and an "accounts" app, as of 2026-09-12), some with
+confusingly similar names. **`soliflex-backend` belongs to a different, unrelated
+project (port 5000)** — this app's real PM2 name is **`soliflex-ticketing-backend`**
+(port 4000). Before running any `pm2 restart`/`pm2 delete` by name, confirm you have
+the right one:
+
+```bash
+pm2 describe soliflex-ticketing-backend | grep "script path"
+# must show: /home/tms-app/soliflex_ticket_mgmt_system/backend/dist/server.js
+```
+
 ## One-time server setup
 
 ```bash
@@ -20,10 +35,8 @@ sudo apt install -y nginx certbot python3-certbot-nginx
 
 ## Deploy / redeploy
 
-Run from wherever you keep the repo on the server (substitute your actual path below):
-
 ```bash
-cd /path/to/soliflex_tamlc
+cd /home/tms-app/soliflex_ticket_mgmt_system
 git pull origin main
 
 # --- Backend ---
@@ -32,13 +45,13 @@ npm ci
 npx prisma generate
 npx prisma migrate deploy      # applies any new migrations to the DO database
 npm run build                  # compiles TypeScript to dist/
-pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js
+pm2 restart soliflex-ticketing-backend --update-env
 pm2 save
 
 # --- Frontend ---
 cd ../frontend
 npm ci
-npm run build                  # produces frontend/dist, served by Nginx
+npm run build                  # produces frontend/dist, served directly by Nginx (no PM2 process for it)
 ```
 
 `backend/.env` must exist (copy from `.env.production.example` at the repo root and
@@ -49,27 +62,29 @@ file is needed for a normal deploy**. Only set `frontend/.env.production` with a
 explicit `VITE_API_BASE_URL` if the frontend and backend ever end up served from
 different domains.
 
-## First-time Nginx + TLS setup
+## Nginx site config (already in place)
+
+The live Nginx config lives at `/etc/nginx/sites-enabled/tms.soliflexpackaging.com`
+on the server (HTTPS via Certbot, `root` pointed at `frontend/dist`, `/api`,
+`/uploads`, `/socket.io` proxied to `127.0.0.1:4000`). `deploy/nginx.tms.soliflexpackaging.com.conf.example`
+in this repo is a reference copy of that shape for setting up a *new* server from
+scratch — it does not need to be re-applied for a normal deploy.
+
+## First-time PM2 setup (only if this app doesn't already have a PM2 entry)
 
 ```bash
-sudo cp deploy/nginx.tms.soliflexpackaging.com.conf.example /etc/nginx/sites-available/tms.soliflexpackaging.com
-# edit the REPLACE_WITH_ABSOLUTE_PATH line to point at your repo's frontend/dist
-sudo ln -s /etc/nginx/sites-available/tms.soliflexpackaging.com /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d tms.soliflexpackaging.com   # sets up HTTPS + auto-renewal
-```
-
-## First-time PM2 setup (so it survives a reboot)
-
-```bash
-pm2 start backend/ecosystem.config.js
+cd backend
+pm2 start ecosystem.config.js   # registers it as "soliflex-ticketing-backend"
 pm2 save
-pm2 startup   # follow the printed instructions (runs a sudo command once)
+pm2 startup   # follow the printed instructions (runs a sudo command once) — skip if PM2 startup is already configured for other apps on this server
 ```
 
 ## Verify
 
 ```bash
-curl https://tms.soliflexpackaging.com/api/health   # should return {"ok":true}
-pm2 logs soliflex-backend                            # tail backend logs
+curl https://tms.soliflexpackaging.com/api/health         # should return {"ok":true}
+pm2 logs soliflex-ticketing-backend                        # tail backend logs
+curl -i -X POST http://127.0.0.1:4000/api/auth/register -H "Content-Type: application/json" -d '{}'
+# should return 400 (validation error), never 404 — a 404 here means the
+# running process is stale or you restarted the wrong PM2 app by name
 ```
