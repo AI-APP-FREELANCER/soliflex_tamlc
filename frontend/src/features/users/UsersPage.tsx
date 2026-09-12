@@ -7,10 +7,18 @@ import { Modal } from "../../components/Modal";
 import { Avatar } from "../../components/Avatar";
 import { Spinner } from "../../components/Spinner";
 import { apiErrorMessage } from "../../lib/api";
+import { useAuthStore } from "../../store/auth.store";
 import { BulkImportUsersModal } from "./BulkImportUsersModal";
 import type { Role, User, Workstream } from "../../lib/types";
 
-const ROLES: Role[] = ["MANAGER", "MECHANIC", "IT_TEAM", "PRODUCTION", "ADMIN"];
+const ALL_ROLES: Role[] = ["MANAGER", "MECHANIC", "IT_TEAM", "PRODUCTION", "ADMIN", "EMPLOYEE", "IT_SUPPORT_ENGINEER", "IT_TEAM_LEAD"];
+const ADMIN_ONLY_ROLES = new Set<Role>(["ADMIN", "IT_TEAM_LEAD", "IT_SUPPORT_ENGINEER"]);
+
+/** Mirrors the server-side restriction in users.routes.ts — a convenience only, the server is the real boundary. */
+function assignableRoles(actorRole: Role | undefined): Role[] {
+  if (actorRole === "ADMIN") return ALL_ROLES;
+  return ALL_ROLES.filter((r) => !ADMIN_ONLY_ROLES.has(r));
+}
 
 export default function UsersPage() {
   const { data: users = [], isLoading } = useQuery({ queryKey: ["users"], queryFn: () => fetchUsers() });
@@ -104,6 +112,8 @@ export default function UsersPage() {
 }
 
 function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
+  const actor = useAuthStore((s) => s.user);
+  const roles = assignableRoles(actor?.role);
   const [form, setForm] = useState({
     name: user.name,
     role: user.role,
@@ -136,7 +146,7 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
         <input placeholder="Full name" value={form.name} onChange={(e) => set("name", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <div className="grid grid-cols-2 gap-3">
           <select value={form.role} onChange={(e) => set("role", e.target.value as Role)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-            {ROLES.map((r) => (
+            {roles.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
@@ -163,6 +173,8 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
 }
 
 function CreateUserModal({ onClose }: { onClose: () => void }) {
+  const actor = useAuthStore((s) => s.user);
+  const roles = assignableRoles(actor?.role);
   const [form, setForm] = useState<CreateUserInput>({ employeeId: "", name: "", email: "", role: "MECHANIC", workstream: "MAINTENANCE", department: "" });
   const queryClient = useQueryClient();
 
@@ -190,7 +202,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
         <input placeholder="Email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <div className="grid grid-cols-2 gap-3">
           <select value={form.role} onChange={(e) => set("role", e.target.value as Role)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-            {ROLES.map((r) => (
+            {roles.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>

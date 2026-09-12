@@ -104,6 +104,7 @@ export interface TicketFilter {
   priority?: Priority;
   onHold?: boolean;
   search?: string;
+  createdAtRange?: { gte?: Date; lte?: Date };
 }
 
 export async function listTickets(filter: TicketFilter) {
@@ -115,6 +116,7 @@ export async function listTickets(filter: TicketFilter) {
       reportedById: filter.reportedById,
       priority: filter.priority,
       onHold: filter.onHold,
+      ...(filter.createdAtRange ? { createdAt: filter.createdAtRange } : {}),
       ...(filter.search
         ? {
             OR: [

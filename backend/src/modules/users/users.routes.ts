@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { parse as parseCsv } from "csv-parse/sync";
 import { prisma } from "../../lib/prisma";
 import { requireAuth, requireRole } from "../../middleware/auth";
@@ -11,6 +10,16 @@ import { Role, Workstream } from "@prisma/client";
 import { recordAudit } from "../audit/audit.service";
 import { buildCsv } from "../../lib/csv";
 import { ApiError } from "../../middleware/errors";
+import { generateCompliantTempPassword } from "../../lib/password-policy";
+
+/** Roles powerful enough that only an Admin (not a Manager) may grant them. */
+const ADMIN_ONLY_ROLES = new Set<Role>([Role.ADMIN, Role.IT_TEAM_LEAD, Role.IT_SUPPORT_ENGINEER]);
+
+function assertRoleCreatable(actorRole: Role, targetRole: Role) {
+  if (ADMIN_ONLY_ROLES.has(targetRole) && actorRole !== Role.ADMIN) {
+    throw new ApiError(403, "Only an Admin can create or promote users to this role");
+  }
+}
 
 const router = Router();
 router.use(requireAuth);
@@ -34,7 +43,7 @@ const createUserSchema = z.object({
 });
 
 function generateTempPassword(): string {
-  return crypto.randomBytes(6).toString("base64url");
+  return generateCompliantTempPassword();
 }
 
 async function createUserRecord(data: z.infer<typeof createUserSchema>, createdById: string) {
@@ -67,6 +76,7 @@ async function createUserRecord(data: z.infer<typeof createUserSchema>, createdB
 
 router.post("/", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = createUserSchema.parse(req.body);
+  assertRoleCreatable(req.user!.role, data.role);
   const { user, tempPassword } = await createUserRecord(data, req.user!.sub);
   res.status(201).json({ user: sanitizeUser(user), tempPassword });
 });
@@ -114,6 +124,7 @@ router.post("/bulk-import", requireRole(Role.MANAGER, Role.ADMIN), csvUpload.sin
       continue;
     }
     try {
+      assertRoleCreatable(req.user!.role, parsed.data.role);
       const { user, tempPassword } = await createUserRecord(parsed.data, req.user!.sub);
       created.push({ name: user.name, email: user.email, tempPassword });
     } catch (e) {
@@ -135,6 +146,9 @@ const updateUserSchema = z.object({
 
 router.patch("/:id", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = updateUserSchema.parse(req.body);
+  if (data.role) {
+    assertRoleCreatable(req.user!.role, data.role);
+  }
   const before = await prisma.user.findUniqueOrThrow({ where: { id: req.params.id } });
   const user = await prisma.user.update({ where: { id: req.params.id }, data });
   if (before.active !== user.active) {

@@ -5,6 +5,7 @@ import { useTickets } from "./hooks";
 import { StatusBadge, PriorityBadge, OnHoldBadge, SlaBreachBadge } from "../../components/badges";
 import { Avatar } from "../../components/Avatar";
 import { Spinner, EmptyState } from "../../components/Spinner";
+import { DateRangeFilter, DateRangeValue } from "../../components/DateRangeFilter";
 import type { Priority, TicketStatus } from "../../lib/types";
 import { format } from "date-fns";
 
@@ -13,6 +14,7 @@ export default function TicketsListPage() {
   const [status, setStatus] = useState<TicketStatus | "">("");
   const [priority, setPriority] = useState<Priority | "">("");
   const [search, setSearch] = useState("");
+  const [dateRange, setDateRange] = useState<DateRangeValue>({});
   const navigate = useNavigate();
 
   const { data: tickets = [], isLoading } = useTickets({
@@ -20,6 +22,7 @@ export default function TicketsListPage() {
     status: status || undefined,
     priority: priority || undefined,
     search: search || undefined,
+    ...dateRange,
   });
 
   return (
@@ -48,6 +51,7 @@ export default function TicketsListPage() {
             </option>
           ))}
         </select>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} />
       </div>
 
       {isLoading ? (

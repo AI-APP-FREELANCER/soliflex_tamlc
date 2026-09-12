@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import clsx from "clsx";
-import { LayoutGrid, List, Boxes, BarChart3, Users, Wrench, Laptop, ScrollText, X } from "lucide-react";
+import { LayoutGrid, List, Boxes, BarChart3, Users, Wrench, Laptop, ScrollText, X, LifeBuoy, Gauge } from "lucide-react";
 import { useAuthStore } from "../store/auth.store";
 import { useWorkstreamStore } from "../store/workstream.store";
 import { useUIStore } from "../store/ui.store";
@@ -9,12 +9,18 @@ const navItem =
   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-soliflex-gray-600 hover:bg-soliflex-gray-100 hover:text-soliflex-ink";
 const navItemActive = "bg-soliflex-orange-50 text-soliflex-orange-700 hover:bg-soliflex-orange-50 hover:text-soliflex-orange-700";
 
+const LEGACY_ROLES = new Set(["MANAGER", "MECHANIC", "IT_TEAM", "PRODUCTION"]);
+const HELPDESK_ROLES = new Set(["EMPLOYEE", "IT_SUPPORT_ENGINEER", "IT_TEAM_LEAD"]);
+
 export function Sidebar() {
   const user = useAuthStore((s) => s.user);
   const { workstream, setWorkstream } = useWorkstreamStore();
-  const canSeeBoth = user?.role === "MANAGER";
   const mobileMenuOpen = useUIStore((s) => s.mobileMenuOpen);
   const setMobileMenuOpen = useUIStore((s) => s.setMobileMenuOpen);
+  const isAdmin = user?.role === "ADMIN";
+  const showLegacy = isAdmin || (user && LEGACY_ROLES.has(user.role));
+  const showHelpdesk = isAdmin || (user && HELPDESK_ROLES.has(user.role));
+  const helpdeskLabel = user?.role === "IT_SUPPORT_ENGINEER" ? "My Queue" : user?.role === "EMPLOYEE" ? "My Requests" : "Helpdesk Queue";
 
   return (
     <>
@@ -32,7 +38,7 @@ export function Sidebar() {
         </button>
       </div>
 
-      {(canSeeBoth || true) && (
+      {showLegacy && (
         <div className="mx-3 mb-3 grid grid-cols-2 gap-1 rounded-lg bg-soliflex-gray-100 p-1">
           <button
             onClick={() => setWorkstream("MAINTENANCE")}
@@ -56,18 +62,35 @@ export function Sidebar() {
       )}
 
       <nav className="flex-1 space-y-1 px-3">
-        <NavLink to="/" end onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
-          <LayoutGrid className="h-4 w-4" /> Board
-        </NavLink>
-        <NavLink to="/tickets" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
-          <List className="h-4 w-4" /> All Tickets
-        </NavLink>
-        <NavLink to="/assets" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
-          <Boxes className="h-4 w-4" /> Assets
-        </NavLink>
-        <NavLink to="/reports" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
-          <BarChart3 className="h-4 w-4" /> Reports
-        </NavLink>
+        {showLegacy && (
+          <>
+            <NavLink to="/" end onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <LayoutGrid className="h-4 w-4" /> Board
+            </NavLink>
+            <NavLink to="/tickets" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <List className="h-4 w-4" /> All Tickets
+            </NavLink>
+            <NavLink to="/assets" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <Boxes className="h-4 w-4" /> Assets
+            </NavLink>
+            <NavLink to="/reports" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <BarChart3 className="h-4 w-4" /> Reports
+            </NavLink>
+          </>
+        )}
+        {showHelpdesk && (
+          <>
+            {showLegacy && <div className="my-2 border-t border-soliflex-gray-100" />}
+            <NavLink to="/helpdesk" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <LifeBuoy className="h-4 w-4" /> {helpdeskLabel}
+            </NavLink>
+            {(user?.role === "IT_TEAM_LEAD" || isAdmin) && (
+              <NavLink to="/helpdesk-dashboard" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+                <Gauge className="h-4 w-4" /> Helpdesk Dashboard
+              </NavLink>
+            )}
+          </>
+        )}
         {(user?.role === "MANAGER" || user?.role === "ADMIN") && (
           <NavLink to="/users" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
             <Users className="h-4 w-4" /> Users

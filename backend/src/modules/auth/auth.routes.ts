@@ -28,6 +28,21 @@ router.post("/login", async (req, res) => {
   res.json({ accessToken, user });
 });
 
+const registerSchema = z.object({
+  employeeId: z.string().min(1),
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(1),
+  phone: z.string().optional(),
+});
+
+router.post("/register", async (req, res) => {
+  const data = registerSchema.parse(req.body);
+  const { accessToken, refreshToken, user } = await authService.registerEmployee(data);
+  res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions);
+  res.status(201).json({ accessToken, user });
+});
+
 router.post("/refresh", async (req, res) => {
   const token = req.cookies?.[REFRESH_COOKIE];
   if (!token) {
@@ -53,7 +68,8 @@ router.get("/me", requireAuth, async (req, res) => {
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8),
+  // real strength rules are enforced by assertStrongPassword() in the service layer
+  newPassword: z.string().min(1),
 });
 
 router.post("/change-password", requireAuth, async (req, res) => {

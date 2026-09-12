@@ -1,7 +1,8 @@
 import { api } from "../../lib/api";
 import type { AttachmentType, OnHoldReason, Priority, Ticket, TicketCategory, TicketStatus, Workstream } from "../../lib/types";
+import type { DateRangeValue } from "../../components/DateRangeFilter";
 
-export interface TicketFilter {
+export interface TicketFilter extends DateRangeValue {
   workstream?: Workstream;
   status?: TicketStatus;
   assignedToId?: string;

@@ -1,11 +1,15 @@
 import { FormEvent, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+import clsx from "clsx";
 import { API_BASE_URL, apiErrorMessage } from "../../lib/api";
 import { useAuthStore } from "../../store/auth.store";
 import { Loader2 } from "lucide-react";
 
+type LoginTab = "employee" | "staff";
+
 export default function LoginPage() {
+  const [tab, setTab] = useState<LoginTab>("employee");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +58,37 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <img src="/soliflex-logo.png" alt="Soliflex" className="mb-8 h-9 lg:hidden" />
           <h2 className="text-2xl font-bold text-soliflex-ink">Sign in</h2>
-          <p className="mt-1 text-sm text-soliflex-gray-500">Use the credentials your manager provided you.</p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-soliflex-gray-100 p-1">
+            <button
+              type="button"
+              onClick={() => setTab("employee")}
+              className={clsx(
+                "rounded-md py-2 text-xs font-semibold transition",
+                tab === "employee" ? "bg-white text-soliflex-orange-600 shadow-sm" : "text-soliflex-gray-500"
+              )}
+            >
+              Employee — Raise an IT issue
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("staff")}
+              className={clsx(
+                "rounded-md py-2 text-xs font-semibold transition",
+                tab === "staff" ? "bg-white text-soliflex-orange-600 shadow-sm" : "text-soliflex-gray-500"
+              )}
+            >
+              IT Support / Maintenance Staff
+            </button>
+          </div>
+
+          <p className="mt-3 text-sm text-soliflex-gray-500">
+            {tab === "employee"
+              ? "Sign in to submit and track your own IT support requests."
+              : "For IT Support Engineers, Team Leads, Mechanics, Managers, and Admins."}
+          </p>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Email</label>
               <input
@@ -93,9 +125,19 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-xs text-soliflex-gray-400">
-            No self sign-up — accounts are created and managed by your Manager.
-          </p>
+          {tab === "employee" ? (
+            <p className="mt-6 text-xs text-soliflex-gray-400">
+              New here?{" "}
+              <Link to="/register" className="font-semibold text-soliflex-orange-600 hover:underline">
+                Create your account
+              </Link>{" "}
+              with your company email.
+            </p>
+          ) : (
+            <p className="mt-6 text-xs text-soliflex-gray-400">
+              No self sign-up for staff roles — accounts are created and managed by your Admin.
+            </p>
+          )}
         </div>
       </div>
     </div>

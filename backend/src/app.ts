@@ -15,6 +15,7 @@ import itAssetsRoutes from "./modules/assets-it/it-assets.routes";
 import notificationsRoutes from "./modules/notifications/notifications.routes";
 import reportsRoutes from "./modules/reports/reports.routes";
 import auditRoutes from "./modules/audit/audit.routes";
+import helpdeskRoutes from "./modules/helpdesk/helpdesk.routes";
 
 export function createApp() {
   const app = express();
@@ -37,6 +38,7 @@ export function createApp() {
   app.use("/api/notifications", notificationsRoutes);
   app.use("/api/reports", reportsRoutes);
   app.use("/api/audit", auditRoutes);
+  app.use("/api/helpdesk", helpdeskRoutes);
 
   app.use(errorHandler);
 

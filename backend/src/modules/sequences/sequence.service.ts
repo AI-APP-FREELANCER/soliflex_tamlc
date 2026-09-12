@@ -24,3 +24,7 @@ export function formatAssetItemCode(workstream: "MAINTENANCE" | "IT", value: num
   const prefix = workstream === "MAINTENANCE" ? "M-AST" : "IT-AST";
   return `${prefix}-${String(value).padStart(3, "0")}`;
 }
+
+export function formatHelpdeskTicketNumber(value: number): string {
+  return `HD-${value}`;
+}

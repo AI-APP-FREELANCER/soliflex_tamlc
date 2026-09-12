@@ -2,6 +2,7 @@ import { Router } from "express";
 import { Role } from "@prisma/client";
 import { requireAuth, requireRole } from "../../middleware/auth";
 import { prisma } from "../../lib/prisma";
+import { resolveDateRange } from "../../lib/date-range";
 
 const router = Router();
 router.use(requireAuth, requireRole(Role.MANAGER, Role.ADMIN));
@@ -9,11 +10,17 @@ router.use(requireAuth, requireRole(Role.MANAGER, Role.ADMIN));
 router.get("/", async (req, res) => {
   const take = Math.min(Number(req.query.limit ?? 50), 200);
   const cursor = req.query.cursor as string | undefined;
+  const changedAtRange = resolveDateRange({
+    range: req.query.range as string | undefined,
+    from: req.query.from as string | undefined,
+    to: req.query.to as string | undefined,
+  });
 
   const entries = await prisma.auditLog.findMany({
     where: {
       entityType: req.query.entityType ? String(req.query.entityType) : undefined,
       entityId: req.query.entityId ? String(req.query.entityId) : undefined,
+      ...(changedAtRange ? { changedAt: changedAtRange } : {}),
     },
     include: { changedBy: { select: { id: true, name: true, role: true } } },
     orderBy: { changedAt: "desc" },

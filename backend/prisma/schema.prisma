@@ -19,6 +19,9 @@ enum Role {
   IT_TEAM
   PRODUCTION
   ADMIN
+  EMPLOYEE
+  IT_SUPPORT_ENGINEER
+  IT_TEAM_LEAD
 
   @@schema("tms")
 }
@@ -94,6 +97,37 @@ enum NotificationType {
   TICKET_CLOSED
   ASSET_EXPIRING
   ASSET_DOWNTIME
+  HELPDESK_TICKET_CREATED
+  HELPDESK_TICKET_ASSIGNED
+  HELPDESK_STATUS_CHANGED
+  HELPDESK_COMMENT_ADDED
+  HELPDESK_TICKET_RESOLVED
+  HELPDESK_TICKET_CLOSED
+  HELPDESK_DEADLINE_BREACHED
+  HELPDESK_DEADLINE_MISSING
+
+  @@schema("tms")
+}
+
+enum HelpdeskCategory {
+  LAPTOP_DESKTOP
+  PRINTER
+  NETWORK
+  SOFTWARE
+  ACCESS_REQUEST
+  EMAIL
+  OTHER
+
+  @@schema("tms")
+}
+
+enum HelpdeskStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REOPENED
 
   @@schema("tms")
 }
@@ -156,6 +190,14 @@ model User {
   auditLogs        AuditLog[]
   statusChanges    TicketStatusHistory[]
   refreshTokens    RefreshToken[]
+
+  helpdeskRaised        HelpdeskTicket[]        @relation("HelpdeskRaisedBy")
+  helpdeskAssigned      HelpdeskTicket[]        @relation("HelpdeskAssignedTo")
+  helpdeskLed           HelpdeskTicket[]        @relation("HelpdeskAssignedBy")
+  helpdeskResolved      HelpdeskTicket[]        @relation("HelpdeskResolvedBy")
+  helpdeskClosed        HelpdeskTicket[]        @relation("HelpdeskClosedBy")
+  helpdeskComments      HelpdeskComment[]       @relation("HelpdeskCommentAuthor")
+  helpdeskStatusChanges HelpdeskStatusHistory[] @relation("HelpdeskStatusChangedBy")
 
   @@schema("tms")
 }
@@ -313,6 +355,82 @@ model AuditLog {
   changedById  String
   changedBy    User     @relation(fields: [changedById], references: [id])
   changedAt    DateTime @default(now())
+
+  @@schema("tms")
+}
+
+// ---------------------------------------------------------------------------
+// IT HELPDESK — company-wide employee IT support tickets. Independent of the
+// Ticket/TicketStatus workflow above (which is tuned for physical-asset
+// repair sign-off); this is a lightweight Jira-like flow for helpdesk issues.
+// ---------------------------------------------------------------------------
+
+model HelpdeskTicket {
+  id               String           @id @default(cuid())
+  ticketNumber     String           @unique
+  category         HelpdeskCategory
+  title            String
+  description      String
+  priority         Priority?
+  status           HelpdeskStatus   @default(OPEN)
+
+  onHold           Boolean          @default(false)
+  onHoldReason     String?
+  onHoldSince      DateTime?
+
+  raisedById       String
+  raisedBy         User             @relation("HelpdeskRaisedBy", fields: [raisedById], references: [id])
+  assignedToId     String?
+  assignedTo       User?            @relation("HelpdeskAssignedTo", fields: [assignedToId], references: [id])
+  teamLeadId       String?
+  teamLead         User?            @relation("HelpdeskAssignedBy", fields: [teamLeadId], references: [id])
+
+  // asset link (cross-schema — plain id reference, joined at the app layer, mirrors Ticket.itAssetId)
+  itAssetId        String?
+
+  deadline                 DateTime?
+  deadlineSetAt            DateTime?
+  deadlineBreached         Boolean   @default(false)
+  missingDeadlineAlertedAt DateTime?
+
+  resolvedAt       DateTime?
+  resolvedById     String?
+  resolvedBy       User?            @relation("HelpdeskResolvedBy", fields: [resolvedById], references: [id])
+  closedAt         DateTime?
+  closedById       String?
+  closedBy         User?            @relation("HelpdeskClosedBy", fields: [closedById], references: [id])
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  comments         HelpdeskComment[]
+  statusHistory    HelpdeskStatusHistory[]
+
+  @@schema("tms")
+}
+
+model HelpdeskComment {
+  id         String         @id @default(cuid())
+  ticketId   String
+  ticket     HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User           @relation("HelpdeskCommentAuthor", fields: [authorId], references: [id])
+  body       String
+  createdAt  DateTime       @default(now())
+
+  @@schema("tms")
+}
+
+model HelpdeskStatusHistory {
+  id          String          @id @default(cuid())
+  ticketId    String
+  ticket      HelpdeskTicket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus  HelpdeskStatus?
+  toStatus    HelpdeskStatus
+  changedById String
+  changedBy   User            @relation("HelpdeskStatusChangedBy", fields: [changedById], references: [id])
+  comment     String?
+  createdAt   DateTime        @default(now())
 
   @@schema("tms")
 }

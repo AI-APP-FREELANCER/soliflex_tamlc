@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../../middleware/auth";
 import { upload } from "../../middleware/upload";
 import { Role } from "@prisma/client";
 import * as tickets from "./tickets.service";
+import { resolveDateRange } from "../../lib/date-range";
 
 const router = Router();
 router.use(requireAuth);
@@ -22,6 +23,11 @@ router.get("/", async (req, res) => {
     priority: req.query.priority as Priority | undefined,
     onHold: req.query.onHold ? req.query.onHold === "true" : undefined,
     search: req.query.search as string | undefined,
+    createdAtRange: resolveDateRange({
+      range: req.query.range as string | undefined,
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+    }),
   });
   res.json(result);
 });

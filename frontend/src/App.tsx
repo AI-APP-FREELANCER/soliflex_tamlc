@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppShell } from "./components/AppShell";
 import LoginPage from "./features/auth/LoginPage";
+import RegisterPage from "./features/auth/RegisterPage";
 import ChangePasswordPage from "./features/auth/ChangePasswordPage";
 import TicketsBoardPage from "./features/tickets/TicketsBoardPage";
 import TicketsListPage from "./features/tickets/TicketsListPage";
@@ -11,20 +12,40 @@ import AssetDetailPage from "./features/assets/AssetDetailPage";
 import UsersPage from "./features/users/UsersPage";
 import DashboardPage from "./features/reports/DashboardPage";
 import AuditLogPage from "./features/audit/AuditLogPage";
+import HelpdeskListPage from "./features/helpdesk/HelpdeskListPage";
+import HelpdeskDetailPage from "./features/helpdesk/HelpdeskDetailPage";
+import HelpdeskDashboardPage from "./features/helpdesk/HelpdeskDashboardPage";
+import { useAuthStore } from "./store/auth.store";
+
+const HELPDESK_ROLES = new Set(["EMPLOYEE", "IT_SUPPORT_ENGINEER", "IT_TEAM_LEAD"]);
+
+function HomeRedirect() {
+  const user = useAuthStore((s) => s.user);
+  if (user && HELPDESK_ROLES.has(user.role)) {
+    return <Navigate to="/helpdesk" replace />;
+  }
+  return <TicketsBoardPage />;
+}
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
-          <Route path="/" element={<TicketsBoardPage />} />
+          <Route path="/" element={<HomeRedirect />} />
           <Route path="/tickets" element={<TicketsListPage />} />
           <Route path="/tickets/:id" element={<TicketDetailPage />} />
           <Route path="/assets" element={<AssetsPage />} />
           <Route path="/assets/:type/:id" element={<AssetDetailPage />} />
           <Route path="/reports" element={<DashboardPage />} />
+          <Route path="/helpdesk" element={<HelpdeskListPage />} />
+          <Route path="/helpdesk/:id" element={<HelpdeskDetailPage />} />
+          <Route element={<ProtectedRoute roles={["IT_TEAM_LEAD", "ADMIN"]} />}>
+            <Route path="/helpdesk-dashboard" element={<HelpdeskDashboardPage />} />
+          </Route>
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route element={<ProtectedRoute roles={["MANAGER", "ADMIN"]} />}>
             <Route path="/users" element={<UsersPage />} />

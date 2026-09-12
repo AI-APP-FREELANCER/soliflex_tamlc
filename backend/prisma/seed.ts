@@ -1,6 +1,6 @@
-import { PrismaClient, Role, Workstream, TicketCategory, Priority, MaintenanceAssetCategory, ITAssetCategory } from "@prisma/client";
+import { PrismaClient, Role, Workstream, TicketCategory, Priority, MaintenanceAssetCategory, ITAssetCategory, HelpdeskCategory } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { nextSequenceValue, formatTicketNumber, formatAssetItemCode } from "../src/modules/sequences/sequence.service";
+import { nextSequenceValue, formatTicketNumber, formatAssetItemCode, formatHelpdeskTicketNumber } from "../src/modules/sequences/sequence.service";
 
 const prisma = new PrismaClient();
 
@@ -88,6 +88,32 @@ async function main() {
     department: "Admin",
   });
 
+  const itTeamLead = await upsertUser({
+    employeeId: "EMP-501",
+    name: "Karan Mehta",
+    email: "karan.mehta@soliflex.local",
+    role: Role.IT_TEAM_LEAD,
+    workstream: Workstream.IT,
+    department: "IT",
+  });
+
+  const itSupportEngineer = await upsertUser({
+    employeeId: "EMP-502",
+    name: "Divya Rao",
+    email: "divya.rao@soliflex.local",
+    role: Role.IT_SUPPORT_ENGINEER,
+    workstream: Workstream.IT,
+    department: "IT",
+  });
+
+  const employeeUser = await upsertUser({
+    employeeId: "EMP-601",
+    name: "Amit Joshi",
+    email: "amit.joshi@soliflexpackaging.com",
+    role: Role.EMPLOYEE,
+    department: "Production",
+  });
+
   console.log("Seeded users.");
 
   // --- sample assets ---
@@ -158,13 +184,43 @@ async function main() {
     console.log("Seeded sample ticket.");
   }
 
+  // --- sample helpdesk ticket ---
+  const existingHelpdeskTicket = await prisma.helpdeskTicket.findFirst({ where: { title: "Laptop won't power on" } });
+  if (!existingHelpdeskTicket) {
+    await prisma.$transaction(async (tx) => {
+      const seq = await nextSequenceValue(tx as typeof prisma, "helpdesk-ticket", 1000);
+      const ticket = await tx.helpdeskTicket.create({
+        data: {
+          ticketNumber: formatHelpdeskTicketNumber(seq),
+          category: HelpdeskCategory.LAPTOP_DESKTOP,
+          title: "Laptop won't power on",
+          description: "Laptop was working fine yesterday, this morning it doesn't turn on even when plugged in.",
+          raisedById: employeeUser.id,
+          teamLeadId: itTeamLead.id,
+          assignedToId: itSupportEngineer.id,
+          status: "ASSIGNED",
+          priority: Priority.HIGH,
+          deadline: new Date(Date.now() + 24 * 3_600_000),
+          deadlineSetAt: new Date(),
+        },
+      });
+      await tx.helpdeskStatusHistory.create({ data: { ticketId: ticket.id, toStatus: "OPEN", changedById: employeeUser.id, comment: "Ticket raised" } });
+      await tx.helpdeskStatusHistory.create({ data: { ticketId: ticket.id, fromStatus: "OPEN", toStatus: "ASSIGNED", changedById: itTeamLead.id, comment: `Assigned to ${itSupportEngineer.name}` } });
+      await tx.helpdeskComment.create({ data: { ticketId: ticket.id, authorId: itSupportEngineer.id, body: "Picking this up now, will swap the charger first to rule that out." } });
+    });
+    console.log("Seeded sample helpdesk ticket.");
+  }
+
   console.log("\nSeed complete. Login with any of the following (password for all: " + SEED_PASSWORD + "):");
-  console.log("  Maintenance Manager: ravi.menon@soliflex.local");
-  console.log("  IT Manager:          anita.shah@soliflex.local");
-  console.log("  Mechanic:            suresh.patil@soliflex.local");
-  console.log("  IT Team:             neha.verma@soliflex.local");
-  console.log("  Production:          vikram.singh@soliflex.local");
-  console.log("  Admin:               priya.nair@soliflex.local");
+  console.log("  Maintenance Manager:  ravi.menon@soliflex.local");
+  console.log("  IT Manager:           anita.shah@soliflex.local");
+  console.log("  Mechanic:             suresh.patil@soliflex.local");
+  console.log("  IT Team:              neha.verma@soliflex.local");
+  console.log("  Production:           vikram.singh@soliflex.local");
+  console.log("  Admin:                priya.nair@soliflex.local");
+  console.log("  IT Team Lead:         karan.mehta@soliflex.local");
+  console.log("  IT Support Engineer:  divya.rao@soliflex.local");
+  console.log("  Employee:             amit.joshi@soliflexpackaging.com");
 }
 
 main()

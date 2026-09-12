@@ -3,13 +3,23 @@ import ExcelJS from "exceljs";
 import { TicketStatus, Workstream } from "@prisma/client";
 import { requireAuth } from "../../middleware/auth";
 import { prisma } from "../../lib/prisma";
+import { resolveDateRange } from "../../lib/date-range";
 
 const router = Router();
 router.use(requireAuth);
 
+function dateRangeFromQuery(req: import("express").Request) {
+  return resolveDateRange({
+    range: req.query.range as string | undefined,
+    from: req.query.from as string | undefined,
+    to: req.query.to as string | undefined,
+  });
+}
+
 router.get("/dashboard", async (req, res) => {
   const workstream = req.query.workstream as Workstream | undefined;
-  const where = workstream ? { workstream } : {};
+  const createdAtRange = dateRangeFromQuery(req);
+  const where = { ...(workstream ? { workstream } : {}), ...(createdAtRange ? { createdAt: createdAtRange } : {}) };
 
   const [byStatus, byPriority, total, open, closedTickets, slaBreached, onHold] = await Promise.all([
     prisma.ticket.groupBy({ by: ["status"], where, _count: true }),
@@ -43,11 +53,13 @@ router.get("/dashboard", async (req, res) => {
 
 router.get("/overdue-tickets", async (req, res) => {
   const workstream = req.query.workstream as Workstream | undefined;
+  const createdAtRange = dateRangeFromQuery(req);
   const tickets = await prisma.ticket.findMany({
     where: {
       status: { not: TicketStatus.CLOSED },
       targetCompletionDate: { lt: new Date() },
       ...(workstream ? { workstream } : {}),
+      ...(createdAtRange ? { createdAt: createdAtRange } : {}),
     },
     select: {
       id: true,

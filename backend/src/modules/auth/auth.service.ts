@@ -1,9 +1,24 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/jwt";
 import { ApiError } from "../../middleware/errors";
 import { env } from "../../config/env";
+import { assertStrongPassword } from "../../lib/password-policy";
+import { recordAudit } from "../audit/audit.service";
+
+const ALLOWED_REGISTRATION_DOMAINS = ["soliflexpackaging.com", "indautogroup.com"];
+
+export function assertAllowedRegistrationDomain(email: string): void {
+  const domain = email.toLowerCase().split("@")[1];
+  if (!domain || !ALLOWED_REGISTRATION_DOMAINS.includes(domain)) {
+    throw new ApiError(
+      400,
+      `Registration is only available for company email addresses (@${ALLOWED_REGISTRATION_DOMAINS.join(", @")}).`
+    );
+  }
+}
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -50,6 +65,69 @@ export async function login(email: string, password: string) {
   };
 }
 
+export interface RegisterEmployeeInput {
+  employeeId: string;
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+}
+
+/**
+ * Public self-registration — always creates an EMPLOYEE account. The role is
+ * hardcoded here rather than accepted from the request body; that is the
+ * actual security boundary preventing self-service privilege escalation.
+ */
+export async function registerEmployee(input: RegisterEmployeeInput) {
+  const email = input.email.toLowerCase();
+  assertAllowedRegistrationDomain(email);
+  assertStrongPassword(input.password, { email, name: input.name });
+
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ email }, { employeeId: input.employeeId }] },
+  });
+  if (existing) {
+    throw new ApiError(409, "A user with this email or employee ID already exists");
+  }
+
+  const passwordHash = await bcrypt.hash(input.password, 12);
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        employeeId: input.employeeId,
+        name: input.name,
+        email,
+        phone: input.phone,
+        passwordHash,
+        role: Role.EMPLOYEE,
+        workstream: null,
+        mustResetPassword: false,
+        active: true,
+      },
+    });
+    await recordAudit(tx, {
+      entityType: "User",
+      entityId: created.id,
+      action: "SELF_REGISTER",
+      changedById: created.id,
+      newValue: `${created.name} (EMPLOYEE)`,
+    });
+    return created;
+  });
+
+  const accessToken = signAccessToken({ sub: user.id, role: user.role, workstream: user.workstream, name: user.name });
+  const refreshToken = signRefreshToken(user.id);
+  await prisma.refreshToken.create({
+    data: {
+      token: hashToken(refreshToken),
+      userId: user.id,
+      expiresAt: new Date(Date.now() + ttlToMs(env.jwtRefreshTtl)),
+    },
+  });
+
+  return { accessToken, refreshToken, user: sanitizeUser(user) };
+}
+
 export async function refresh(refreshToken: string) {
   let payload: { sub: string };
   try {
@@ -93,6 +171,7 @@ export async function changeOwnPassword(userId: string, currentPassword: string,
   if (!valid) {
     throw new ApiError(400, "Current password is incorrect");
   }
+  assertStrongPassword(newPassword, { email: user.email, name: user.name });
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({
     where: { id: userId },

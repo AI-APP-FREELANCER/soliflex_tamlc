@@ -1,4 +1,12 @@
-export type Role = "MANAGER" | "MECHANIC" | "IT_TEAM" | "PRODUCTION" | "ADMIN";
+export type Role =
+  | "MANAGER"
+  | "MECHANIC"
+  | "IT_TEAM"
+  | "PRODUCTION"
+  | "ADMIN"
+  | "EMPLOYEE"
+  | "IT_SUPPORT_ENGINEER"
+  | "IT_TEAM_LEAD";
 export type Workstream = "MAINTENANCE" | "IT";
 export type TicketCategory =
   | "PRODUCTION_MACHINE"
@@ -35,7 +43,18 @@ export type NotificationType =
   | "RESUMED"
   | "TICKET_CLOSED"
   | "ASSET_EXPIRING"
-  | "ASSET_DOWNTIME";
+  | "ASSET_DOWNTIME"
+  | "HELPDESK_TICKET_CREATED"
+  | "HELPDESK_TICKET_ASSIGNED"
+  | "HELPDESK_STATUS_CHANGED"
+  | "HELPDESK_COMMENT_ADDED"
+  | "HELPDESK_TICKET_RESOLVED"
+  | "HELPDESK_TICKET_CLOSED"
+  | "HELPDESK_DEADLINE_BREACHED"
+  | "HELPDESK_DEADLINE_MISSING";
+
+export type HelpdeskCategory = "LAPTOP_DESKTOP" | "PRINTER" | "NETWORK" | "SOFTWARE" | "ACCESS_REQUEST" | "EMAIL" | "OTHER";
+export type HelpdeskStatus = "OPEN" | "ASSIGNED" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "REOPENED";
 
 export interface UserSummary {
   id: string;
@@ -233,4 +252,63 @@ export interface AuditEntry {
   action: string;
   changedBy: UserSummary;
   changedAt: string;
+}
+
+export interface HelpdeskComment {
+  id: string;
+  ticketId: string;
+  authorId: string;
+  author: UserSummary;
+  body: string;
+  createdAt: string;
+}
+
+export interface HelpdeskStatusHistoryEntry {
+  id: string;
+  fromStatus: HelpdeskStatus | null;
+  toStatus: HelpdeskStatus;
+  changedBy: UserSummary;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface HelpdeskTicket {
+  id: string;
+  ticketNumber: string;
+  category: HelpdeskCategory;
+  title: string;
+  description: string;
+  priority: Priority | null;
+  status: HelpdeskStatus;
+  onHold: boolean;
+  onHoldReason: string | null;
+  onHoldSince: string | null;
+  raisedById: string;
+  raisedBy: UserSummary;
+  assignedToId: string | null;
+  assignedTo: UserSummary | null;
+  teamLeadId: string | null;
+  teamLead: UserSummary | null;
+  itAssetId: string | null;
+  deadline: string | null;
+  deadlineSetAt: string | null;
+  deadlineBreached: boolean;
+  resolvedAt: string | null;
+  resolvedById: string | null;
+  resolvedBy: UserSummary | null;
+  closedAt: string | null;
+  closedById: string | null;
+  closedBy: UserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+  comments: HelpdeskComment[];
+  statusHistory: HelpdeskStatusHistoryEntry[];
+}
+
+export interface HelpdeskDashboardStats {
+  byStatus: { status: HelpdeskStatus; count: number }[];
+  total: number;
+  overdueCount: number;
+  missingDeadlineCount: number;
+  perEngineerWorkload: { engineerId: string; name: string; open: number; inProgress: number; overdue: number }[];
 }

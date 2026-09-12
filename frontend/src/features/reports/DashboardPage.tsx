@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -6,6 +7,8 @@ import { useWorkstreamStore } from "../../store/workstream.store";
 import { fetchDashboard, fetchExpiringAssets, fetchOverdueTickets } from "./api";
 import { Spinner, EmptyState } from "../../components/Spinner";
 import { STATUS_LABELS, StatusBadge, PriorityBadge } from "../../components/badges";
+import { StatCard } from "../../components/StatCard";
+import { DateRangeFilter, DateRangeValue } from "../../components/DateRangeFilter";
 import { api } from "../../lib/api";
 import { format, formatDistanceToNow } from "date-fns";
 import type { Priority } from "../../lib/types";
@@ -39,22 +42,13 @@ function PriorityBreakdown({ data }: { data: { name: string; value: number }[] }
   );
 }
 
-function StatCard({ label, value, tone = "default" }: { label: string; value: string | number; tone?: "default" | "warn" | "danger" }) {
-  const toneClass = tone === "danger" ? "text-red-600" : tone === "warn" ? "text-amber-600" : "text-soliflex-ink";
-  return (
-    <div className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-soliflex-gray-400">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const workstream = useWorkstreamStore((s) => s.workstream);
   const navigate = useNavigate();
-  const { data: stats, isLoading } = useQuery({ queryKey: ["dashboard", workstream], queryFn: () => fetchDashboard(workstream) });
+  const [dateRange, setDateRange] = useState<DateRangeValue>({});
+  const { data: stats, isLoading } = useQuery({ queryKey: ["dashboard", workstream, dateRange], queryFn: () => fetchDashboard(workstream, dateRange) });
   const { data: expiring } = useQuery({ queryKey: ["expiring-assets"], queryFn: () => fetchExpiringAssets(60) });
-  const { data: overdueTickets } = useQuery({ queryKey: ["overdue-tickets", workstream], queryFn: () => fetchOverdueTickets(workstream) });
+  const { data: overdueTickets } = useQuery({ queryKey: ["overdue-tickets", workstream, dateRange], queryFn: () => fetchOverdueTickets(workstream, dateRange) });
 
   async function handleExport() {
     const res = await api.get("/reports/export", { params: { workstream }, responseType: "blob" });
@@ -77,9 +71,12 @@ export default function DashboardPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Reports</h1>
-        <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-200">
-          <Download className="h-4 w-4" /> Export Excel
-        </button>
+        <div className="flex items-center gap-2">
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-200">
+            <Download className="h-4 w-4" /> Export Excel
+          </button>
+        </div>
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
