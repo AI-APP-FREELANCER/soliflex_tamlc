@@ -13,7 +13,7 @@ import { AssignModal } from "./AssignModal";
 import { CloseModal } from "./CloseModal";
 import { HoldModal } from "./HoldModal";
 import { RecommendationModal } from "./RecommendationModal";
-import { apiErrorMessage } from "../../lib/api";
+import { API_BASE_URL, apiErrorMessage } from "../../lib/api";
 import type { AttachmentType } from "../../lib/types";
 
 const ATTACHMENT_LABELS: Record<AttachmentType, string> = {
@@ -140,13 +140,13 @@ export default function TicketDetailPage() {
                 {ticket.attachments.map((a) => (
                   <a
                     key={a.id}
-                    href={`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000"}${a.fileUrl}`}
+                    href={`${API_BASE_URL}${a.fileUrl}`}
                     target="_blank"
                     rel="noreferrer"
                     className="block rounded-lg border border-soliflex-gray-100 p-2 text-xs hover:border-soliflex-orange-300"
                   >
                     {a.mimeType.startsWith("image/") ? (
-                      <img src={`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000"}${a.fileUrl}`} className="mb-1 h-20 w-full rounded object-cover" />
+                      <img src={`${API_BASE_URL}${a.fileUrl}`} className="mb-1 h-20 w-full rounded object-cover" />
                     ) : (
                       <div className="mb-1 flex h-20 w-full items-center justify-center rounded bg-soliflex-gray-50 text-soliflex-gray-400">PDF</div>
                     )}

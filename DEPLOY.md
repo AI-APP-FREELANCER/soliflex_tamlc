@@ -42,9 +42,12 @@ npm run build                  # produces frontend/dist, served by Nginx
 ```
 
 `backend/.env` must exist (copy from `.env.production.example` at the repo root and
-fill in real values — see that file for what's required). `frontend/.env.production`
-should set `VITE_API_BASE_URL=https://tms.soliflexpackaging.com` before building, since
-Nginx serves the frontend and API from the same domain.
+fill in real values — see that file for what's required). The frontend defaults to
+calling the API via a relative `/api` path (same origin) when built without a
+`VITE_API_BASE_URL` override — correct for this Nginx setup, so **no frontend env
+file is needed for a normal deploy**. Only set `frontend/.env.production` with an
+explicit `VITE_API_BASE_URL` if the frontend and backend ever end up served from
+different domains.
 
 ## First-time Nginx + TLS setup
 

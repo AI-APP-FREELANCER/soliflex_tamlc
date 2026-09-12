@@ -1,7 +1,12 @@
 import axios from "axios";
 import { useAuthStore } from "../store/auth.store";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+// Falls back to "" (relative, same-origin) rather than a hardcoded host — the
+// production Nginx setup serves the frontend and reverse-proxies /api to the
+// backend under the same domain, so no VITE_API_BASE_URL override is needed
+// there. Local dev sets it explicitly in frontend/.env since Vite's dev
+// server and the backend run on different ports.
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
@@ -57,7 +62,12 @@ api.interceptors.response.use(
 
 export function apiErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
-    return err.response?.data?.error ?? err.message;
+    if (err.response?.data?.error) return err.response.data.error;
+    if (err.code === "ECONNABORTED") return "The request timed out. Please try again.";
+    // No response at all means the request never reached the server (network
+    // down, CORS block, DNS failure, etc.) — axios's own err.message for this
+    // ("Network Error") is not something an end user should see verbatim.
+    return "Unable to reach the server. Please check your connection and try again.";
   }
-  return "Something went wrong";
+  return "Something went wrong. Please try again.";
 }
