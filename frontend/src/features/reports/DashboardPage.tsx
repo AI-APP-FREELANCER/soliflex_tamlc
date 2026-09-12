@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Download } from "lucide-react";
 import { useWorkstreamStore } from "../../store/workstream.store";
-import { fetchDashboard, fetchExpiringAssets } from "./api";
+import { fetchDashboard, fetchExpiringAssets, fetchOverdueTickets } from "./api";
 import { Spinner, EmptyState } from "../../components/Spinner";
-import { STATUS_LABELS } from "../../components/badges";
+import { STATUS_LABELS, StatusBadge, PriorityBadge } from "../../components/badges";
 import { api } from "../../lib/api";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import type { Priority } from "../../lib/types";
 
 const BREAKDOWN_COLORS = ["#F26522", "#A6392B", "#5D616B", "#DD5216"];
@@ -50,8 +51,10 @@ function StatCard({ label, value, tone = "default" }: { label: string; value: st
 
 export default function DashboardPage() {
   const workstream = useWorkstreamStore((s) => s.workstream);
+  const navigate = useNavigate();
   const { data: stats, isLoading } = useQuery({ queryKey: ["dashboard", workstream], queryFn: () => fetchDashboard(workstream) });
   const { data: expiring } = useQuery({ queryKey: ["expiring-assets"], queryFn: () => fetchExpiringAssets(60) });
+  const { data: overdueTickets } = useQuery({ queryKey: ["overdue-tickets", workstream], queryFn: () => fetchOverdueTickets(workstream) });
 
   async function handleExport() {
     const res = await api.get("/reports/export", { params: { workstream }, responseType: "blob" });
@@ -108,6 +111,38 @@ export default function DashboardPage() {
             <PriorityBreakdown data={priorityData} />
           </div>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
+        <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Tickets past their target completion date</h2>
+        {overdueTickets && overdueTickets.length > 0 ? (
+          <table className="w-full text-sm">
+            <tbody>
+              {overdueTickets.map((t) => (
+                <tr
+                  key={t.id}
+                  onClick={() => navigate(`/tickets/${t.id}`)}
+                  className="cursor-pointer border-t border-soliflex-gray-50 hover:bg-soliflex-gray-50"
+                >
+                  <td className="py-2 pr-3 font-medium text-soliflex-orange-600">{t.ticketNumber}</td>
+                  <td className="max-w-[220px] truncate py-2 pr-3">{t.title}</td>
+                  <td className="py-2 pr-3">
+                    <StatusBadge status={t.status} />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <PriorityBadge priority={t.priority} />
+                  </td>
+                  <td className="py-2 pr-3 text-soliflex-gray-500">{t.assignedTo?.name ?? "Unassigned"}</td>
+                  <td className="py-2 text-red-600">
+                    {formatDistanceToNow(new Date(t.targetCompletionDate), { addSuffix: true })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-sm text-soliflex-gray-400">Nothing overdue right now.</p>
+        )}
       </div>
 
       <div className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">

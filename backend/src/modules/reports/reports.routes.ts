@@ -41,6 +41,28 @@ router.get("/dashboard", async (req, res) => {
   });
 });
 
+router.get("/overdue-tickets", async (req, res) => {
+  const workstream = req.query.workstream as Workstream | undefined;
+  const tickets = await prisma.ticket.findMany({
+    where: {
+      status: { not: TicketStatus.CLOSED },
+      targetCompletionDate: { lt: new Date() },
+      ...(workstream ? { workstream } : {}),
+    },
+    select: {
+      id: true,
+      ticketNumber: true,
+      title: true,
+      status: true,
+      priority: true,
+      targetCompletionDate: true,
+      assignedTo: { select: { name: true } },
+    },
+    orderBy: { targetCompletionDate: "asc" },
+  });
+  res.json(tickets);
+});
+
 router.get("/expiring-assets", async (req, res) => {
   const days = Number(req.query.days ?? 60);
   const cutoff = new Date(Date.now() + days * 86_400_000);

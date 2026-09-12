@@ -1,8 +1,23 @@
 import { api, API_BASE_URL } from "../../lib/api";
-import type { DashboardStats, ITAsset, MaintenanceAsset, Workstream } from "../../lib/types";
+import type { DashboardStats, ITAsset, MaintenanceAsset, Priority, TicketStatus, Workstream } from "../../lib/types";
 
 export async function fetchDashboard(workstream?: Workstream): Promise<DashboardStats> {
   const res = await api.get("/reports/dashboard", { params: workstream ? { workstream } : {} });
+  return res.data;
+}
+
+export interface OverdueTicket {
+  id: string;
+  ticketNumber: string;
+  title: string;
+  status: TicketStatus;
+  priority: Priority | null;
+  targetCompletionDate: string;
+  assignedTo: { name: string } | null;
+}
+
+export async function fetchOverdueTickets(workstream?: Workstream): Promise<OverdueTicket[]> {
+  const res = await api.get("/reports/overdue-tickets", { params: workstream ? { workstream } : {} });
   return res.data;
 }
 
