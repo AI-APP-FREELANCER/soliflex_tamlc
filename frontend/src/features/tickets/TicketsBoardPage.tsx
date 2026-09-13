@@ -13,6 +13,7 @@ import type { Ticket, TicketStatus } from "../../lib/types";
 import { AssignModal } from "./AssignModal";
 import { CloseModal } from "./CloseModal";
 import { apiErrorMessage } from "../../lib/api";
+import { HelpdeskDiscoveryBanner } from "../helpdesk/HelpdeskDiscoveryBanner";
 
 const COLUMNS: TicketStatus[] = ["OPEN", "ASSIGNED", "IN_PROGRESS", "FIRST_LINE_REVIEW", "JOB_COMPLETED", "FINAL_REVIEW", "CLOSED"];
 
@@ -123,6 +124,7 @@ export default function TicketsBoardPage() {
   return (
     <div>
       <h1 className="mb-4 text-xl font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Board</h1>
+      <HelpdeskDiscoveryBanner />
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-3 overflow-x-auto pb-4">
           {COLUMNS.map((status) => (

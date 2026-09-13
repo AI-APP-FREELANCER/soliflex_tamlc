@@ -6,6 +6,7 @@ import { StatusBadge, PriorityBadge, OnHoldBadge, SlaBreachBadge } from "../../c
 import { Avatar } from "../../components/Avatar";
 import { Spinner, EmptyState } from "../../components/Spinner";
 import { DateRangeFilter, DateRangeValue } from "../../components/DateRangeFilter";
+import { HelpdeskDiscoveryBanner } from "../helpdesk/HelpdeskDiscoveryBanner";
 import type { Priority, TicketStatus } from "../../lib/types";
 import { format } from "date-fns";
 
@@ -27,6 +28,7 @@ export default function TicketsListPage() {
 
   return (
     <div>
+      <HelpdeskDiscoveryBanner />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <h1 className="mr-auto text-xl font-bold text-soliflex-ink">All {workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Tickets</h1>
         <input
