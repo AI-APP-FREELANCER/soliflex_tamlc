@@ -12,6 +12,8 @@ const CATEGORIES: { value: ITAssetCategory; label: string }[] = [
   { value: "NETWORK_GEAR", label: "Network Gear" },
   { value: "SERVER", label: "Server" },
   { value: "SOFTWARE_LICENSE", label: "Software License" },
+  { value: "SECURITY", label: "Security" },
+  { value: "STORAGE", label: "Storage" },
 ];
 
 export function CreateITAssetModal({ onClose }: { onClose: () => void }) {

@@ -41,6 +41,7 @@ export function useTicketMutations(ticketId?: string) {
   return {
     create: wrap(ticketsApi.createTicket, "Ticket raised"),
     assign: wrap((vars: { id: string; data: Parameters<typeof ticketsApi.assignTicket>[1] }) => ticketsApi.assignTicket(vars.id, vars.data), "Ticket assigned"),
+    updateAssignment: wrap((vars: { id: string; data: Parameters<typeof ticketsApi.updateAssignment>[1] }) => ticketsApi.updateAssignment(vars.id, vars.data), "Assignment updated"),
     updatePriority: wrap((vars: { id: string; priority: Parameters<typeof ticketsApi.updatePriority>[1] }) => ticketsApi.updatePriority(vars.id, vars.priority), "Priority updated"),
     startProgress: wrap((id: string) => ticketsApi.startProgress(id), "Work started"),
     submitRecommendation: wrap(

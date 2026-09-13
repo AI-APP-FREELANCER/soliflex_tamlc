@@ -1,4 +1,4 @@
-import { AttachmentType, NotificationType, OnHoldReason, Prisma, Priority, Role, Ticket, TicketCategory, TicketStatus, Workstream } from "@prisma/client";
+import { AttachmentType, NotificationType, OnHoldReason, Prisma, Priority, Role, Ticket, TicketCategory, TicketStatus, User, Workstream } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { ApiError } from "../../middleware/errors";
 import { canPerform, TicketAction } from "./workflow";
@@ -173,6 +173,60 @@ export async function assignTicket(actor: Actor, ticketId: string, assignedToId:
     });
     await recordFieldChanges(tx, "Ticket", ticketId, actor.id, { status: ticket.status, assignedToId: ticket.assignedToId }, { status: updated.status, assignedToId: updated.assignedToId });
     await notify(tx, assignedToId, NotificationType.TICKET_ASSIGNED, `You were assigned ticket ${ticket.ticketNumber}`, `/tickets/${ticketId}`);
+    return updated;
+  });
+}
+
+export interface UpdateAssignmentInput {
+  assignedToId?: string;
+  targetCompletionDate?: string | null;
+  effortEstimateHours?: number;
+}
+
+/**
+ * Edits assignment details on a ticket that's already past OPEN — assignTicket()
+ * only fires on the OPEN->ASSIGNED transition, so once a ticket is in progress
+ * there was previously no way to reassign it or change its target date/effort
+ * estimate without resetting its workflow status. This never changes status.
+ */
+export async function updateAssignment(actor: Actor, ticketId: string, input: UpdateAssignmentInput) {
+  const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+  if (actor.role !== Role.MANAGER && actor.role !== Role.ADMIN) {
+    throw new ApiError(403, "Only a manager can edit ticket assignment details");
+  }
+  if (ticket.status === TicketStatus.CLOSED) {
+    throw new ApiError(400, "Cannot edit assignment details on a closed ticket");
+  }
+
+  let assignee: User | undefined;
+  if (input.assignedToId) {
+    assignee = await prisma.user.findUniqueOrThrow({ where: { id: input.assignedToId } });
+    if (assignee.workstream !== ticket.workstream) {
+      throw new ApiError(400, "Assignee must belong to the same workstream as the ticket");
+    }
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.ticket.update({
+      where: { id: ticketId },
+      data: {
+        assignedToId: input.assignedToId ?? undefined,
+        managerId: input.assignedToId ? actor.id : undefined,
+        targetCompletionDate: input.targetCompletionDate !== undefined ? (input.targetCompletionDate ? new Date(input.targetCompletionDate) : null) : undefined,
+        effortEstimateHours: input.effortEstimateHours,
+      },
+    });
+    await recordFieldChanges(
+      tx,
+      "Ticket",
+      ticketId,
+      actor.id,
+      { assignedToId: ticket.assignedToId, targetCompletionDate: ticket.targetCompletionDate, effortEstimateHours: ticket.effortEstimateHours },
+      { assignedToId: updated.assignedToId, targetCompletionDate: updated.targetCompletionDate, effortEstimateHours: updated.effortEstimateHours }
+    );
+    if (assignee && input.assignedToId !== ticket.assignedToId) {
+      await notify(tx, input.assignedToId!, NotificationType.TICKET_ASSIGNED, `You were assigned ticket ${ticket.ticketNumber}`, `/tickets/${ticketId}`);
+    }
     return updated;
   });
 }

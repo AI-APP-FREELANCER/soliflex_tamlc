@@ -65,6 +65,16 @@ router.post("/:id/assign", requireRole(Role.MANAGER, Role.ADMIN), async (req, re
   res.json(ticket);
 });
 
+const updateAssignmentSchema = z.object({
+  assignedToId: z.string().optional(),
+  targetCompletionDate: z.string().nullable().optional(),
+  effortEstimateHours: z.number().optional(),
+});
+router.patch("/:id/assignment", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
+  const data = updateAssignmentSchema.parse(req.body);
+  res.json(await tickets.updateAssignment(actorFromReq(req), req.params.id, data));
+});
+
 const priorityUpdateSchema = z.object({ priority: z.nativeEnum(Priority) });
 router.patch("/:id/priority", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = priorityUpdateSchema.parse(req.body);

@@ -41,6 +41,11 @@ export async function assignTicket(id: string, data: { assignedToId: string; pri
   return res.data;
 }
 
+export async function updateAssignment(id: string, data: { assignedToId?: string; targetCompletionDate?: string | null; effortEstimateHours?: number }) {
+  const res = await api.patch(`/tickets/${id}/assignment`, data);
+  return res.data;
+}
+
 export async function updatePriority(id: string, priority: Priority) {
   const res = await api.patch(`/tickets/${id}/priority`, { priority });
   return res.data;

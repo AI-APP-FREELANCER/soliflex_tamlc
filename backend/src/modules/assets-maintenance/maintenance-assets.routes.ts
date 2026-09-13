@@ -14,6 +14,7 @@ import { publicUrlForFile } from "../../lib/storage";
 import { buildCsv } from "../../lib/csv";
 import { env } from "../../config/env";
 import { ApiError } from "../../middleware/errors";
+import { parseFlexibleDate } from "../../lib/parse-date";
 
 const router = Router();
 router.use(requireAuth);
@@ -98,9 +99,9 @@ async function createMaintenanceAssetRecord(data: z.infer<typeof createSchema>, 
         manufacturer: data.manufacturer,
         plantLocation: data.plantLocation,
         specifications: data.specifications,
-        purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
-        warrantyStartDate: data.warrantyStartDate ? new Date(data.warrantyStartDate) : undefined,
-        warrantyEndDate: data.warrantyEndDate ? new Date(data.warrantyEndDate) : undefined,
+        purchaseDate: parseFlexibleDate(data.purchaseDate),
+        warrantyStartDate: parseFlexibleDate(data.warrantyStartDate),
+        warrantyEndDate: parseFlexibleDate(data.warrantyEndDate),
         statusSince: new Date(),
         createdById,
       },
@@ -180,9 +181,9 @@ router.patch("/:id", requireRole(Role.ADMIN, Role.PRODUCTION, Role.MANAGER), asy
     where: { id: req.params.id },
     data: {
       ...data,
-      purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
-      warrantyStartDate: data.warrantyStartDate ? new Date(data.warrantyStartDate) : undefined,
-      warrantyEndDate: data.warrantyEndDate ? new Date(data.warrantyEndDate) : undefined,
+      purchaseDate: parseFlexibleDate(data.purchaseDate),
+      warrantyStartDate: parseFlexibleDate(data.warrantyStartDate),
+      warrantyEndDate: parseFlexibleDate(data.warrantyEndDate),
       statusSince: statusChanged ? new Date() : undefined,
       downtimeAlertedAt: statusChanged ? null : undefined,
     },

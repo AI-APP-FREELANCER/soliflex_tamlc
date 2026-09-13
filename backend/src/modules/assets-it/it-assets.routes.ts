@@ -14,6 +14,7 @@ import { publicUrlForFile } from "../../lib/storage";
 import { buildCsv } from "../../lib/csv";
 import { env } from "../../config/env";
 import { ApiError } from "../../middleware/errors";
+import { parseFlexibleDate } from "../../lib/parse-date";
 
 const router = Router();
 router.use(requireAuth);
@@ -36,6 +37,17 @@ router.get("/", async (req, res) => {
   });
   res.json(assets);
 });
+
+/** Tolerates common spreadsheet spellings that don't match the enum exactly. */
+const CATEGORY_ALIASES: Record<string, ITAssetCategory> = {
+  NETWORK: ITAssetCategory.NETWORK_GEAR,
+};
+
+function normalizeCategory(raw: string | undefined): string | undefined {
+  if (!raw) return raw;
+  const upper = raw.trim().toUpperCase().replace(/\s+/g, "_");
+  return CATEGORY_ALIASES[upper] ?? upper;
+}
 
 const BULK_IMPORT_HEADERS = [
   "name",
@@ -122,9 +134,9 @@ async function createITAssetRecord(data: z.infer<typeof createSchema>, createdBy
         ipAddress: data.ipAddress,
         macAddress: data.macAddress,
         vendor: data.vendor,
-        purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
-        warrantyEndDate: data.warrantyEndDate ? new Date(data.warrantyEndDate) : undefined,
-        licenseExpiryDate: data.licenseExpiryDate ? new Date(data.licenseExpiryDate) : undefined,
+        purchaseDate: parseFlexibleDate(data.purchaseDate),
+        warrantyEndDate: parseFlexibleDate(data.warrantyEndDate),
+        licenseExpiryDate: parseFlexibleDate(data.licenseExpiryDate),
         costCenter: data.costCenter,
         assignedToUserId: data.assignedToUserId,
         statusSince: new Date(),
@@ -172,6 +184,7 @@ router.post("/bulk-import", requireRole(Role.IT_TEAM, Role.MANAGER, Role.ADMIN),
     const rowNumber = i + 2;
     const parsed = createSchema.safeParse({
       ...records[i],
+      category: normalizeCategory(records[i].category),
       serialNumber: records[i].serialNumber || undefined,
       specifications: records[i].specifications || undefined,
       ipAddress: records[i].ipAddress || undefined,
@@ -206,9 +219,9 @@ router.patch("/:id", requireRole(Role.IT_TEAM, Role.MANAGER, Role.ADMIN), async 
     where: { id: req.params.id },
     data: {
       ...data,
-      purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
-      warrantyEndDate: data.warrantyEndDate ? new Date(data.warrantyEndDate) : undefined,
-      licenseExpiryDate: data.licenseExpiryDate ? new Date(data.licenseExpiryDate) : undefined,
+      purchaseDate: parseFlexibleDate(data.purchaseDate),
+      warrantyEndDate: parseFlexibleDate(data.warrantyEndDate),
+      licenseExpiryDate: parseFlexibleDate(data.licenseExpiryDate),
       statusSince: statusChanged ? new Date() : undefined,
       downtimeAlertedAt: statusChanged ? null : undefined,
     },

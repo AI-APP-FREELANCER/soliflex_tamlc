@@ -267,6 +267,12 @@ export default function TicketDetailPage() {
               </button>
             )}
 
+            {isManager && ticket.status !== "OPEN" && ticket.status !== "CLOSED" && (
+              <button onClick={() => setShowAssign(true)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm font-semibold text-soliflex-gray-700 hover:bg-soliflex-gray-50">
+                Edit assignment
+              </button>
+            )}
+
             {isAssignee && ticket.status === "ASSIGNED" && (
               <button
                 onClick={() => id && handleAction(() => mutations.startProgress.mutateAsync(id))}
