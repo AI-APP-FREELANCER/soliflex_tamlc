@@ -1,22 +1,18 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Modal } from "../../components/Modal";
-import { createITAsset } from "./api";
+import { createITAsset, fetchITAssetCategories } from "./api";
 import type { ITAssetCategory } from "../../lib/types";
 import { apiErrorMessage } from "../../lib/api";
 
-const CATEGORIES: { value: ITAssetCategory; label: string }[] = [
-  { value: "WORKSTATION", label: "Workstation" },
-  { value: "LAPTOP", label: "Laptop" },
-  { value: "NETWORK_GEAR", label: "Network Gear" },
-  { value: "SERVER", label: "Server" },
-  { value: "SOFTWARE_LICENSE", label: "Software License" },
-  { value: "SECURITY", label: "Security" },
-  { value: "STORAGE", label: "Storage" },
-];
+// Suggestions only — category is free text, any value is accepted.
+const DEFAULT_CATEGORY_SUGGESTIONS = ["WORKSTATION", "LAPTOP", "NETWORK_GEAR", "SERVER", "SOFTWARE_LICENSE", "SECURITY", "STORAGE"];
 
 export function CreateITAssetModal({ onClose }: { onClose: () => void }) {
+  const { data: existingCategories = [] } = useQuery({ queryKey: ["it-asset-categories"], queryFn: fetchITAssetCategories });
+  const categorySuggestions = Array.from(new Set([...existingCategories, ...DEFAULT_CATEGORY_SUGGESTIONS])).sort();
+
   const [form, setForm] = useState({
     name: "",
     category: "LAPTOP" as ITAssetCategory,
@@ -50,13 +46,21 @@ export function CreateITAssetModal({ onClose }: { onClose: () => void }) {
     <Modal title="Onboard IT asset" onClose={onClose}>
       <div className="space-y-3">
         <input placeholder="Asset name" value={form.name} onChange={(e) => set("name", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
-        <select value={form.category} onChange={(e) => set("category", e.target.value as ITAssetCategory)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-          {CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+        <div>
+          <input
+            list="it-category-suggestions"
+            placeholder="Category (e.g. SERVER)"
+            value={form.category}
+            onChange={(e) => set("category", e.target.value as ITAssetCategory)}
+            className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+          />
+          <datalist id="it-category-suggestions">
+            {categorySuggestions.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          <p className="mt-1 text-xs text-soliflex-gray-400">Type any category — pick an existing one from the list or create a new one.</p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <input placeholder="Serial number" value={form.serialNumber} onChange={(e) => set("serialNumber", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
           <input placeholder="Vendor" value={form.vendor} onChange={(e) => set("vendor", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />

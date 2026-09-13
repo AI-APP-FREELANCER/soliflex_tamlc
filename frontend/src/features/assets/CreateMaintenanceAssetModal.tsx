@@ -1,20 +1,19 @@
 import { useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Paperclip, X } from "lucide-react";
 import { Modal } from "../../components/Modal";
-import { createMaintenanceAsset, uploadMaintenanceAssetPhotos } from "./api";
+import { createMaintenanceAsset, fetchMaintenanceAssetCategories, uploadMaintenanceAssetPhotos } from "./api";
 import type { MaintenanceAssetCategory } from "../../lib/types";
 import { apiErrorMessage } from "../../lib/api";
 
-const CATEGORIES: { value: MaintenanceAssetCategory; label: string }[] = [
-  { value: "PRODUCTION_MACHINE", label: "Production Machine" },
-  { value: "PLANT_EQUIPMENT", label: "Plant Equipment" },
-  { value: "PERIPHERAL_ATTACHMENT", label: "Peripheral Attachment" },
-  { value: "PHYSICAL_TOOL", label: "Physical Tool" },
-];
+// Suggestions only — category is free text, any value is accepted.
+const DEFAULT_CATEGORY_SUGGESTIONS = ["PRODUCTION_MACHINE", "PLANT_EQUIPMENT", "PERIPHERAL_ATTACHMENT", "PHYSICAL_TOOL"];
 
 export function CreateMaintenanceAssetModal({ onClose }: { onClose: () => void }) {
+  const { data: existingCategories = [] } = useQuery({ queryKey: ["maintenance-asset-categories"], queryFn: fetchMaintenanceAssetCategories });
+  const categorySuggestions = Array.from(new Set([...existingCategories, ...DEFAULT_CATEGORY_SUGGESTIONS])).sort();
+
   const [form, setForm] = useState({
     name: "",
     category: "PRODUCTION_MACHINE" as MaintenanceAssetCategory,
@@ -54,13 +53,21 @@ export function CreateMaintenanceAssetModal({ onClose }: { onClose: () => void }
     <Modal title="Onboard maintenance asset" onClose={onClose}>
       <div className="space-y-3">
         <input placeholder="Asset name" value={form.name} onChange={(e) => set("name", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
-        <select value={form.category} onChange={(e) => set("category", e.target.value as MaintenanceAssetCategory)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-          {CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+        <div>
+          <input
+            list="maintenance-category-suggestions"
+            placeholder="Category (e.g. PRODUCTION_MACHINE)"
+            value={form.category}
+            onChange={(e) => set("category", e.target.value as MaintenanceAssetCategory)}
+            className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+          />
+          <datalist id="maintenance-category-suggestions">
+            {categorySuggestions.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          <p className="mt-1 text-xs text-soliflex-gray-400">Type any category — pick an existing one from the list or create a new one.</p>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <input placeholder="Model" value={form.model} onChange={(e) => set("model", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
           <input placeholder="Manufacturer" value={form.manufacturer} onChange={(e) => set("manufacturer", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />

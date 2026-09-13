@@ -140,26 +140,12 @@ enum AssetStatus {
   @@schema("tms")
 }
 
-enum MaintenanceAssetCategory {
-  PRODUCTION_MACHINE
-  PLANT_EQUIPMENT
-  PERIPHERAL_ATTACHMENT
-  PHYSICAL_TOOL
-
-  @@schema("maintenance_inventory")
-}
-
-enum ITAssetCategory {
-  WORKSTATION
-  LAPTOP
-  NETWORK_GEAR
-  SERVER
-  SOFTWARE_LICENSE
-  SECURITY
-  STORAGE
-
-  @@schema("it_inventory")
-}
+// Note: asset `category` is free text (see MaintenanceAsset/ITAsset below),
+// not an enum — the fixed category lists kept failing to cover the plant's
+// actual, ever-growing variety of machine/equipment/peripheral types (e.g.
+// PACKAGING_MACHINE, CONVERTING_MACHINE, MONITOR, KEYBOARD... new ones show
+// up constantly). Categories are normalized server-side to SCREAMING_SNAKE
+// form for consistent display/filtering, but any value is accepted.
 
 // ---------------------------------------------------------------------------
 // TMS / CORE SCHEMA
@@ -445,7 +431,7 @@ model MaintenanceAsset {
   id                String                    @id @default(cuid())
   itemCode          String                    @unique
   name              String
-  category          MaintenanceAssetCategory
+  category          String
   model             String?
   manufacturer      String?
   plantLocation     String?
@@ -499,7 +485,7 @@ model ITAsset {
   id               String          @id @default(cuid())
   itemCode         String          @unique
   name             String
-  category         ITAssetCategory
+  category         String
   serialNumber     String?
   specifications   String?
   ipAddress        String?

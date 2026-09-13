@@ -1,4 +1,4 @@
-import { PrismaClient, Role, Workstream, TicketCategory, Priority, MaintenanceAssetCategory, ITAssetCategory, HelpdeskCategory } from "@prisma/client";
+import { PrismaClient, Role, Workstream, TicketCategory, Priority, HelpdeskCategory } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { nextSequenceValue, formatTicketNumber, formatAssetItemCode, formatHelpdeskTicketNumber } from "../src/modules/sequences/sequence.service";
 
@@ -126,7 +126,7 @@ async function main() {
         data: {
           itemCode: formatAssetItemCode("MAINTENANCE", seq),
           name: "Extrusion Line 3",
-          category: MaintenanceAssetCategory.PRODUCTION_MACHINE,
+          category: "PRODUCTION_MACHINE",
           model: "EX-3000",
           manufacturer: "Reifenhauser",
           plantLocation: "Plant A - Bay 3",
@@ -145,7 +145,7 @@ async function main() {
         data: {
           itemCode: formatAssetItemCode("IT", seq),
           name: "Server Rack 1 - App Server",
-          category: ITAssetCategory.SERVER,
+          category: "SERVER",
           serialNumber: "SN-APP-0091",
           ipAddress: "10.10.1.20",
           vendor: "Dell",

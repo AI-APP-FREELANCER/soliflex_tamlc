@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import path from "path";
 import fs from "fs";
 import { parse as parseCsv } from "csv-parse/sync";
-import { MaintenanceAssetCategory, AssetStatus, Role } from "@prisma/client";
+import { AssetStatus, Role } from "@prisma/client";
 import { requireAuth, requireRole } from "../../middleware/auth";
 import { upload, csvUpload } from "../../middleware/upload";
 import { prisma } from "../../lib/prisma";
@@ -15,6 +15,7 @@ import { buildCsv } from "../../lib/csv";
 import { env } from "../../config/env";
 import { ApiError } from "../../middleware/errors";
 import { parseFlexibleDate } from "../../lib/parse-date";
+import { normalizeCategory } from "../../lib/normalize-category";
 
 const router = Router();
 router.use(requireAuth);
@@ -22,7 +23,7 @@ router.use(requireAuth);
 router.get("/", async (req, res) => {
   const assets = await prisma.maintenanceAsset.findMany({
     where: {
-      category: req.query.category as MaintenanceAssetCategory | undefined,
+      category: req.query.category ? normalizeCategory(String(req.query.category)) : undefined,
       status: req.query.status as AssetStatus | undefined,
       OR: req.query.search
         ? [
@@ -35,6 +36,11 @@ router.get("/", async (req, res) => {
     orderBy: { createdAt: "desc" },
   });
   res.json(assets);
+});
+
+router.get("/categories", async (_req, res) => {
+  const rows = await prisma.maintenanceAsset.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } });
+  res.json(rows.map((r) => r.category));
 });
 
 const BULK_IMPORT_HEADERS = [
@@ -76,7 +82,7 @@ router.get("/:id", async (req, res) => {
 
 const createSchema = z.object({
   name: z.string().min(1),
-  category: z.nativeEnum(MaintenanceAssetCategory),
+  category: z.string().min(1).transform(normalizeCategory),
   model: z.string().optional(),
   manufacturer: z.string().optional(),
   plantLocation: z.string().optional(),

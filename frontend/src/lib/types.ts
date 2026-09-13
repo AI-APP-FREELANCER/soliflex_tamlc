@@ -29,8 +29,9 @@ export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type OnHoldReason = "VENDOR" | "MATERIAL" | "APPROVAL";
 export type AttachmentType = "PRE_FIX_PHOTO" | "POST_FIX_PHOTO" | "INVOICE" | "OTHER";
 export type AssetStatus = "ACTIVE" | "DOWN" | "RETIRED";
-export type MaintenanceAssetCategory = "PRODUCTION_MACHINE" | "PLANT_EQUIPMENT" | "PERIPHERAL_ATTACHMENT" | "PHYSICAL_TOOL";
-export type ITAssetCategory = "WORKSTATION" | "LAPTOP" | "NETWORK_GEAR" | "SERVER" | "SOFTWARE_LICENSE" | "SECURITY" | "STORAGE";
+// Free text, not a fixed list — see backend/src/lib/normalize-category.ts.
+export type MaintenanceAssetCategory = string;
+export type ITAssetCategory = string;
 export type NotificationType =
   | "TICKET_CREATED"
   | "TICKET_ASSIGNED"

@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import path from "path";
 import fs from "fs";
 import { parse as parseCsv } from "csv-parse/sync";
-import { ITAssetCategory, AssetStatus, Role } from "@prisma/client";
+import { AssetStatus, Role } from "@prisma/client";
 import { requireAuth, requireRole } from "../../middleware/auth";
 import { upload, csvUpload } from "../../middleware/upload";
 import { prisma } from "../../lib/prisma";
@@ -15,6 +15,7 @@ import { buildCsv } from "../../lib/csv";
 import { env } from "../../config/env";
 import { ApiError } from "../../middleware/errors";
 import { parseFlexibleDate } from "../../lib/parse-date";
+import { normalizeCategory } from "../../lib/normalize-category";
 
 const router = Router();
 router.use(requireAuth);
@@ -22,7 +23,7 @@ router.use(requireAuth);
 router.get("/", async (req, res) => {
   const assets = await prisma.iTAsset.findMany({
     where: {
-      category: req.query.category as ITAssetCategory | undefined,
+      category: req.query.category ? normalizeCategory(String(req.query.category)) : undefined,
       status: req.query.status as AssetStatus | undefined,
       OR: req.query.search
         ? [
@@ -38,16 +39,10 @@ router.get("/", async (req, res) => {
   res.json(assets);
 });
 
-/** Tolerates common spreadsheet spellings that don't match the enum exactly. */
-const CATEGORY_ALIASES: Record<string, ITAssetCategory> = {
-  NETWORK: ITAssetCategory.NETWORK_GEAR,
-};
-
-function normalizeCategory(raw: string | undefined): string | undefined {
-  if (!raw) return raw;
-  const upper = raw.trim().toUpperCase().replace(/\s+/g, "_");
-  return CATEGORY_ALIASES[upper] ?? upper;
-}
+router.get("/categories", async (_req, res) => {
+  const rows = await prisma.iTAsset.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } });
+  res.json(rows.map((r) => r.category));
+});
 
 const BULK_IMPORT_HEADERS = [
   "name",
@@ -107,7 +102,7 @@ router.get("/:id", async (req, res) => {
 
 const createSchema = z.object({
   name: z.string().min(1),
-  category: z.nativeEnum(ITAssetCategory),
+  category: z.string().min(1).transform(normalizeCategory),
   serialNumber: z.string().optional(),
   specifications: z.string().optional(),
   ipAddress: z.string().optional(),
@@ -184,7 +179,6 @@ router.post("/bulk-import", requireRole(Role.IT_TEAM, Role.MANAGER, Role.ADMIN),
     const rowNumber = i + 2;
     const parsed = createSchema.safeParse({
       ...records[i],
-      category: normalizeCategory(records[i].category),
       serialNumber: records[i].serialNumber || undefined,
       specifications: records[i].specifications || undefined,
       ipAddress: records[i].ipAddress || undefined,

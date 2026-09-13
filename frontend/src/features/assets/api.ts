@@ -11,6 +11,11 @@ export async function fetchMaintenanceAsset(id: string): Promise<MaintenanceAsse
   return res.data;
 }
 
+export async function fetchMaintenanceAssetCategories(): Promise<string[]> {
+  const res = await api.get("/assets/maintenance/categories");
+  return res.data;
+}
+
 export interface CreateMaintenanceAssetInput {
   name: string;
   category: MaintenanceAssetCategory;
@@ -70,6 +75,11 @@ export async function fetchITAssets(search?: string): Promise<ITAsset[]> {
 
 export async function fetchITAsset(id: string): Promise<ITAsset> {
   const res = await api.get(`/assets/it/${id}`);
+  return res.data;
+}
+
+export async function fetchITAssetCategories(): Promise<string[]> {
+  const res = await api.get("/assets/it/categories");
   return res.data;
 }
 
