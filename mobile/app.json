@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Soliflex TMS",
+    "slug": "soliflex-tms",
+    "version": "1.0.0",
+    "scheme": "soliflextms",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F7F7F8",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.soliflexpackaging.tms"
+    },
+    "android": {
+      "package": "com.soliflexpackaging.tms",
+      "adaptiveIcon": {
+        "backgroundColor": "#F26522",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Soliflex TMS to access your photos to attach them to tickets and assets.",
+          "cameraPermission": "Allow Soliflex TMS to use the camera to take photos for tickets and assets."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Soliflex TMS to use the camera to scan asset QR codes."
+        }
+      ]
+    ]
+  }
+}
