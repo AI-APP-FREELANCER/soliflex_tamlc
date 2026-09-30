@@ -16,6 +16,14 @@ const cookieOptions = {
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
+// Native clients (the mobile app) have no cookie jar for the httpOnly
+// refresh cookie, so they identify themselves with this header and get the
+// refresh token in the JSON body instead — gated, not unconditional, so the
+// token stays invisible to web-page JS (and any XSS on it) exactly as today.
+function isMobileClient(req: import("express").Request): boolean {
+  return req.get("X-Client-Type") === "mobile";
+}
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -25,7 +33,7 @@ router.post("/login", async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
   const { accessToken, refreshToken, user } = await authService.login(email, password);
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions);
-  res.json({ accessToken, user });
+  res.json({ accessToken, user, ...(isMobileClient(req) ? { refreshToken } : {}) });
 });
 
 const registerSchema = z.object({
@@ -40,11 +48,14 @@ router.post("/register", async (req, res) => {
   const data = registerSchema.parse(req.body);
   const { accessToken, refreshToken, user } = await authService.registerEmployee(data);
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions);
-  res.status(201).json({ accessToken, user });
+  res.status(201).json({ accessToken, user, ...(isMobileClient(req) ? { refreshToken } : {}) });
 });
 
+const refreshBodySchema = z.object({ refreshToken: z.string().optional() }).optional();
+
 router.post("/refresh", async (req, res) => {
-  const token = req.cookies?.[REFRESH_COOKIE];
+  const body = refreshBodySchema.parse(req.body);
+  const token = req.cookies?.[REFRESH_COOKIE] ?? body?.refreshToken;
   if (!token) {
     return res.status(401).json({ error: "Not authenticated" });
   }
@@ -53,7 +64,8 @@ router.post("/refresh", async (req, res) => {
 });
 
 router.post("/logout", async (req, res) => {
-  const token = req.cookies?.[REFRESH_COOKIE];
+  const body = refreshBodySchema.parse(req.body);
+  const token = req.cookies?.[REFRESH_COOKIE] ?? body?.refreshToken;
   if (token) {
     await authService.logout(token);
   }
