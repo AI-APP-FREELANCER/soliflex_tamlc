@@ -88,3 +88,43 @@ curl -i -X POST http://127.0.0.1:4000/api/auth/register -H "Content-Type: applic
 # should return 400 (validation error), never 404 — a 404 here means the
 # running process is stale or you restarted the wrong PM2 app by name
 ```
+
+## Mobile app — persistent Expo Go tunnel for customer testing
+
+The mobile app (`mobile/`) isn't in app stores yet, so customers test it via Expo Go
+scanning a QR code that points at a `expo start --tunnel` dev server. Running this on
+the server (instead of a developer's own laptop) means it survives beyond any one
+developer's session — but the tunnel URL still changes every time the process
+(re)starts, so it is **not a permanent link**; regenerate the QR after every restart.
+
+**First-time setup:**
+
+```bash
+cd /home/tms-app/soliflex_ticket_mgmt_system/mobile
+npm ci                                    # includes @expo/ngrok (devDependency), avoids an interactive install prompt
+pm2 start ecosystem.config.js             # registers it as "soliflex-mobile-tunnel"
+pm2 save
+```
+
+**After every start/restart, get the current QR:**
+
+```bash
+# 1. Confirm the tunnel is up and grab its public URL from ngrok's local API:
+curl -s http://127.0.0.1:4040/api/tunnels | grep -o '"public_url":"[^"]*"'
+
+# 2. Convert the https:// URL's host into an exp:// URL Expo Go understands, e.g.
+#    https://abcd1234-anonymous-8081.exp.direct  ->  exp://abcd1234-anonymous-8081.exp.direct
+
+# 3. Generate a scannable QR image from it:
+cd mobile && node scripts/print-qr.mjs "exp://<the-subdomain>.exp.direct" mobile-qr.png
+```
+
+Send `mobile-qr.png` (or the raw `exp://...` URL, for Expo Go's "Enter URL manually"
+option) to whoever needs to test. **Redeploy** (after pulling mobile app changes) is
+just `pm2 restart soliflex-mobile-tunnel` from `mobile/` — remember this also changes
+the URL, so regenerate the QR afterward.
+
+**Note:** an EAS-built installable APK (`eas build --profile preview --platform
+android`) is a more robust upgrade path once the app has matured — no Expo Go or
+tunnel needed, just a normal install — and only requires a free Expo account, not a
+paid developer account. Consider it once Phase 1+ are done.
