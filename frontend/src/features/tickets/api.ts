@@ -86,6 +86,11 @@ export async function closeTicket(id: string, data: { confirmEquipmentOperationa
   return res.data;
 }
 
+export async function reopenTicket(id: string, reason: string) {
+  const res = await api.post(`/tickets/${id}/reopen`, { reason });
+  return res.data;
+}
+
 export async function holdTicket(id: string, data: { reason: OnHoldReason; detail: string }) {
   const res = await api.post(`/tickets/${id}/hold`, data);
   return res.data;

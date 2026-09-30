@@ -410,6 +410,33 @@ export async function closeTicket(actor: Actor, ticketId: string, confirmEquipme
   });
 }
 
+export async function reopenTicket(actor: Actor, ticketId: string, reason: string) {
+  const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+  assertAction(ticket, actor, "REOPEN");
+  if (!reason.trim()) {
+    throw new ApiError(400, "Explain why this ticket is being reopened");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: reason } });
+    const updated = await tx.ticket.update({
+      where: { id: ticketId },
+      data: { status: TicketStatus.IN_PROGRESS, closedById: null, closedAt: null },
+    });
+    await tx.ticketStatusHistory.create({
+      data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.IN_PROGRESS, changedById: actor.id, comment: reason },
+    });
+    await recordAudit(tx, { entityType: "Ticket", entityId: ticketId, action: "REOPEN", changedById: actor.id, newValue: reason });
+
+    const notifyIds = new Set([ticket.assignedToId, ticket.reportedById, ticket.managerId].filter(Boolean) as string[]);
+    notifyIds.delete(actor.id);
+    for (const userId of notifyIds) {
+      await notify(tx, userId, NotificationType.STATUS_CHANGED, `${ticket.ticketNumber} was reopened: ${reason}`, `/tickets/${ticketId}`);
+    }
+    return updated;
+  });
+}
+
 export async function holdTicket(actor: Actor, ticketId: string, reason: OnHoldReason, detail: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "HOLD");

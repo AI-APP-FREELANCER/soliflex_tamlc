@@ -115,6 +115,12 @@ router.post("/:id/close", requireRole(Role.MANAGER, Role.ADMIN), async (req, res
   res.json(await tickets.closeTicket(actorFromReq(req), req.params.id, data.confirmEquipmentOperational, data.closingComment));
 });
 
+const reopenSchema = z.object({ reason: z.string().min(1) });
+router.post("/:id/reopen", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
+  const data = reopenSchema.parse(req.body);
+  res.json(await tickets.reopenTicket(actorFromReq(req), req.params.id, data.reason));
+});
+
 const holdSchema = z.object({ reason: z.nativeEnum(OnHoldReason), detail: z.string().min(1) });
 router.post("/:id/hold", async (req, res) => {
   const data = holdSchema.parse(req.body);

@@ -56,6 +56,7 @@ export function useTicketMutations(ticketId?: string) {
     markJobCompleted: wrap((id: string) => ticketsApi.markJobCompleted(id), "Marked job completed"),
     markFinalReview: wrap((id: string) => ticketsApi.markFinalReview(id), "Sent to final review"),
     close: wrap((vars: { id: string; data: Parameters<typeof ticketsApi.closeTicket>[1] }) => ticketsApi.closeTicket(vars.id, vars.data), "Ticket closed"),
+    reopen: wrap((vars: { id: string; reason: string }) => ticketsApi.reopenTicket(vars.id, vars.reason), "Ticket reopened"),
     hold: wrap((vars: { id: string; data: Parameters<typeof ticketsApi.holdTicket>[1] }) => ticketsApi.holdTicket(vars.id, vars.data), "Ticket put on hold"),
     resume: wrap((id: string) => ticketsApi.resumeTicket(id), "Ticket resumed"),
     addComment: wrap((vars: { id: string; body: string }) => ticketsApi.addComment(vars.id, vars.body)),

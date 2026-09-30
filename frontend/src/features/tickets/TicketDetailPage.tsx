@@ -35,6 +35,7 @@ export default function TicketDetailPage() {
   const [showClose, setShowClose] = useState(false);
   const [showHold, setShowHold] = useState(false);
   const [showRecommendation, setShowRecommendation] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
   const [costDesc, setCostDesc] = useState("");
   const [costAmount, setCostAmount] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -336,6 +337,28 @@ export default function TicketDetailPage() {
               <button onClick={() => setShowClose(true)} className="w-full rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
                 Verify &amp; close
               </button>
+            )}
+
+            {isManager && ["FIRST_LINE_REVIEW", "JOB_COMPLETED", "FINAL_REVIEW", "CLOSED"].includes(ticket.status) && (
+              <div className="space-y-1.5">
+                <input
+                  value={reopenReason}
+                  onChange={(e) => setReopenReason(e.target.value)}
+                  placeholder="Why is this being reopened?"
+                  className="w-full rounded-lg border border-soliflex-gray-200 px-2.5 py-1.5 text-xs"
+                />
+                <button
+                  onClick={() =>
+                    id &&
+                    reopenReason &&
+                    handleAction(() => mutations.reopen.mutateAsync({ id, reason: reopenReason }).then(() => setReopenReason("")))
+                  }
+                  disabled={!reopenReason}
+                  className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                >
+                  Reopen ticket
+                </button>
+              </div>
             )}
 
             {ticket.status !== "CLOSED" && !ticket.onHold && (isManager || isAssignee) && (

@@ -95,7 +95,10 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
     roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
   },
   REOPEN: {
-    from: [TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW],
+    // Includes CLOSED so a ticket can be reopened if the fix turns out not to
+    // have actually resolved the problem — previously this rule stopped short
+    // of CLOSED and no service function/route implemented it at all.
+    from: [TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW, TicketStatus.CLOSED],
     to: TicketStatus.IN_PROGRESS,
     roles: [Role.MANAGER, Role.ADMIN],
   },
