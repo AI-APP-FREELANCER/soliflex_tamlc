@@ -125,3 +125,118 @@ export interface HelpdeskDashboardStats {
   missingDeadlineCount: number;
   perEngineerWorkload: { engineerId: string; name: string; open: number; inProgress: number; overdue: number }[];
 }
+
+// --- Legacy tickets module (maintenance/IT) — mirrors frontend/src/lib/types.ts ---
+
+export type TicketStatus =
+  | "OPEN"
+  | "ASSIGNED"
+  | "IN_PROGRESS"
+  | "FIRST_LINE_REVIEW"
+  | "JOB_COMPLETED"
+  | "FINAL_REVIEW"
+  | "CLOSED";
+
+export type TicketCategory =
+  | "PRODUCTION_MACHINE"
+  | "FACTORY_FACILITY"
+  | "OTHER_MACHINE"
+  | "WORKSTATION"
+  | "LAPTOP"
+  | "NETWORK_GEAR"
+  | "SERVER"
+  | "SOFTWARE";
+
+export type OnHoldReason = "VENDOR" | "MATERIAL" | "APPROVAL";
+export type AttachmentType = "PRE_FIX_PHOTO" | "POST_FIX_PHOTO" | "INVOICE" | "OTHER";
+
+export interface TicketComment {
+  id: string;
+  ticketId: string;
+  authorId: string;
+  author?: NamedRef;
+  body: string;
+  createdAt: string;
+}
+
+export interface TicketAttachment {
+  id: string;
+  ticketId: string;
+  type: AttachmentType;
+  fileUrl: string;
+  uploadedById: string;
+  uploadedBy?: NamedRef;
+  createdAt: string;
+}
+
+export interface TicketCostEntry {
+  id: string;
+  ticketId: string;
+  description: string;
+  amount: number;
+  sparePartUsed: boolean;
+  createdAt: string;
+}
+
+export interface TicketStatusHistoryEntry {
+  id: string;
+  ticketId: string;
+  fromStatus: TicketStatus | null;
+  toStatus: TicketStatus;
+  changedById: string;
+  changedBy?: NamedRef;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface Ticket {
+  id: string;
+  ticketNumber: string;
+  workstream: Workstream;
+  category: TicketCategory;
+  title: string;
+  description: string;
+  plantLocation: string | null;
+  maintenanceAssetId: string | null;
+  itAssetId: string | null;
+  status: TicketStatus;
+  priority: Priority | null;
+  onHold: boolean;
+  onHoldReason: OnHoldReason | null;
+  onHoldDetail: string | null;
+  onHoldSince: string | null;
+  reportedById: string;
+  reportedBy?: NamedRef;
+  assignedToId: string | null;
+  assignedTo?: NamedRef | null;
+  managerId: string | null;
+  manager?: NamedRef | null;
+  diagnosis: string | null;
+  recommendedFix: string | null;
+  approvedById: string | null;
+  approvedBy?: NamedRef | null;
+  approvedAt: string | null;
+  effortEstimateHours: number | null;
+  targetCompletionDate: string | null;
+  slaBreached: boolean;
+  actualCost: number | null;
+  closedById: string | null;
+  closedBy?: NamedRef | null;
+  closedAt: string | null;
+  comments?: TicketComment[];
+  attachments?: TicketAttachment[];
+  costEntries?: TicketCostEntry[];
+  statusHistory?: TicketStatusHistoryEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketFilter extends DateRangeValue {
+  workstream?: Workstream;
+  status?: TicketStatus;
+  assignedToId?: string;
+  reportedById?: string;
+  priority?: Priority;
+  onHold?: boolean;
+  search?: string;
+}
