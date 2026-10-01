@@ -20,6 +20,12 @@ module.exports = {
       args: "run start:tunnel",
       interpreter: "none",
       cwd: __dirname,
+      // CI=1 makes the Expo CLI skip/fail interactive prompts (e.g. "Use a
+      // different port?") instead of hanging forever — PM2 has no terminal
+      // to answer them. The dev server port itself is pinned in the
+      // start:tunnel npm script (see package.json) to avoid clashing with
+      // other apps on this shared server.
+      env: { CI: "1" },
       autorestart: true,
       max_restarts: 20,
       restart_delay: 5000,
