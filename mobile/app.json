@@ -45,7 +45,8 @@
           "cameraPermission": "Allow Soliflex TMS to use the camera to scan asset QR codes."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-sharing"
     ]
   }
 }

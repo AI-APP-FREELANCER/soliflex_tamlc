@@ -312,3 +312,65 @@ export interface AssetFilter {
   status?: AssetStatus;
   search?: string;
 }
+
+// --- Audit module ---
+
+export interface AuditEntry {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  field: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  changedById: string;
+  changedBy?: NamedRef & { role?: Role };
+  changedAt: string;
+}
+
+export interface AuditFilter extends DateRangeValue {
+  entityType?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+// --- Reports module ---
+
+export interface DashboardStats {
+  total: number;
+  open: number;
+  closed: number;
+  onHold: number;
+  slaBreached: number;
+  avgResolutionHours: number;
+  totalCost: number;
+  byStatus: { status: TicketStatus; count: number }[];
+  byPriority: { priority: Priority; count: number }[];
+}
+
+export interface OverdueTicket {
+  id: string;
+  ticketNumber: string;
+  title: string;
+  status: TicketStatus;
+  priority: Priority | null;
+  targetCompletionDate: string;
+  assignedTo: { name: string } | null;
+}
+
+export interface ExpiringAssets {
+  maintenance: MaintenanceAsset[];
+  it: ITAsset[];
+}
+
+// --- Notifications (cross-cutting) ---
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: string;
+  message: string;
+  link: string | null;
+  read: boolean;
+  createdAt: string;
+}

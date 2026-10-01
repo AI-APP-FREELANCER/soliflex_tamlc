@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Bell, ChevronRight } from "lucide-react-native";
+import { fetchNotifications } from "@/api/notifications";
 import * as auth from "@/api/auth";
 import { apiErrorMessage } from "@/lib/api-client";
 import { getStoredRefreshToken, clearStoredRefreshToken } from "@/lib/secureStore";
@@ -19,7 +22,10 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const { data: notifications } = useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications, refetchInterval: 30000 });
+  const unreadCount = (notifications ?? []).filter((n) => !n.read).length;
   const clearSession = useAuthStore((s) => s.clearSession);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -58,6 +64,22 @@ export default function ProfileScreen() {
           <Text className="mt-3 text-lg font-bold text-soliflex-ink">{user.name}</Text>
           <Text className="text-sm text-soliflex-gray-500">{user.email}</Text>
         </View>
+
+        <Pressable
+          onPress={() => router.push("/notifications")}
+          className="mb-4 flex-row items-center justify-between rounded-xl border border-soliflex-gray-100 bg-white px-4 py-3"
+        >
+          <View className="flex-row items-center gap-2">
+            <Bell color="#23272B" size={18} />
+            <Text className="text-sm font-medium text-soliflex-ink">Notifications</Text>
+            {unreadCount > 0 && (
+              <View className="rounded-full bg-soliflex-orange-500 px-2 py-0.5">
+                <Text className="text-xs font-semibold text-white">{unreadCount}</Text>
+              </View>
+            )}
+          </View>
+          <ChevronRight color="#9A9DA6" size={18} />
+        </Pressable>
 
         <View className="rounded-xl border border-soliflex-gray-100 bg-white px-4">
           <InfoRow label="Role" value={user.role} />
