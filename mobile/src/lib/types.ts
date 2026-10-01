@@ -240,3 +240,75 @@ export interface TicketFilter extends DateRangeValue {
   onHold?: boolean;
   search?: string;
 }
+
+// --- Assets module (maintenance + IT inventory) ---
+
+export type AssetStatus = "ACTIVE" | "DOWN" | "RETIRED";
+export type AssetType = "maintenance" | "it";
+
+export interface AssetPhoto {
+  id: string;
+  assetId: string;
+  fileUrl: string;
+  caption: string | null;
+  uploadedAt: string;
+}
+
+export interface AssetInvoice {
+  id: string;
+  assetId: string;
+  fileUrl: string;
+  invoiceNumber: string | null;
+  amount: number | null;
+  uploadedAt: string;
+}
+
+export interface MaintenanceAsset {
+  id: string;
+  itemCode: string;
+  name: string;
+  category: string;
+  model: string | null;
+  manufacturer: string | null;
+  plantLocation: string | null;
+  specifications: string | null;
+  purchaseDate: string | null;
+  warrantyStartDate: string | null;
+  warrantyEndDate: string | null;
+  status: AssetStatus;
+  statusSince: string | null;
+  qrCodeUrl: string | null;
+  photos?: AssetPhoto[];
+  invoices?: AssetInvoice[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ITAsset {
+  id: string;
+  itemCode: string;
+  name: string;
+  category: string;
+  serialNumber: string | null;
+  specifications: string | null;
+  ipAddress: string | null;
+  macAddress: string | null;
+  vendor: string | null;
+  purchaseDate: string | null;
+  warrantyEndDate: string | null;
+  licenseExpiryDate: string | null;
+  costCenter: string | null;
+  assignedToUserId: string | null;
+  status: AssetStatus;
+  statusSince: string | null;
+  qrCodeUrl: string | null;
+  invoices?: AssetInvoice[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetFilter {
+  category?: string;
+  status?: AssetStatus;
+  search?: string;
+}

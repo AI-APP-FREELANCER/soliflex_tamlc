@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { Modal } from "@/components/Modal";
 import { TextField } from "@/components/TextField";
 import { SelectField } from "@/components/SelectField";
+import { AssetPicker } from "@/components/AssetPicker";
 import { Button } from "@/components/Button";
 import { HELPDESK_CATEGORY_LABELS } from "@/features/helpdesk/badges";
 import { useHelpdeskMutations } from "@/features/helpdesk/hooks";
@@ -22,17 +23,21 @@ export function CreateTicketModal({ visible, onClose }: CreateTicketModalProps) 
   const [category, setCategory] = useState<HelpdeskCategory>("LAPTOP_DESKTOP");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [assetId, setAssetId] = useState<string | undefined>();
+  const [assetLabel, setAssetLabel] = useState<string | undefined>();
   const { create } = useHelpdeskMutations();
 
   function reset() {
     setCategory("LAPTOP_DESKTOP");
     setTitle("");
     setDescription("");
+    setAssetId(undefined);
+    setAssetLabel(undefined);
   }
 
   function handleSubmit() {
     create.mutate(
-      { category, title: title.trim(), description: description.trim() },
+      { category, title: title.trim(), description: description.trim(), itAssetId: assetId },
       {
         onSuccess: () => {
           reset();
@@ -61,6 +66,18 @@ export function CreateTicketModal({ visible, onClose }: CreateTicketModalProps) 
             style={{ minHeight: 96 }}
           />
         </View>
+        <AssetPicker
+          type="it"
+          selectedLabel={assetLabel}
+          onSelect={(id, l) => {
+            setAssetId(id);
+            setAssetLabel(l);
+          }}
+          onClear={() => {
+            setAssetId(undefined);
+            setAssetLabel(undefined);
+          }}
+        />
         <Button title="Raise ticket" onPress={handleSubmit} disabled={!canSubmit} loading={create.isPending} />
       </View>
     </Modal>

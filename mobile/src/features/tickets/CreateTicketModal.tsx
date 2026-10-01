@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { Modal } from "@/components/Modal";
 import { TextField } from "@/components/TextField";
 import { SelectField } from "@/components/SelectField";
+import { AssetPicker } from "@/components/AssetPicker";
 import { Button } from "@/components/Button";
 import { useAuthStore } from "@/store/auth.store";
 import { TICKET_CATEGORY_LABELS } from "@/features/tickets/badges";
@@ -25,6 +26,8 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [plantLocation, setPlantLocation] = useState("");
+  const [assetId, setAssetId] = useState<string | undefined>();
+  const [assetLabel, setAssetLabel] = useState<string | undefined>();
   const { create } = useTicketMutations();
 
   const categoryOptions = useMemo(
@@ -38,12 +41,22 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     setTitle("");
     setDescription("");
     setPlantLocation("");
+    setAssetId(undefined);
+    setAssetLabel(undefined);
   }
 
   function handleSubmit() {
     if (!workstream || !category) return;
     create.mutate(
-      { workstream, category, title: title.trim(), description: description.trim(), plantLocation: plantLocation.trim() || undefined },
+      {
+        workstream,
+        category,
+        title: title.trim(),
+        description: description.trim(),
+        plantLocation: plantLocation.trim() || undefined,
+        maintenanceAssetId: workstream === "MAINTENANCE" ? assetId : undefined,
+        itAssetId: workstream === "IT" ? assetId : undefined,
+      },
       {
         onSuccess: (ticket) => {
           reset();
@@ -77,6 +90,8 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
             onChange={(v) => {
               setWorkstream(v);
               setCategory(undefined);
+              setAssetId(undefined);
+              setAssetLabel(undefined);
             }}
           />
         )}
@@ -93,6 +108,20 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
           style={{ minHeight: 96 }}
         />
         <TextField label="Plant / location (optional)" placeholder="e.g. Line 3, Shop Floor" value={plantLocation} onChangeText={setPlantLocation} />
+        {workstream && (
+          <AssetPicker
+            type={workstream === "MAINTENANCE" ? "maintenance" : "it"}
+            selectedLabel={assetLabel}
+            onSelect={(id, l) => {
+              setAssetId(id);
+              setAssetLabel(l);
+            }}
+            onClear={() => {
+              setAssetId(undefined);
+              setAssetLabel(undefined);
+            }}
+          />
+        )}
         <Button title="Raise ticket" onPress={handleSubmit} disabled={!canSubmit} loading={create.isPending} />
       </View>
     </Modal>
