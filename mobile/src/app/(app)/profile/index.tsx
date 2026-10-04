@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { DrawerToggleButton } from "expo-router/drawer";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Bell, ChevronRight } from "lucide-react-native";
 import { fetchNotifications } from "@/api/notifications";
@@ -56,6 +57,10 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-soliflex-gray-50" edges={["top"]}>
+      <View className="flex-row items-center border-b border-soliflex-gray-100 bg-white px-1 py-1">
+        <DrawerToggleButton tintColor="#23272B" />
+        <Text className="text-lg font-bold text-soliflex-ink">Profile</Text>
+      </View>
       <ScrollView contentContainerClassName="px-5 py-5" keyboardShouldPersistTaps="handled">
         <View className="items-center py-4">
           <View className="h-16 w-16 items-center justify-center rounded-full bg-soliflex-orange-500">
@@ -66,7 +71,7 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable
-          onPress={() => router.push("/notifications")}
+          onPress={() => router.push("/profile/notifications")}
           className="mb-4 flex-row items-center justify-between rounded-xl border border-soliflex-gray-100 bg-white px-4 py-3"
         >
           <View className="flex-row items-center gap-2">

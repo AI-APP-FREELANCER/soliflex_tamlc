@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { DrawerToggleButton } from "expo-router/drawer";
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react-native";
 import { File, Paths } from "expo-file-system";
@@ -77,8 +78,11 @@ export default function ReportsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-soliflex-gray-50" edges={["top"]}>
-      <View className="flex-row items-center justify-between border-b border-soliflex-gray-100 bg-white px-4 py-3">
-        <Text className="text-lg font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Reports</Text>
+      <View className="flex-row items-center justify-between border-b border-soliflex-gray-100 bg-white py-1 pl-1 pr-4">
+        <View className="flex-row items-center">
+          <DrawerToggleButton tintColor="#23272B" />
+          <Text className="text-lg font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Reports</Text>
+        </View>
         <Pressable onPress={handleExport} disabled={exporting} className="flex-row items-center gap-1 rounded-lg bg-soliflex-orange-500 px-3 py-2">
           <Download color="#fff" size={16} />
           <Text className="text-xs font-semibold text-white">{exporting ? "Exporting…" : "Export"}</Text>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { DrawerToggleButton } from "expo-router/drawer";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAuditEntityTypes, fetchAuditLog } from "@/api/audit";
 import { SelectField } from "@/components/SelectField";
@@ -29,7 +30,8 @@ export default function AuditScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-soliflex-gray-50" edges={["top"]}>
-      <View className="border-b border-soliflex-gray-100 bg-white px-4 py-3">
+      <View className="flex-row items-center border-b border-soliflex-gray-100 bg-white py-1 pl-1 pr-4">
+        <DrawerToggleButton tintColor="#23272B" />
         <Text className="text-lg font-bold text-soliflex-ink">Audit Log</Text>
       </View>
 

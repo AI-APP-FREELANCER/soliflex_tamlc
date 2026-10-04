@@ -1,4 +1,4 @@
-import { Tabs } from "expo-router";
+import { Drawer } from "expo-router/drawer";
 import { LayoutGrid, LifeBuoy, Boxes, BarChart3, Users, ScrollText, UserCircle } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
 import { canSeeHelpdesk, canSeeLegacy, canSeeUsersAndAudit } from "@/lib/roles";
@@ -7,52 +7,53 @@ export default function AppLayout() {
   const role = useAuthStore((s) => s.user?.role);
 
   return (
-    <Tabs
+    <Drawer
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#F26522",
-        tabBarInactiveTintColor: "#9A9DA6",
+        drawerActiveTintColor: "#F26522",
+        drawerInactiveTintColor: "#55504A",
+        drawerActiveBackgroundColor: "#FBEADB",
       }}
     >
-      <Tabs.Screen name="index" options={{ href: null }} />
+      <Drawer.Screen name="index" options={{ drawerItemStyle: { height: 0, width: 0 } }} />
 
-      <Tabs.Protected guard={canSeeHelpdesk(role)}>
-        <Tabs.Screen
+      <Drawer.Protected guard={canSeeHelpdesk(role)}>
+        <Drawer.Screen
           name="helpdesk"
-          options={{ title: "Helpdesk", tabBarIcon: ({ color, size }) => <LifeBuoy color={color} size={size} /> }}
+          options={{ title: "Helpdesk", drawerIcon: ({ color, size }) => <LifeBuoy color={color} size={size} /> }}
         />
-      </Tabs.Protected>
+      </Drawer.Protected>
 
-      <Tabs.Protected guard={canSeeLegacy(role)}>
-        <Tabs.Screen
+      <Drawer.Protected guard={canSeeLegacy(role)}>
+        <Drawer.Screen
           name="tickets"
-          options={{ title: "Board", tabBarIcon: ({ color, size }) => <LayoutGrid color={color} size={size} /> }}
+          options={{ title: "Board", drawerIcon: ({ color, size }) => <LayoutGrid color={color} size={size} /> }}
         />
-        <Tabs.Screen
+        <Drawer.Screen
           name="assets"
-          options={{ title: "Assets", tabBarIcon: ({ color, size }) => <Boxes color={color} size={size} /> }}
+          options={{ title: "Assets", drawerIcon: ({ color, size }) => <Boxes color={color} size={size} /> }}
         />
-        <Tabs.Screen
+        <Drawer.Screen
           name="reports"
-          options={{ title: "Reports", tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size} /> }}
+          options={{ title: "Reports", drawerIcon: ({ color, size }) => <BarChart3 color={color} size={size} /> }}
         />
-      </Tabs.Protected>
+      </Drawer.Protected>
 
-      <Tabs.Protected guard={canSeeUsersAndAudit(role)}>
-        <Tabs.Screen
+      <Drawer.Protected guard={canSeeUsersAndAudit(role)}>
+        <Drawer.Screen
           name="users"
-          options={{ title: "Users", tabBarIcon: ({ color, size }) => <Users color={color} size={size} /> }}
+          options={{ title: "Users", drawerIcon: ({ color, size }) => <Users color={color} size={size} /> }}
         />
-        <Tabs.Screen
+        <Drawer.Screen
           name="audit"
-          options={{ title: "Audit", tabBarIcon: ({ color, size }) => <ScrollText color={color} size={size} /> }}
+          options={{ title: "Audit", drawerIcon: ({ color, size }) => <ScrollText color={color} size={size} /> }}
         />
-      </Tabs.Protected>
+      </Drawer.Protected>
 
-      <Tabs.Screen
+      <Drawer.Screen
         name="profile"
-        options={{ title: "Profile", tabBarIcon: ({ color, size }) => <UserCircle color={color} size={size} /> }}
+        options={{ title: "Profile", drawerIcon: ({ color, size }) => <UserCircle color={color} size={size} /> }}
       />
-    </Tabs>
+    </Drawer>
   );
 }

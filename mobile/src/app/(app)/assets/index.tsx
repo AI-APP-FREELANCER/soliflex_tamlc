@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { DrawerToggleButton } from "expo-router/drawer";
 import { Plus, QrCode } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
 import { useAssets } from "@/features/assets/hooks";
@@ -48,8 +49,11 @@ export default function AssetsListScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-soliflex-gray-50" edges={["top"]}>
-      <View className="flex-row items-center justify-between border-b border-soliflex-gray-100 bg-white px-4 py-3">
-        <Text className="text-lg font-bold text-soliflex-ink">Assets</Text>
+      <View className="flex-row items-center justify-between border-b border-soliflex-gray-100 bg-white py-1 pl-1 pr-4">
+        <View className="flex-row items-center">
+          <DrawerToggleButton tintColor="#23272B" />
+          <Text className="text-lg font-bold text-soliflex-ink">Assets</Text>
+        </View>
         <View className="flex-row items-center gap-3">
           <Pressable onPress={() => setScannerOpen(true)} hitSlop={8}>
             <QrCode color="#23272B" size={22} />

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { DrawerToggleButton } from "expo-router/drawer";
 import { Plus } from "lucide-react-native";
 import { useUsersList } from "@/features/users/hooks";
 import { UserRow } from "@/features/users/UserRow";
@@ -17,8 +18,11 @@ export default function UsersScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-soliflex-gray-50" edges={["top"]}>
-      <View className="flex-row items-center justify-between border-b border-soliflex-gray-100 bg-white px-4 py-3">
-        <Text className="text-lg font-bold text-soliflex-ink">Users</Text>
+      <View className="flex-row items-center justify-between border-b border-soliflex-gray-100 bg-white py-1 pl-1 pr-4">
+        <View className="flex-row items-center">
+          <DrawerToggleButton tintColor="#23272B" />
+          <Text className="text-lg font-bold text-soliflex-ink">Users</Text>
+        </View>
         <Pressable onPress={() => setCreateOpen(true)} className="flex-row items-center gap-1 rounded-lg bg-soliflex-orange-500 px-3 py-2">
           <Plus color="#fff" size={16} />
           <Text className="text-xs font-semibold text-white">Add</Text>
