@@ -67,7 +67,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     );
   }
 
-  const canSubmit = !!workstream && !!category && title.trim().length > 0 && description.trim().length > 0;
+  const canSubmit = !!workstream && !!category && title.trim().length >= 3 && description.trim().length >= 3;
 
   if (workstreamOptions.length === 0) {
     return (
@@ -96,10 +96,10 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
           />
         )}
         <SelectField label="Category" value={category} options={categoryOptions} onChange={setCategory} />
-        <TextField label="Title" placeholder="Short summary" value={title} onChangeText={setTitle} />
+        <TextField label="Title" placeholder="Short summary (at least 3 characters)" value={title} onChangeText={setTitle} />
         <TextField
           label="Description"
-          placeholder="What's the issue?"
+          placeholder="What's the issue? (at least 3 characters)"
           value={description}
           onChangeText={setDescription}
           multiline

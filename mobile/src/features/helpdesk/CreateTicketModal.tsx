@@ -47,17 +47,17 @@ export function CreateTicketModal({ visible, onClose }: CreateTicketModalProps) 
     );
   }
 
-  const canSubmit = title.trim().length > 0 && description.trim().length > 0;
+  const canSubmit = title.trim().length >= 3 && description.trim().length >= 3;
 
   return (
     <Modal visible={visible} title="Raise a ticket" onClose={onClose}>
       <View className="gap-4 pb-4">
         <SelectField label="Category" value={category} options={CATEGORY_OPTIONS} onChange={setCategory} />
-        <TextField label="Title" placeholder="Short summary" value={title} onChangeText={setTitle} />
+        <TextField label="Title" placeholder="Short summary (at least 3 characters)" value={title} onChangeText={setTitle} />
         <View>
           <Text className="mb-1 text-sm font-medium text-soliflex-gray-700">Description</Text>
           <TextField
-            placeholder="What's the issue? Include any details that would help us fix it."
+            placeholder="What's the issue? Include any details that would help us fix it. (at least 3 characters)"
             value={description}
             onChangeText={setDescription}
             multiline
