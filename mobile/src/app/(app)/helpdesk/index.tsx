@@ -3,7 +3,7 @@ import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { DrawerToggleButton } from "expo-router/drawer";
-import { Plus, LayoutDashboard } from "lucide-react-native";
+import { LayoutDashboard } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
 import { canSeeHelpdeskDashboard } from "@/lib/roles";
 import { useHelpdeskTickets } from "@/features/helpdesk/hooks";
@@ -55,13 +55,6 @@ export default function HelpdeskListScreen() {
               <LayoutDashboard color="#23272B" size={22} />
             </Pressable>
           )}
-          <Pressable
-            onPress={() => setCreateOpen(true)}
-            className="flex-row items-center gap-1 rounded-lg bg-soliflex-orange-500 px-3 py-2"
-          >
-            <Plus color="#fff" size={16} />
-            <Text className="text-xs font-semibold text-white">Raise ticket</Text>
-          </Pressable>
         </View>
       </View>
 

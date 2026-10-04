@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
 import { useAuthStore } from "../../store/auth.store";
 import { useHelpdeskTickets } from "./hooks";
 import { HelpdeskStatusBadge, HELPDESK_CATEGORY_LABELS, DeadlineBreachedBadge, OnHoldBadge, MissingDeadlineBadge } from "./badges";
@@ -72,12 +71,6 @@ export default function HelpdeskListPage() {
             Missing deadline
           </label>
         )}
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-soliflex-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600"
-        >
-          <Plus className="h-4 w-4" /> Raise ticket
-        </button>
       </div>
 
       {isLoading ? (

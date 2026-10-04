@@ -3,7 +3,6 @@ import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { DrawerToggleButton } from "expo-router/drawer";
-import { Plus } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
 import { useTickets } from "@/features/tickets/hooks";
 import { TicketRow } from "@/features/tickets/TicketRow";
@@ -50,13 +49,6 @@ export default function TicketsListScreen() {
           <DrawerToggleButton tintColor="#23272B" />
           <Text className="text-lg font-bold text-soliflex-ink">Maintenance / IT Tickets</Text>
         </View>
-        <Pressable
-          onPress={() => setCreateOpen(true)}
-          className="flex-row items-center gap-1 rounded-lg bg-soliflex-orange-500 px-3 py-2"
-        >
-          <Plus color="#fff" size={16} />
-          <Text className="text-xs font-semibold text-white">Raise ticket</Text>
-        </Pressable>
       </View>
 
       <View className="gap-3 border-b border-soliflex-gray-100 bg-white px-4 py-3">
