@@ -1,5 +1,5 @@
 import { api, API_BASE_URL } from "../../lib/api";
-import type { DashboardStats, ITAsset, MaintenanceAsset, Priority, TicketStatus, Workstream } from "../../lib/types";
+import type { DashboardStats, ITAsset, MaintenanceAsset, Priority, Workstream } from "../../lib/types";
 import type { DateRangeValue } from "../../components/DateRangeFilter";
 
 export async function fetchDashboard(workstream?: Workstream, dateRange?: DateRangeValue): Promise<DashboardStats> {
@@ -9,9 +9,11 @@ export async function fetchDashboard(workstream?: Workstream, dateRange?: DateRa
 
 export interface OverdueTicket {
   id: string;
+  /** TICKET = legacy maintenance/IT ticket, HELPDESK = IT Helpdesk ticket. */
+  source: "TICKET" | "HELPDESK";
   ticketNumber: string;
   title: string;
-  status: TicketStatus;
+  status: string;
   priority: Priority | null;
   targetCompletionDate: string;
   assignedTo: { name: string } | null;

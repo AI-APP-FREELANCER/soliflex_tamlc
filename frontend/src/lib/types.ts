@@ -231,16 +231,22 @@ export interface Notification {
   createdAt: string;
 }
 
-export interface DashboardStats {
+export interface SourceStats {
   total: number;
   open: number;
   closed: number;
   onHold: number;
   slaBreached: number;
+  overdue: number;
+}
+
+export interface DashboardStats extends SourceStats {
   avgResolutionHours: number;
   totalCost: number;
-  byStatus: { status: TicketStatus; count: number }[];
+  /** Mixed legacy + Helpdesk statuses on the IT workstream, so this is a plain string. */
+  byStatus: { status: string; count: number }[];
   byPriority: { priority: Priority | null; count: number }[];
+  sources: { tickets: SourceStats; helpdesk: SourceStats | null };
 }
 
 export interface AuditEntry {

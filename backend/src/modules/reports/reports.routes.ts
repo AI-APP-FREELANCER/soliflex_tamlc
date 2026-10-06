@@ -1,9 +1,10 @@
 import { Router } from "express";
 import ExcelJS from "exceljs";
-import { TicketStatus, Workstream } from "@prisma/client";
+import { Workstream } from "@prisma/client";
 import { requireAuth } from "../../middleware/auth";
 import { prisma } from "../../lib/prisma";
 import { resolveDateRange } from "../../lib/date-range";
+import { buildDashboardReport, buildOverdueReport, helpdeskWhere, includesHelpdesk, ticketWhere } from "./reports.service";
 
 const router = Router();
 router.use(requireAuth);
@@ -16,63 +17,19 @@ function dateRangeFromQuery(req: import("express").Request) {
   });
 }
 
+function workstreamFromQuery(req: import("express").Request): Workstream | undefined {
+  const raw = req.query.workstream;
+  return raw === Workstream.MAINTENANCE || raw === Workstream.IT ? raw : undefined;
+}
+
 router.get("/dashboard", async (req, res) => {
-  const workstream = req.query.workstream as Workstream | undefined;
-  const createdAtRange = dateRangeFromQuery(req);
-  const where = { ...(workstream ? { workstream } : {}), ...(createdAtRange ? { createdAt: createdAtRange } : {}) };
-
-  const [byStatus, byPriority, total, open, closedTickets, slaBreached, onHold] = await Promise.all([
-    prisma.ticket.groupBy({ by: ["status"], where, _count: true }),
-    prisma.ticket.groupBy({ by: ["priority"], where, _count: true }),
-    prisma.ticket.count({ where }),
-    prisma.ticket.count({ where: { ...where, status: { not: TicketStatus.CLOSED } } }),
-    prisma.ticket.findMany({ where: { ...where, status: TicketStatus.CLOSED, closedAt: { not: null } }, select: { createdAt: true, closedAt: true } }),
-    prisma.ticket.count({ where: { ...where, slaBreached: true } }),
-    prisma.ticket.count({ where: { ...where, onHold: true } }),
-  ]);
-
-  const avgResolutionHours =
-    closedTickets.length > 0
-      ? closedTickets.reduce((sum, t) => sum + (t.closedAt!.getTime() - t.createdAt.getTime()), 0) / closedTickets.length / 3_600_000
-      : 0;
-
-  const totalCost = await prisma.ticket.aggregate({ where, _sum: { actualCost: true } });
-
-  res.json({
-    total,
-    open,
-    closed: closedTickets.length,
-    onHold,
-    slaBreached,
-    avgResolutionHours: Math.round(avgResolutionHours * 10) / 10,
-    totalCost: totalCost._sum.actualCost ?? 0,
-    byStatus: byStatus.map((s) => ({ status: s.status, count: s._count })),
-    byPriority: byPriority.map((p) => ({ priority: p.priority, count: p._count })),
-  });
+  res.setHeader("Cache-Control", "no-store");
+  res.json(await buildDashboardReport(workstreamFromQuery(req), dateRangeFromQuery(req)));
 });
 
 router.get("/overdue-tickets", async (req, res) => {
-  const workstream = req.query.workstream as Workstream | undefined;
-  const createdAtRange = dateRangeFromQuery(req);
-  const tickets = await prisma.ticket.findMany({
-    where: {
-      status: { not: TicketStatus.CLOSED },
-      targetCompletionDate: { lt: new Date() },
-      ...(workstream ? { workstream } : {}),
-      ...(createdAtRange ? { createdAt: createdAtRange } : {}),
-    },
-    select: {
-      id: true,
-      ticketNumber: true,
-      title: true,
-      status: true,
-      priority: true,
-      targetCompletionDate: true,
-      assignedTo: { select: { name: true } },
-    },
-    orderBy: { targetCompletionDate: "asc" },
-  });
-  res.json(tickets);
+  res.setHeader("Cache-Control", "no-store");
+  res.json(await buildOverdueReport(workstreamFromQuery(req), dateRangeFromQuery(req)));
 });
 
 router.get("/expiring-assets", async (req, res) => {
@@ -92,9 +49,10 @@ router.get("/downtime", async (req, res) => {
 });
 
 router.get("/export", async (req, res) => {
-  const workstream = req.query.workstream as Workstream | undefined;
+  const workstream = workstreamFromQuery(req);
+  const range = dateRangeFromQuery(req);
   const ticketList = await prisma.ticket.findMany({
-    where: workstream ? { workstream } : {},
+    where: ticketWhere(workstream, range),
     include: {
       reportedBy: { select: { name: true } },
       assignedTo: { select: { name: true } },
@@ -130,11 +88,57 @@ router.get("/export", async (req, res) => {
       reportedBy: t.reportedBy?.name ?? "",
       assignedTo: t.assignedTo?.name ?? "",
       onHold: t.onHold ? "Yes" : "No",
-      slaBreached: t.slaBreached ? "Yes" : "No",
+      slaBreached: t.slaBreached || (t.status !== "CLOSED" && t.targetCompletionDate !== null && t.targetCompletionDate < new Date()) ? "Yes" : "No",
       actualCost: t.actualCost ?? 0,
       createdAt: t.createdAt.toISOString(),
       closedAt: t.closedAt?.toISOString() ?? "",
     });
+  }
+
+  if (includesHelpdesk(workstream)) {
+    const helpdeskList = await prisma.helpdeskTicket.findMany({
+      where: helpdeskWhere(range),
+      include: {
+        raisedBy: { select: { name: true } },
+        assignedTo: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const hSheet = workbook.addWorksheet("Helpdesk Tickets");
+    hSheet.columns = [
+      { header: "Ticket #", key: "ticketNumber", width: 14 },
+      { header: "Category", key: "category", width: 18 },
+      { header: "Title", key: "title", width: 30 },
+      { header: "Status", key: "status", width: 14 },
+      { header: "Priority", key: "priority", width: 10 },
+      { header: "Raised By", key: "raisedBy", width: 18 },
+      { header: "Assigned To", key: "assignedTo", width: 18 },
+      { header: "Deadline", key: "deadline", width: 20 },
+      { header: "Deadline Breached", key: "breached", width: 16 },
+      { header: "On Hold", key: "onHold", width: 10 },
+      { header: "Created At", key: "createdAt", width: 20 },
+      { header: "Resolved At", key: "resolvedAt", width: 20 },
+      { header: "Closed At", key: "closedAt", width: 20 },
+    ];
+    const now = new Date();
+    for (const h of helpdeskList) {
+      const finished = h.status === "CLOSED" || h.status === "RESOLVED";
+      hSheet.addRow({
+        ticketNumber: h.ticketNumber,
+        category: h.category,
+        title: h.title,
+        status: h.status,
+        priority: h.priority ?? "",
+        raisedBy: h.raisedBy?.name ?? "",
+        assignedTo: h.assignedTo?.name ?? "",
+        deadline: h.deadline?.toISOString() ?? "",
+        breached: h.deadlineBreached || (!finished && h.deadline !== null && h.deadline < now) ? "Yes" : "No",
+        onHold: h.onHold ? "Yes" : "No",
+        createdAt: h.createdAt.toISOString(),
+        resolvedAt: h.resolvedAt?.toISOString() ?? "",
+        closedAt: h.closedAt?.toISOString() ?? "",
+      });
+    }
   }
 
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

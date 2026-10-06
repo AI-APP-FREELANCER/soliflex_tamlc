@@ -7,6 +7,7 @@ import { nextSequenceValue, formatHelpdeskTicketNumber } from "../sequences/sequ
 import { recordAudit, recordFieldChanges } from "../audit/audit.service";
 import { notify } from "../notifications/notifications.service";
 import { resolveDateRange, DateRangeQuery } from "../../lib/date-range";
+import { withLiveDeadlineBreach } from "../../lib/live-breach";
 
 export interface Actor extends HelpdeskActor {
   name: string;
@@ -85,7 +86,7 @@ export interface HelpdeskFilter extends DateRangeQuery {
 
 export async function listHelpdeskTickets(filter: HelpdeskFilter, actor: Actor) {
   const createdAtRange = resolveDateRange(filter);
-  return prisma.helpdeskTicket.findMany({
+  const tickets = await prisma.helpdeskTicket.findMany({
     where: {
       ...helpdeskVisibilityWhere(actor),
       status: filter.status,
@@ -112,13 +113,15 @@ export async function listHelpdeskTickets(filter: HelpdeskFilter, actor: Actor) 
     },
     orderBy: { createdAt: "desc" },
   });
+  const now = new Date();
+  return tickets.map((t) => withLiveDeadlineBreach(t, now));
 }
 
 export async function getHelpdeskTicket(id: string, actor: Actor) {
   const ticket = await prisma.helpdeskTicket.findUnique({ where: { id }, include: HELPDESK_INCLUDE });
   if (!ticket) throw new ApiError(404, "Helpdesk ticket not found");
   assertCanView(actor, ticket);
-  return ticket;
+  return withLiveDeadlineBreach(ticket);
 }
 
 function assertAction(ticket: HelpdeskTicket, actor: Actor, action: HelpdeskAction) {

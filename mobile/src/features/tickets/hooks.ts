@@ -44,6 +44,8 @@ export function useTicketMutations(ticketId?: string) {
 
   function invalidate() {
     qc.invalidateQueries({ queryKey: ["tickets"] });
+    qc.invalidateQueries({ queryKey: ["reports-dashboard"] });
+    qc.invalidateQueries({ queryKey: ["reports-overdue"] });
     if (ticketId) qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
   }
 

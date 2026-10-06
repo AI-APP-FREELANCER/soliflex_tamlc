@@ -39,6 +39,8 @@ export function useHelpdeskDashboardStats(filter: HelpdeskFilter) {
   return useQuery({
     queryKey: ["helpdesk-dashboard", filter],
     queryFn: () => fetchHelpdeskDashboardStats(filter),
+    staleTime: 0,
+    refetchInterval: 60_000,
   });
 }
 
@@ -52,6 +54,8 @@ export function useHelpdeskMutations(ticketId?: string) {
   function invalidate() {
     qc.invalidateQueries({ queryKey: ["helpdesk-tickets"] });
     qc.invalidateQueries({ queryKey: ["helpdesk-dashboard"] });
+    qc.invalidateQueries({ queryKey: ["reports-dashboard"] });
+    qc.invalidateQueries({ queryKey: ["reports-overdue"] });
     if (ticketId) qc.invalidateQueries({ queryKey: ["helpdesk-ticket", ticketId] });
   }
 

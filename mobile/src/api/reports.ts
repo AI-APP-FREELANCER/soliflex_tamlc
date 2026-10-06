@@ -16,7 +16,7 @@ export async function fetchExpiringAssets(days = 60): Promise<ExpiringAssets> {
   return res.data;
 }
 
-export async function fetchReportsExportBytes(workstream: Workstream | undefined): Promise<ArrayBuffer> {
-  const res = await api.get("/reports/export", { params: { workstream }, responseType: "arraybuffer" });
+export async function fetchReportsExportBytes(workstream: Workstream | undefined, range: DateRangeValue = {}): Promise<ArrayBuffer> {
+  const res = await api.get("/reports/export", { params: { workstream, ...range }, responseType: "arraybuffer" });
   return res.data;
 }

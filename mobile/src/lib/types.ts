@@ -336,23 +336,31 @@ export interface AuditFilter extends DateRangeValue {
 
 // --- Reports module ---
 
-export interface DashboardStats {
+export interface SourceStats {
   total: number;
   open: number;
   closed: number;
   onHold: number;
   slaBreached: number;
+  overdue: number;
+}
+
+export interface DashboardStats extends SourceStats {
   avgResolutionHours: number;
   totalCost: number;
-  byStatus: { status: TicketStatus; count: number }[];
-  byPriority: { priority: Priority; count: number }[];
+  /** Mixed legacy + Helpdesk statuses on the IT workstream, so this is a plain string. */
+  byStatus: { status: string; count: number }[];
+  byPriority: { priority: Priority | null; count: number }[];
+  sources: { tickets: SourceStats; helpdesk: SourceStats | null };
 }
 
 export interface OverdueTicket {
   id: string;
+  /** TICKET = legacy maintenance/IT ticket, HELPDESK = IT Helpdesk ticket. */
+  source: "TICKET" | "HELPDESK";
   ticketNumber: string;
   title: string;
-  status: TicketStatus;
+  status: string;
   priority: Priority | null;
   targetCompletionDate: string;
   assignedTo: { name: string } | null;

@@ -12,6 +12,9 @@ export default function HelpdeskDashboardPage() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["helpdesk-dashboard", dateRange],
     queryFn: () => fetchHelpdeskDashboardStats(dateRange),
+    staleTime: 0,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading || !stats) return <Spinner />;

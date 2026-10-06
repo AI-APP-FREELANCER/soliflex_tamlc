@@ -2,16 +2,16 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { Download } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { useWorkstreamStore } from "../../store/workstream.store";
 import { fetchDashboard, fetchExpiringAssets, fetchOverdueTickets } from "./api";
 import { Spinner, EmptyState } from "../../components/Spinner";
-import { STATUS_LABELS, StatusBadge, PriorityBadge } from "../../components/badges";
+import { statusLabel, StatusBadge, PriorityBadge } from "../../components/badges";
 import { StatCard } from "../../components/StatCard";
 import { DateRangeFilter, DateRangeValue } from "../../components/DateRangeFilter";
 import { api } from "../../lib/api";
 import { format, formatDistanceToNow } from "date-fns";
-import type { Priority } from "../../lib/types";
+import type { Priority, TicketStatus } from "../../lib/types";
 
 const BREAKDOWN_COLORS = ["#F26522", "#A6392B", "#5D616B", "#DD5216"];
 
@@ -46,12 +46,23 @@ export default function DashboardPage() {
   const workstream = useWorkstreamStore((s) => s.workstream);
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<DateRangeValue>({});
-  const { data: stats, isLoading } = useQuery({ queryKey: ["dashboard", workstream, dateRange], queryFn: () => fetchDashboard(workstream, dateRange) });
-  const { data: expiring } = useQuery({ queryKey: ["expiring-assets"], queryFn: () => fetchExpiringAssets(60) });
-  const { data: overdueTickets } = useQuery({ queryKey: ["overdue-tickets", workstream, dateRange], queryFn: () => fetchOverdueTickets(workstream, dateRange) });
+  // Reports are live: refetch every minute and whenever the tab regains focus, so breach/overdue
+  // numbers never sit stale on screen (the global default disables focus refetching).
+  const live = { staleTime: 0, refetchInterval: 60_000, refetchOnWindowFocus: true } as const;
+  const { data: stats, isLoading, dataUpdatedAt, refetch, isFetching } = useQuery({
+    queryKey: ["dashboard", workstream, dateRange],
+    queryFn: () => fetchDashboard(workstream, dateRange),
+    ...live,
+  });
+  const { data: expiring } = useQuery({ queryKey: ["expiring-assets"], queryFn: () => fetchExpiringAssets(60), ...live });
+  const { data: overdueTickets, refetch: refetchOverdue } = useQuery({
+    queryKey: ["overdue-tickets", workstream, dateRange],
+    queryFn: () => fetchOverdueTickets(workstream, dateRange),
+    ...live,
+  });
 
   async function handleExport() {
-    const res = await api.get("/reports/export", { params: { workstream }, responseType: "blob" });
+    const res = await api.get("/reports/export", { params: { workstream, ...dateRange }, responseType: "blob" });
     const url = URL.createObjectURL(res.data);
     const a = document.createElement("a");
     a.href = url;
@@ -62,7 +73,7 @@ export default function DashboardPage() {
 
   if (isLoading || !stats) return <Spinner />;
 
-  const statusData = stats.byStatus.map((s) => ({ name: STATUS_LABELS[s.status], count: s.count }));
+  const statusData = stats.byStatus.map((s) => ({ name: statusLabel(s.status), count: s.count }));
   const priorityData = stats.byPriority
     .filter((p): p is { priority: Priority; count: number } => Boolean(p.priority))
     .map((p) => ({ name: p.priority, value: p.count }));
@@ -70,8 +81,27 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Reports</h1>
+        <div>
+          <h1 className="text-xl font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Reports</h1>
+          <p className="text-xs text-soliflex-gray-400">
+            Date filter applies to ticket created date
+            {workstream === "IT" && stats.sources.helpdesk
+              ? ` · includes ${stats.sources.helpdesk.total} Helpdesk and ${stats.sources.tickets.total} maintenance/IT board ticket(s)`
+              : ""}
+            {dataUpdatedAt ? ` · updated ${format(new Date(dataUpdatedAt), "HH:mm:ss")}` : ""}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              refetch();
+              refetchOverdue();
+            }}
+            title="Refresh now"
+            className="rounded-lg bg-soliflex-gray-100 p-2 text-soliflex-gray-600 hover:bg-soliflex-gray-200"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </button>
           <DateRangeFilter value={dateRange} onChange={setDateRange} />
           <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-200">
             <Download className="h-4 w-4" /> Export Excel
@@ -79,12 +109,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         <StatCard label="Total tickets" value={stats.total} />
         <StatCard label="Open" value={stats.open} />
         <StatCard label="Closed" value={stats.closed} />
         <StatCard label="On hold" value={stats.onHold} tone="warn" />
-        <StatCard label="SLA breached" value={stats.slaBreached} tone="danger" />
+        <StatCard label="Deadline breached" value={stats.slaBreached} tone="danger" />
+        <StatCard label="Overdue now" value={stats.overdue} tone="danger" />
         <StatCard label="Avg resolution (hrs)" value={stats.avgResolutionHours} />
       </div>
 
@@ -118,13 +149,19 @@ export default function DashboardPage() {
               {overdueTickets.map((t) => (
                 <tr
                   key={t.id}
-                  onClick={() => navigate(`/tickets/${t.id}`)}
+                  onClick={() => navigate(t.source === "HELPDESK" ? `/helpdesk/${t.id}` : `/tickets/${t.id}`)}
                   className="cursor-pointer border-t border-soliflex-gray-50 hover:bg-soliflex-gray-50"
                 >
                   <td className="py-2 pr-3 font-medium text-soliflex-orange-600">{t.ticketNumber}</td>
                   <td className="max-w-[220px] truncate py-2 pr-3">{t.title}</td>
                   <td className="py-2 pr-3">
-                    <StatusBadge status={t.status} />
+                    {t.source === "HELPDESK" ? (
+                      <span className="inline-flex items-center rounded-full bg-soliflex-gray-100 px-2.5 py-1 text-xs font-semibold text-soliflex-gray-700">
+                        {statusLabel(t.status)} · Helpdesk
+                      </span>
+                    ) : (
+                      <StatusBadge status={t.status as TicketStatus} />
+                    )}
                   </td>
                   <td className="py-2 pr-3">
                     <PriorityBadge priority={t.priority} />

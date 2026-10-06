@@ -25,6 +25,8 @@ export function useHelpdeskMutations(ticketId?: string) {
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["helpdesk-tickets"] });
     queryClient.invalidateQueries({ queryKey: ["helpdesk-dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["overdue-tickets"] });
     if (ticketId) queryClient.invalidateQueries({ queryKey: ["helpdesk-ticket", ticketId] });
   }
 

@@ -1,4 +1,5 @@
-import type { AttachmentType, OnHoldReason, TicketCategory, TicketStatus } from "@/lib/types";
+import type { AttachmentType, HelpdeskStatus, OnHoldReason, TicketCategory, TicketStatus } from "@/lib/types";
+import { HELPDESK_STATUS_COLORS, HELPDESK_STATUS_LABELS } from "@/features/helpdesk/badges";
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   OPEN: "Open",
@@ -43,3 +44,14 @@ export const ATTACHMENT_TYPE_LABELS: Record<AttachmentType, string> = {
   INVOICE: "Invoice",
   OTHER: "Other",
 };
+
+const FALLBACK_STATUS_COLORS = { bg: "#F3F4F6", text: "#374151" };
+
+/** Label for any ticket status, including Helpdesk-only ones (Resolved/Reopened) that appear in combined IT reports. */
+export function anyStatusLabel(status: string): string {
+  return TICKET_STATUS_LABELS[status as TicketStatus] ?? HELPDESK_STATUS_LABELS[status as HelpdeskStatus] ?? status;
+}
+
+export function anyStatusColors(status: string): { bg: string; text: string } {
+  return TICKET_STATUS_COLORS[status as TicketStatus] ?? HELPDESK_STATUS_COLORS[status as HelpdeskStatus] ?? FALLBACK_STATUS_COLORS;
+}

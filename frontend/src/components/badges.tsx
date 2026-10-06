@@ -21,6 +21,13 @@ export const STATUS_LABELS: Record<TicketStatus, string> = {
   CLOSED: "Closed",
 };
 
+/** Label for any ticket status, including Helpdesk-only ones (Resolved/Reopened) that appear in combined IT reports. */
+export function statusLabel(status: string): string {
+  if (status === "RESOLVED") return "Resolved";
+  if (status === "REOPENED") return "Reopened";
+  return STATUS_LABELS[status as TicketStatus] ?? status;
+}
+
 export function StatusBadge({ status }: { status: TicketStatus }) {
   return (
     <span className={clsx("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", STATUS_STYLES[status])}>

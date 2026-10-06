@@ -7,6 +7,7 @@ import { nextSequenceValue, formatTicketNumber } from "../sequences/sequence.ser
 import { recordAudit, recordFieldChanges } from "../audit/audit.service";
 import { notify } from "../notifications/notifications.service";
 import { publicUrlForFile } from "../../lib/storage";
+import { withLiveSlaBreach } from "../../lib/live-breach";
 
 export interface Actor {
   id: string;
@@ -108,7 +109,7 @@ export interface TicketFilter {
 }
 
 export async function listTickets(filter: TicketFilter) {
-  return prisma.ticket.findMany({
+  const tickets = await prisma.ticket.findMany({
     where: {
       workstream: filter.workstream,
       status: filter.status,
@@ -132,12 +133,14 @@ export async function listTickets(filter: TicketFilter) {
     },
     orderBy: { createdAt: "desc" },
   });
+  const now = new Date();
+  return tickets.map((t) => withLiveSlaBreach(t, now));
 }
 
 export async function getTicket(id: string) {
   const ticket = await prisma.ticket.findUnique({ where: { id }, include: TICKET_INCLUDE });
   if (!ticket) throw new ApiError(404, "Ticket not found");
-  return ticket;
+  return withLiveSlaBreach(ticket);
 }
 
 function assertAction(ticket: Ticket, actor: Actor, action: TicketAction) {

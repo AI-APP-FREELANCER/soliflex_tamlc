@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { DrawerToggleButton } from "expo-router/drawer";
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react-native";
@@ -16,9 +16,9 @@ import { Badge } from "@/components/Badge";
 import { Spinner } from "@/components/Spinner";
 import { apiErrorMessage } from "@/lib/api-client";
 import { formatIST } from "@/lib/formatIST";
-import { TICKET_STATUS_COLORS, TICKET_STATUS_LABELS } from "@/features/tickets/badges";
+import { anyStatusColors, anyStatusLabel } from "@/features/tickets/badges";
 import { PRIORITY_COLORS, PRIORITY_LABELS } from "@/features/helpdesk/badges";
-import type { DateRangeValue, TicketStatus, Workstream } from "@/lib/types";
+import type { DateRangeValue, Workstream } from "@/lib/types";
 
 function StatCard({ label, value, tone }: { label: string; value: string | number; tone?: "danger" | "warn" }) {
   const color = tone === "danger" ? "#B91C1C" : tone === "warn" ? "#B45309" : "#23272B";
@@ -44,20 +44,36 @@ export default function ReportsScreen() {
   const [range, setRange] = useState<DateRangeValue>({});
   const [exporting, setExporting] = useState(false);
 
-  const { data: stats, isLoading } = useQuery({
+  // Live data: poll every minute (mobile has no window-focus refetch, so also refetch when the screen is focused).
+  const live = { staleTime: 0, refetchInterval: 60_000 } as const;
+  const { data: stats, isLoading, refetch: refetchStats } = useQuery({
     queryKey: ["reports-dashboard", workstream, range],
     queryFn: () => fetchReportsDashboard(workstream, range),
+    ...live,
   });
-  const { data: overdue } = useQuery({
+  const { data: overdue, refetch: refetchOverdue } = useQuery({
     queryKey: ["reports-overdue", workstream, range],
     queryFn: () => fetchOverdueTickets(workstream, range),
+    ...live,
   });
-  const { data: expiring } = useQuery({ queryKey: ["reports-expiring"], queryFn: () => fetchExpiringAssets(60) });
+  const { data: expiring, refetch: refetchExpiring } = useQuery({
+    queryKey: ["reports-expiring"],
+    queryFn: () => fetchExpiringAssets(60),
+    ...live,
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      refetchStats();
+      refetchOverdue();
+      refetchExpiring();
+    }, [refetchStats, refetchOverdue, refetchExpiring])
+  );
 
   async function handleExport() {
     setExporting(true);
     try {
-      const bytes = await fetchReportsExportBytes(workstream);
+      const bytes = await fetchReportsExportBytes(workstream, range);
       const file = new File(Paths.document, `soliflex-tickets-report-${Date.now()}.xlsx`);
       file.create({ overwrite: true });
       file.write(new Uint8Array(bytes));
@@ -121,13 +137,22 @@ export default function ReportsScreen() {
             </View>
             <View className="mt-3 flex-row gap-3">
               <StatCard label="On hold" value={stats.onHold} tone="warn" />
-              <StatCard label="SLA breached" value={stats.slaBreached} tone="danger" />
-              <StatCard label="Avg resolution" value={`${stats.avgResolutionHours.toFixed(1)}h`} />
+              <StatCard label="Deadline breached" value={stats.slaBreached} tone="danger" />
+              <StatCard label="Overdue now" value={stats.overdue} tone="danger" />
             </View>
+            <View className="mt-3 flex-row gap-3">
+              <StatCard label="Avg resolution" value={`${stats.avgResolutionHours.toFixed(1)}h`} />
+              {workstream === "IT" && stats.sources.helpdesk ? (
+                <StatCard label="Helpdesk / Board" value={`${stats.sources.helpdesk.total} / ${stats.sources.tickets.total}`} />
+              ) : (
+                <View className="flex-1" />
+              )}
+            </View>
+            <Text className="mt-2 text-xs text-soliflex-gray-400">Date filter applies to ticket created date.</Text>
 
             <View className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
               <Text className="mb-3 text-sm font-semibold text-soliflex-ink">Tickets by status</Text>
-              <SimpleBarChart data={stats.byStatus.map((s) => ({ label: TICKET_STATUS_LABELS[s.status as TicketStatus], value: s.count }))} />
+              <SimpleBarChart data={stats.byStatus.map((s) => ({ label: anyStatusLabel(s.status), value: s.count }))} />
             </View>
 
             <View className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
@@ -135,9 +160,9 @@ export default function ReportsScreen() {
               {stats.byPriority.map((p) => (
                 <View key={p.priority} className="flex-row items-center justify-between border-b border-soliflex-gray-50 py-2">
                   <Badge
-                    label={PRIORITY_LABELS[p.priority]}
-                    bg={PRIORITY_COLORS[p.priority].bg}
-                    text={PRIORITY_COLORS[p.priority].text}
+                    label={p.priority ? PRIORITY_LABELS[p.priority] : "No priority"}
+                    bg={p.priority ? PRIORITY_COLORS[p.priority].bg : "#F3F4F6"}
+                    text={p.priority ? PRIORITY_COLORS[p.priority].text : "#374151"}
                   />
                   <Text className="text-sm font-medium text-soliflex-ink">{p.count}</Text>
                 </View>
@@ -148,18 +173,18 @@ export default function ReportsScreen() {
               <Text className="mb-2 text-sm font-semibold text-soliflex-ink">Past target completion</Text>
               {overdue?.length ? (
                 overdue.map((t) => {
-                  const colors = TICKET_STATUS_COLORS[t.status];
+                  const colors = anyStatusColors(t.status);
                   return (
                     <Pressable
                       key={t.id}
-                      onPress={() => router.push(`/tickets/${t.id}`)}
+                      onPress={() => router.push(t.source === "HELPDESK" ? `/helpdesk/${t.id}` : `/tickets/${t.id}`)}
                       className="border-b border-soliflex-gray-50 py-2"
                     >
                       <View className="flex-row items-center justify-between">
                         <Text className="flex-1 text-sm font-medium text-soliflex-ink" numberOfLines={1}>
                           {t.ticketNumber} — {t.title}
                         </Text>
-                        <Badge label={TICKET_STATUS_LABELS[t.status]} bg={colors.bg} text={colors.text} />
+                        <Badge label={anyStatusLabel(t.status)} bg={colors.bg} text={colors.text} />
                       </View>
                       <Text className="text-xs text-red-600">
                         Overdue by {formatDistanceToNow(new Date(t.targetCompletionDate))} · {t.assignedTo?.name ?? "Unassigned"}
