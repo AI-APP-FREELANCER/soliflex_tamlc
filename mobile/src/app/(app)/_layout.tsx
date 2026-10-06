@@ -17,7 +17,7 @@ export default function AppLayout() {
         drawerActiveBackgroundColor: "#FBEADB",
       }}
     >
-      <Drawer.Screen name="index" options={{ drawerItemStyle: { height: 0, width: 0 } }} />
+      <Drawer.Screen name="index" options={{ drawerItemStyle: { display: "none" } }} />
 
       <Drawer.Protected guard={canSeeHelpdesk(role)}>
         <Drawer.Screen

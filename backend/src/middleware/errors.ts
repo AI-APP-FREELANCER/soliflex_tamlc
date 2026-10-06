@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { ZodError } from "zod";
+import { ZodError, ZodIssue } from "zod";
 import multer from "multer";
 import { Prisma } from "@prisma/client";
 
@@ -13,13 +13,28 @@ export class ApiError extends Error {
   }
 }
 
+function humanize(field: string): string {
+  const words = field.replace(/([A-Z])/g, " $1").replace(/[_-]+/g, " ").trim().toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Turns a zod issue into something an end user can act on ("Title must be at least 3 characters"). */
+function describeIssue(issue: ZodIssue): string {
+  const field = humanize(issue.path.length ? String(issue.path[issue.path.length - 1]) : "value");
+  if (issue.code === "too_small" && issue.type === "string") return `${field} must be at least ${issue.minimum} character${issue.minimum === 1 ? "" : "s"}`;
+  if (issue.code === "invalid_type" && issue.received === "undefined") return `${field} is required`;
+  if (issue.code === "invalid_enum_value") return `${field} has an invalid value`;
+  if (issue.code === "invalid_string" && issue.validation === "email") return `${field} must be a valid email address`;
+  return `${field}: ${issue.message}`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ApiError) {
     return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
   }
   if (err instanceof ZodError) {
-    return res.status(400).json({ error: "Validation failed", details: err.flatten() });
+    return res.status(400).json({ error: err.issues.map(describeIssue).join(". "), details: err.flatten() });
   }
   if (err instanceof multer.MulterError) {
     const message = err.code === "LIMIT_FILE_SIZE" ? "File is too large (max 15 MB)." : `Upload failed: ${err.message}`;
