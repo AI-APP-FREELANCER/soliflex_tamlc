@@ -2,9 +2,11 @@ import { Drawer } from "expo-router/drawer";
 import { LayoutGrid, LifeBuoy, Boxes, BarChart3, Users, ScrollText, UserCircle } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
 import { canSeeHelpdesk, canSeeLegacy, canSeeUsersAndAudit } from "@/lib/roles";
+import { useRealtimeSync } from "@/lib/useRealtimeSync";
 
 export default function AppLayout() {
   const role = useAuthStore((s) => s.user?.role);
+  useRealtimeSync();
 
   return (
     <Drawer

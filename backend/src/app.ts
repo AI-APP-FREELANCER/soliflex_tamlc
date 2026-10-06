@@ -6,6 +6,7 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/errors";
+import { broadcastDataChanges } from "./middleware/realtime";
 
 import authRoutes from "./modules/auth/auth.routes";
 import usersRoutes from "./modules/users/users.routes";
@@ -27,6 +28,8 @@ export function createApp() {
   app.use(morgan(env.nodeEnv === "development" ? "dev" : "combined"));
 
   app.use("/uploads", express.static(env.uploadDir));
+
+  app.use(broadcastDataChanges);
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 

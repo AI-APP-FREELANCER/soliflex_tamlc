@@ -32,3 +32,22 @@ export function initSockets(httpServer: HttpServer): SocketIOServer {
 export function emitToUser(userId: string, event: string, payload: unknown) {
   io?.to(`user:${userId}`).emit(event, payload);
 }
+
+const pendingScopes = new Set<string>();
+let flushTimer: NodeJS.Timeout | null = null;
+
+/**
+ * Tells every connected client that data changed so they refetch immediately.
+ * Carries only a scope label, never data - clients re-read through the normal
+ * authenticated API, so each user still only sees what they're allowed to.
+ * Bursts are coalesced into one event (100ms) to avoid refetch storms.
+ */
+export function emitDataChanged(scope: string) {
+  pendingScopes.add(scope);
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => {
+    io?.emit("data-changed", { scopes: [...pendingScopes], at: Date.now() });
+    pendingScopes.clear();
+    flushTimer = null;
+  }, 100);
+}

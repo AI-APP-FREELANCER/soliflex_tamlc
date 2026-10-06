@@ -5,6 +5,7 @@ import { initSockets } from "./sockets";
 import { startSlaCheckJob } from "./jobs/sla-check.job";
 import { startAssetAlertsJob } from "./jobs/asset-alerts.job";
 import { startHelpdeskDeadlineCheckJob } from "./jobs/helpdesk-deadline-check.job";
+import { startDeadlineTicker } from "./jobs/deadline-ticker.job";
 
 const app = createApp();
 const server = http.createServer(app);
@@ -13,6 +14,7 @@ initSockets(server);
 startSlaCheckJob();
 startAssetAlertsJob();
 startHelpdeskDeadlineCheckJob();
+startDeadlineTicker();
 
 server.listen(env.port, () => {
   console.log(`Soliflex ticketing API listening on port ${env.port} [${env.nodeEnv}]`);
