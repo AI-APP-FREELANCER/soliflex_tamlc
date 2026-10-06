@@ -73,6 +73,7 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
     from: [TicketStatus.FIRST_LINE_REVIEW],
     to: TicketStatus.JOB_COMPLETED,
     roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
+    requireAssignee: true,
   },
   MARK_FINAL_REVIEW: {
     from: [TicketStatus.JOB_COMPLETED],
@@ -88,11 +89,13 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
     from: [TicketStatus.OPEN, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW],
     to: null,
     roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
+    requireAssignee: true,
   },
   RESUME: {
     from: [TicketStatus.OPEN, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW],
     to: null,
     roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
+    requireAssignee: true,
   },
   REOPEN: {
     // Includes CLOSED so a ticket can be reopened if the fix turns out not to

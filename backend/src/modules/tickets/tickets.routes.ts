@@ -2,13 +2,15 @@ import { Router } from "express";
 import { z } from "zod";
 import { AttachmentType, OnHoldReason, Priority, TicketCategory, TicketStatus, Workstream } from "@prisma/client";
 import { requireAuth, requireRole } from "../../middleware/auth";
+import { LEGACY_ROLES } from "../../lib/roles";
 import { upload } from "../../middleware/upload";
 import { Role } from "@prisma/client";
 import * as tickets from "./tickets.service";
 import { resolveDateRange } from "../../lib/date-range";
 
 const router = Router();
-router.use(requireAuth);
+// Maintenance/IT board data is for board roles only (helpdesk-only roles use /api/helpdesk).
+router.use(requireAuth, requireRole(...LEGACY_ROLES));
 
 function actorFromReq(req: Express.Request | any) {
   return { id: req.user.sub, role: req.user.role, workstream: req.user.workstream, name: req.user.name };
@@ -56,7 +58,7 @@ const assignSchema = z.object({
   assignedToId: z.string(),
   priority: z.nativeEnum(Priority),
   targetCompletionDate: z.string().optional(),
-  effortEstimateHours: z.number().optional(),
+  effortEstimateHours: z.number().min(0).optional(),
 });
 
 router.post("/:id/assign", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
@@ -68,7 +70,7 @@ router.post("/:id/assign", requireRole(Role.MANAGER, Role.ADMIN), async (req, re
 const updateAssignmentSchema = z.object({
   assignedToId: z.string().optional(),
   targetCompletionDate: z.string().nullable().optional(),
-  effortEstimateHours: z.number().optional(),
+  effortEstimateHours: z.number().min(0).optional(),
 });
 router.patch("/:id/assignment", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = updateAssignmentSchema.parse(req.body);

@@ -7,10 +7,6 @@ function isManager(role: Role | undefined): boolean {
   return role === "MANAGER" || role === "ADMIN";
 }
 
-function isTechnician(role: Role | undefined): boolean {
-  return role === "MECHANIC" || role === "IT_TEAM";
-}
-
 function isAssignee(ticket: Ticket, user: User | null): boolean {
   return !!user && ticket.assignedToId === user.id;
 }
@@ -27,7 +23,7 @@ const IT_CATEGORIES: TicketCategory[] = ["WORKSTATION", "LAPTOP", "NETWORK_GEAR"
 
 export function allowedCategoriesForCreate(role: Role | undefined, workstream: Workstream): TicketCategory[] {
   if (isManager(role)) return workstream === "MAINTENANCE" ? MAINTENANCE_CATEGORIES : IT_CATEGORIES;
-  if (role === "PRODUCTION" && workstream === "MAINTENANCE") return MAINTENANCE_CATEGORIES;
+  if (role === "PRODUCTION" && workstream === "MAINTENANCE") return ["PRODUCTION_MACHINE"];
   if (role === "IT_TEAM" && workstream === "IT") return IT_CATEGORIES;
   return [];
 }
@@ -73,15 +69,11 @@ export function canReopen(ticket: Ticket, user: User | null): boolean {
 }
 
 export function canHold(ticket: Ticket, user: User | null): boolean {
-  return (isManager(user?.role) || isAssignee(ticket, user) || isTechnician(user?.role)) && ticket.status !== "CLOSED" && !ticket.onHold;
+  return (isManager(user?.role) || isAssignee(ticket, user)) && ticket.status !== "CLOSED" && !ticket.onHold;
 }
 
 export function canResume(ticket: Ticket, user: User | null): boolean {
-  return (
-    (isManager(user?.role) || isAssignee(ticket, user) || isTechnician(user?.role)) &&
-    ticket.onHold &&
-    ticket.onHoldReason !== "APPROVAL"
-  );
+  return (isManager(user?.role) || isAssignee(ticket, user)) && ticket.onHold && ticket.onHoldReason !== "APPROVAL";
 }
 
 export const STATUS_ORDER: Ticket["status"][] = [

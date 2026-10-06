@@ -2,6 +2,7 @@ import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 import { env } from "../config/env";
+import { ApiError } from "./errors";
 
 const ALLOWED_MIME = new Set([
   "image/jpeg",
@@ -25,7 +26,7 @@ export const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024, files: 10 },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {
-      cb(new Error("Unsupported file type. Allowed: JPEG, PNG, WEBP, HEIC, PDF."));
+      cb(new ApiError(400, "Unsupported file type. Allowed: JPEG, PNG, WEBP, HEIC, PDF."));
       return;
     }
     cb(null, true);
@@ -39,7 +40,7 @@ export const csvUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) => {
     if (path.extname(file.originalname).toLowerCase() !== ".csv") {
-      cb(new Error("Please upload a .csv file."));
+      cb(new ApiError(400, "Please upload a .csv file."));
       return;
     }
     cb(null, true);

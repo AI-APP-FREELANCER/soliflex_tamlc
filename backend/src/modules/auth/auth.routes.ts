@@ -4,6 +4,8 @@ import * as authService from "./auth.service";
 import { requireAuth } from "../../middleware/auth";
 import { prisma } from "../../lib/prisma";
 import { sanitizeUser } from "./auth.service";
+import { ApiError } from "../../middleware/errors";
+import { clearLoginFailures, loginRetryAfterSeconds, recordLoginFailure } from "../../lib/login-limiter";
 
 const router = Router();
 
@@ -31,7 +33,21 @@ const loginSchema = z.object({
 
 router.post("/login", async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
-  const { accessToken, refreshToken, user } = await authService.login(email, password);
+  const limiterKey = `${req.ip}|${email.toLowerCase()}`;
+  const retryAfter = loginRetryAfterSeconds(limiterKey);
+  if (retryAfter > 0) {
+    res.setHeader("Retry-After", String(retryAfter));
+    throw new ApiError(429, `Too many failed sign-in attempts. Please try again in ${Math.ceil(retryAfter / 60)} minute(s).`);
+  }
+  let result;
+  try {
+    result = await authService.login(email, password);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) recordLoginFailure(limiterKey);
+    throw err;
+  }
+  clearLoginFailures(limiterKey);
+  const { accessToken, refreshToken, user } = result;
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOptions);
   res.json({ accessToken, user, ...(isMobileClient(req) ? { refreshToken } : {}) });
 });

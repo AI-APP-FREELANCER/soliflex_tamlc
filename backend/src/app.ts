@@ -20,6 +20,8 @@ import helpdeskRoutes from "./modules/helpdesk/helpdesk.routes";
 
 export function createApp() {
   const app = express();
+  // Behind Nginx: use the real client address (login throttling is per address + email).
+  app.set("trust proxy", 1);
 
   app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(cors({ origin: env.corsOrigin, credentials: true }));

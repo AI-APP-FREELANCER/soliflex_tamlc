@@ -1,13 +1,14 @@
 import { Router } from "express";
 import ExcelJS from "exceljs";
 import { Workstream } from "@prisma/client";
-import { requireAuth } from "../../middleware/auth";
+import { requireAuth, requireRole } from "../../middleware/auth";
+import { LEGACY_ROLES } from "../../lib/roles";
 import { prisma } from "../../lib/prisma";
 import { resolveDateRange } from "../../lib/date-range";
 import { buildDashboardReport, buildOverdueReport, helpdeskWhere, includesHelpdesk, ticketWhere } from "./reports.service";
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireRole(...LEGACY_ROLES));
 
 function dateRangeFromQuery(req: import("express").Request) {
   return resolveDateRange({

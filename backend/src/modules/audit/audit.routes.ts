@@ -8,7 +8,8 @@ const router = Router();
 router.use(requireAuth, requireRole(Role.MANAGER, Role.ADMIN));
 
 router.get("/", async (req, res) => {
-  const take = Math.min(Number(req.query.limit ?? 50), 200);
+  const requested = Number(req.query.limit ?? 50);
+  const take = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), 200) : 50;
   const cursor = req.query.cursor as string | undefined;
   const changedAtRange = resolveDateRange({
     range: req.query.range as string | undefined,

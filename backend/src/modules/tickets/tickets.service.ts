@@ -8,6 +8,7 @@ import { recordAudit, recordFieldChanges } from "../audit/audit.service";
 import { notify } from "../notifications/notifications.service";
 import { publicUrlForFile } from "../../lib/storage";
 import { withLiveSlaBreach } from "../../lib/live-breach";
+import { parseFlexibleDate } from "../../lib/parse-date";
 
 export interface Actor {
   id: string;
@@ -37,6 +38,26 @@ const TICKET_INCLUDE = {
   costEntries: { orderBy: { createdAt: "asc" as const } },
   statusHistory: { include: { changedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.TicketInclude;
+
+/** Forward progress is paused while a ticket is on hold: it must be resumed (or the approval decided) first. */
+function assertNotOnHold(ticket: { onHold: boolean; onHoldReason: OnHoldReason | null }) {
+  if (ticket.onHold) {
+    throw new ApiError(400, ticket.onHoldReason === OnHoldReason.APPROVAL ? "This ticket is waiting for manager approval of the fix recommendation" : "This ticket is on hold - resume it first");
+  }
+}
+
+/** Only an active technician of the ticket's own workstream can be given the work. */
+function assertValidAssignee(assignee: User, ticket: { workstream: Workstream }) {
+  if (!assignee.active) {
+    throw new ApiError(400, "That user is inactive and cannot be assigned tickets");
+  }
+  if (assignee.role !== Role.MECHANIC && assignee.role !== Role.IT_TEAM) {
+    throw new ApiError(400, "Tickets can only be assigned to a Mechanic or IT Team technician");
+  }
+  if (assignee.workstream !== ticket.workstream) {
+    throw new ApiError(400, "Assignee must belong to the same workstream as the ticket");
+  }
+}
 
 async function findManagersForWorkstream(workstream: Workstream) {
   return prisma.user.findMany({
@@ -155,9 +176,8 @@ export async function assignTicket(actor: Actor, ticketId: string, assignedToId:
   assertAction(ticket, actor, "ASSIGN");
 
   const assignee = await prisma.user.findUniqueOrThrow({ where: { id: assignedToId } });
-  if (assignee.workstream !== ticket.workstream) {
-    throw new ApiError(400, "Assignee must belong to the same workstream as the ticket");
-  }
+  assertValidAssignee(assignee, ticket);
+  const targetDate = parseFlexibleDate(targetCompletionDate);
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({
@@ -166,7 +186,7 @@ export async function assignTicket(actor: Actor, ticketId: string, assignedToId:
         assignedToId,
         managerId: actor.id,
         priority,
-        targetCompletionDate: targetCompletionDate ? new Date(targetCompletionDate) : undefined,
+        targetCompletionDate: targetDate,
         effortEstimateHours,
         status: TicketStatus.ASSIGNED,
       },
@@ -204,10 +224,9 @@ export async function updateAssignment(actor: Actor, ticketId: string, input: Up
   let assignee: User | undefined;
   if (input.assignedToId) {
     assignee = await prisma.user.findUniqueOrThrow({ where: { id: input.assignedToId } });
-    if (assignee.workstream !== ticket.workstream) {
-      throw new ApiError(400, "Assignee must belong to the same workstream as the ticket");
-    }
+    assertValidAssignee(assignee, ticket);
   }
+  const newTargetDate = input.targetCompletionDate ? parseFlexibleDate(input.targetCompletionDate) : undefined;
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({
@@ -215,7 +234,7 @@ export async function updateAssignment(actor: Actor, ticketId: string, input: Up
       data: {
         assignedToId: input.assignedToId ?? undefined,
         managerId: input.assignedToId ? actor.id : undefined,
-        targetCompletionDate: input.targetCompletionDate !== undefined ? (input.targetCompletionDate ? new Date(input.targetCompletionDate) : null) : undefined,
+        targetCompletionDate: input.targetCompletionDate !== undefined ? (newTargetDate ?? null) : undefined,
         effortEstimateHours: input.effortEstimateHours,
       },
     });
@@ -255,6 +274,7 @@ export async function updatePriority(actor: Actor, ticketId: string, priority: P
 export async function startProgress(actor: Actor, ticketId: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "START_PROGRESS");
+  assertNotOnHold(ticket);
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({ where: { id: ticketId }, data: { status: TicketStatus.IN_PROGRESS } });
@@ -271,6 +291,7 @@ export async function startProgress(actor: Actor, ticketId: string) {
 export async function submitRecommendation(actor: Actor, ticketId: string, diagnosis: string, recommendedFix: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { attachments: true } });
   assertAction(ticket, actor, "SUBMIT_RECOMMENDATION");
+  assertNotOnHold(ticket);
   if (!ticket.managerId) {
     throw new ApiError(400, "Ticket has no owning manager to approve this recommendation");
   }
@@ -342,6 +363,10 @@ export async function decideRecommendation(actor: Actor, ticketId: string, appro
 export async function markFirstLineReview(actor: Actor, ticketId: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { attachments: true } });
   assertAction(ticket, actor, "MARK_FIRST_LINE_REVIEW");
+  assertNotOnHold(ticket);
+  if (!ticket.approvedAt) {
+    throw new ApiError(400, "The fix recommendation must be approved by the manager before submitting for review");
+  }
   const hasPostFixPhoto = ticket.attachments.some((a) => a.type === AttachmentType.POST_FIX_PHOTO);
   if (!hasPostFixPhoto) {
     throw new ApiError(400, "Upload at least one post-fix photo before submitting for review");
@@ -360,6 +385,7 @@ export async function markFirstLineReview(actor: Actor, ticketId: string) {
 export async function markJobCompleted(actor: Actor, ticketId: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "MARK_JOB_COMPLETED");
+  assertNotOnHold(ticket);
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({ where: { id: ticketId }, data: { status: TicketStatus.JOB_COMPLETED } });
     await tx.ticketStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.JOB_COMPLETED, changedById: actor.id } });
@@ -373,6 +399,7 @@ export async function markJobCompleted(actor: Actor, ticketId: string) {
 export async function markFinalReview(actor: Actor, ticketId: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "MARK_FINAL_REVIEW");
+  assertNotOnHold(ticket);
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({ where: { id: ticketId }, data: { status: TicketStatus.FINAL_REVIEW } });
     await tx.ticketStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.FINAL_REVIEW, changedById: actor.id } });
@@ -383,6 +410,7 @@ export async function markFinalReview(actor: Actor, ticketId: string) {
 export async function closeTicket(actor: Actor, ticketId: string, confirmEquipmentOperational: boolean, closingComment?: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { attachments: true, comments: true } });
   assertAction(ticket, actor, "CLOSE");
+  assertNotOnHold(ticket);
 
   if (!confirmEquipmentOperational) {
     throw new ApiError(400, "You must confirm the equipment/asset is operational before closing");
@@ -443,6 +471,9 @@ export async function reopenTicket(actor: Actor, ticketId: string, reason: strin
 export async function holdTicket(actor: Actor, ticketId: string, reason: OnHoldReason, detail: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "HOLD");
+  if (ticket.onHold) {
+    throw new ApiError(400, "This ticket is already on hold");
+  }
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({
       where: { id: ticketId },
@@ -459,6 +490,9 @@ export async function holdTicket(actor: Actor, ticketId: string, reason: OnHoldR
 export async function resumeTicket(actor: Actor, ticketId: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "RESUME");
+  if (!ticket.onHold) {
+    throw new ApiError(400, "This ticket is not on hold");
+  }
   if (ticket.onHoldReason === OnHoldReason.APPROVAL) {
     throw new ApiError(400, "This ticket is awaiting manager approval — use approve/reject instead of resume");
   }
@@ -487,6 +521,9 @@ export async function addComment(actor: Actor, ticketId: string, body: string) {
 }
 
 export async function addAttachment(actor: Actor, ticketId: string, file: Express.Multer.File, type: AttachmentType) {
+  if (!Object.values(AttachmentType).includes(type)) {
+    throw new ApiError(400, `Attachment type must be one of: ${Object.values(AttachmentType).join(", ")}`);
+  }
   await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   return prisma.ticketAttachment.create({
     data: {
@@ -502,6 +539,13 @@ export async function addAttachment(actor: Actor, ticketId: string, file: Expres
 }
 
 export async function addCostEntry(actor: Actor, ticketId: string, description: string, amount: number, sparePartUsed: boolean) {
+  if (actor.role === Role.PRODUCTION) {
+    throw new ApiError(403, "Only managers and technicians can record costs");
+  }
+  const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+  if (ticket.status === TicketStatus.CLOSED) {
+    throw new ApiError(400, "Cannot add costs to a closed ticket");
+  }
   const entry = await prisma.$transaction(async (tx) => {
     const created = await tx.ticketCostEntry.create({ data: { ticketId, description, amount, sparePartUsed } });
     const agg = await tx.ticketCostEntry.aggregate({ where: { ticketId }, _sum: { amount: true } });

@@ -33,8 +33,11 @@ function RootNavigator() {
   const user = useAuthStore((s) => s.user);
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!!user}>
+      <Stack.Protected guard={!!user && !user.mustResetPassword}>
         <Stack.Screen name="(app)" />
+      </Stack.Protected>
+      <Stack.Protected guard={!!user && !!user.mustResetPassword}>
+        <Stack.Screen name="force-password" />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="(auth)" />

@@ -6,6 +6,7 @@ import fs from "fs";
 import { parse as parseCsv } from "csv-parse/sync";
 import { AssetStatus, Role } from "@prisma/client";
 import { requireAuth, requireRole } from "../../middleware/auth";
+import { LEGACY_ROLES } from "../../lib/roles";
 import { upload, csvUpload } from "../../middleware/upload";
 import { prisma } from "../../lib/prisma";
 import { nextSequenceValue, formatAssetItemCode } from "../sequences/sequence.service";
@@ -18,7 +19,7 @@ import { parseFlexibleDate } from "../../lib/parse-date";
 import { normalizeCategory } from "../../lib/normalize-category";
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireRole(...LEGACY_ROLES));
 
 router.get("/", async (req, res) => {
   const assets = await prisma.maintenanceAsset.findMany({

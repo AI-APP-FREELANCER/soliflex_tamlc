@@ -48,6 +48,7 @@ export async function login(email: string, password: string) {
     role: user.role,
     workstream: user.workstream,
     name: user.name,
+    mustResetPassword: user.mustResetPassword,
   });
   const refreshToken = signRefreshToken(user.id);
   await prisma.refreshToken.create({
@@ -152,9 +153,15 @@ export async function refresh(refreshToken: string) {
     role: user.role,
     workstream: user.workstream,
     name: user.name,
+    mustResetPassword: user.mustResetPassword,
   });
 
   return { accessToken, user: sanitizeUser(user) };
+}
+
+/** Ends every logged-in session of a user (password reset, deactivation, role change). */
+export async function revokeAllSessions(userId: string) {
+  await prisma.refreshToken.updateMany({ where: { userId, revoked: false }, data: { revoked: true } });
 }
 
 export async function logout(refreshToken: string) {
@@ -170,6 +177,9 @@ export async function changeOwnPassword(userId: string, currentPassword: string,
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!valid) {
     throw new ApiError(400, "Current password is incorrect");
+  }
+  if (currentPassword === newPassword) {
+    throw new ApiError(400, "Choose a new password that is different from your current one");
   }
   assertStrongPassword(newPassword, { email: user.email, name: user.name });
   const passwordHash = await bcrypt.hash(newPassword, 12);

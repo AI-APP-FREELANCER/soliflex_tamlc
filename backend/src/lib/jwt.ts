@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { randomUUID } from "crypto";
 import { env } from "../config/env";
 import type { Role, Workstream } from "@prisma/client";
 
@@ -7,6 +8,8 @@ export interface AccessTokenPayload {
   role: Role;
   workstream: Workstream | null;
   name: string;
+  /** Set while the account still uses a temporary password; see requireAuth. */
+  mustResetPassword?: boolean;
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
@@ -18,7 +21,9 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 }
 
 export function signRefreshToken(userId: string): string {
-  return jwt.sign({ sub: userId }, env.jwtRefreshSecret, { expiresIn: env.jwtRefreshTtl as jwt.SignOptions["expiresIn"] });
+  // jwtid makes every token unique: two sign-ins in the same second used to produce identical
+  // tokens, and the second one failed on the refresh-token uniqueness constraint.
+  return jwt.sign({ sub: userId }, env.jwtRefreshSecret, { expiresIn: env.jwtRefreshTtl as jwt.SignOptions["expiresIn"], jwtid: randomUUID() });
 }
 
 export function verifyRefreshToken(token: string): { sub: string } {

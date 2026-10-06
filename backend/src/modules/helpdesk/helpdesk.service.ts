@@ -8,6 +8,7 @@ import { recordAudit, recordFieldChanges } from "../audit/audit.service";
 import { notify } from "../notifications/notifications.service";
 import { resolveDateRange, DateRangeQuery } from "../../lib/date-range";
 import { withLiveDeadlineBreach } from "../../lib/live-breach";
+import { parseFlexibleDate } from "../../lib/parse-date";
 
 export interface Actor extends HelpdeskActor {
   name: string;
@@ -22,6 +23,18 @@ const HELPDESK_INCLUDE = {
   comments: { include: { author: { select: { id: true, name: true } } }, orderBy: { createdAt: "asc" as const } },
   statusHistory: { include: { changedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.HelpdeskTicketInclude;
+
+/** A deadline must be a real date and not already in the past (1 minute of slack for clock drift / slow typing). */
+function parseDeadline(value: string): Date {
+  const date = parseFlexibleDate(value);
+  if (!date) {
+    throw new ApiError(400, "A deadline must be set");
+  }
+  if (date.getTime() < Date.now() - 60_000) {
+    throw new ApiError(400, "The deadline cannot be in the past");
+  }
+  return date;
+}
 
 async function findLeadsAndAdmins() {
   return prisma.user.findMany({ where: { role: { in: [Role.IT_TEAM_LEAD, Role.ADMIN] }, active: true } });
@@ -87,24 +100,30 @@ export interface HelpdeskFilter extends DateRangeQuery {
 export async function listHelpdeskTickets(filter: HelpdeskFilter, actor: Actor) {
   const createdAtRange = resolveDateRange(filter);
   const tickets = await prisma.helpdeskTicket.findMany({
+    // AND, not a spread: the user's filters must never be able to overwrite the visibility rule
+    // (an `assignedToId: undefined` filter used to wipe out an engineer's "only my tickets" restriction).
     where: {
-      ...helpdeskVisibilityWhere(actor),
-      status: filter.status,
-      category: filter.category,
-      priority: filter.priority,
-      assignedToId: filter.assignedToId,
-      ...(createdAtRange ? { createdAt: createdAtRange } : {}),
-      ...(filter.missingDeadline
-        ? { status: { in: [HelpdeskStatus.ASSIGNED, HelpdeskStatus.IN_PROGRESS] }, deadline: null }
-        : {}),
-      ...(filter.search
-        ? {
-            OR: [
-              { title: { contains: filter.search, mode: "insensitive" } },
-              { ticketNumber: { contains: filter.search, mode: "insensitive" } },
-            ],
-          }
-        : {}),
+      AND: [
+        helpdeskVisibilityWhere(actor),
+        {
+          status: filter.status,
+          category: filter.category,
+          priority: filter.priority,
+          assignedToId: filter.assignedToId,
+          ...(createdAtRange ? { createdAt: createdAtRange } : {}),
+          ...(filter.missingDeadline
+            ? { status: { in: [HelpdeskStatus.ASSIGNED, HelpdeskStatus.IN_PROGRESS] }, deadline: null }
+            : {}),
+          ...(filter.search
+            ? {
+                OR: [
+                  { title: { contains: filter.search, mode: "insensitive" } },
+                  { ticketNumber: { contains: filter.search, mode: "insensitive" } },
+                ],
+              }
+            : {}),
+        },
+      ],
     },
     include: {
       raisedBy: { select: { id: true, name: true } },
@@ -144,9 +163,13 @@ export async function assignHelpdeskTicket(actor: Actor, ticketId: string, assig
   assertAction(ticket, actor, "ASSIGN");
 
   const assignee = await prisma.user.findUniqueOrThrow({ where: { id: assignedToId } });
+  if (!assignee.active) {
+    throw new ApiError(400, "That user is inactive and cannot be assigned tickets");
+  }
   if (assignee.role !== Role.IT_SUPPORT_ENGINEER && assignee.role !== Role.IT_TEAM_LEAD && assignee.role !== Role.ADMIN) {
     throw new ApiError(400, "Assignee must be an IT Support Engineer, IT Team Lead, or Admin");
   }
+  const deadlineDate = parseDeadline(deadline);
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.helpdeskTicket.update({
@@ -155,7 +178,7 @@ export async function assignHelpdeskTicket(actor: Actor, ticketId: string, assig
         assignedToId,
         teamLeadId: actor.id,
         priority: priority ?? ticket.priority,
-        deadline: new Date(deadline),
+        deadline: deadlineDate,
         deadlineSetAt: new Date(),
         deadlineBreached: false,
         missingDeadlineAlertedAt: null,
@@ -183,10 +206,11 @@ export async function updateDeadline(actor: Actor, ticketId: string, deadline: s
     throw new ApiError(403, "Only the IT Team Lead or Admin can update the deadline");
   }
   const ticket = await prisma.helpdeskTicket.findUniqueOrThrow({ where: { id: ticketId } });
+  const deadlineDate = parseDeadline(deadline);
   return prisma.$transaction(async (tx) => {
     const updated = await tx.helpdeskTicket.update({
       where: { id: ticketId },
-      data: { deadline: new Date(deadline), deadlineSetAt: new Date(), deadlineBreached: false, missingDeadlineAlertedAt: null },
+      data: { deadline: deadlineDate, deadlineSetAt: new Date(), deadlineBreached: false, missingDeadlineAlertedAt: null },
     });
     await recordAudit(tx, { entityType: "HelpdeskTicket", entityId: ticketId, field: "deadline", oldValue: ticket.deadline?.toISOString() ?? null, newValue: updated.deadline?.toISOString(), action: "UPDATE", changedById: actor.id });
     return updated;
@@ -207,6 +231,9 @@ export async function startProgress(actor: Actor, ticketId: string) {
 export async function holdTicket(actor: Actor, ticketId: string, detail: string) {
   const ticket = await prisma.helpdeskTicket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "HOLD");
+  if (ticket.onHold) {
+    throw new ApiError(400, "This ticket is already on hold");
+  }
   return prisma.$transaction(async (tx) => {
     const updated = await tx.helpdeskTicket.update({ where: { id: ticketId }, data: { onHold: true, onHoldReason: detail, onHoldSince: new Date() } });
     await recordAudit(tx, { entityType: "HelpdeskTicket", entityId: ticketId, action: "HOLD", changedById: actor.id, newValue: detail });
@@ -218,6 +245,9 @@ export async function holdTicket(actor: Actor, ticketId: string, detail: string)
 export async function resumeTicket(actor: Actor, ticketId: string) {
   const ticket = await prisma.helpdeskTicket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "RESUME");
+  if (!ticket.onHold) {
+    throw new ApiError(400, "This ticket is not on hold");
+  }
   return prisma.$transaction(async (tx) => {
     const updated = await tx.helpdeskTicket.update({ where: { id: ticketId }, data: { onHold: false, onHoldReason: null, onHoldSince: null } });
     await recordAudit(tx, { entityType: "HelpdeskTicket", entityId: ticketId, action: "RESUME", changedById: actor.id });
@@ -235,7 +265,7 @@ export async function resolveTicket(actor: Actor, ticketId: string, resolutionCo
     }
     const updated = await tx.helpdeskTicket.update({
       where: { id: ticketId },
-      data: { status: HelpdeskStatus.RESOLVED, resolvedById: actor.id, resolvedAt: new Date() },
+      data: { status: HelpdeskStatus.RESOLVED, resolvedById: actor.id, resolvedAt: new Date(), onHold: false, onHoldReason: null, onHoldSince: null },
     });
     await tx.helpdeskStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: HelpdeskStatus.RESOLVED, changedById: actor.id, comment: "Marked resolved" } });
     await recordAudit(tx, { entityType: "HelpdeskTicket", entityId: ticketId, action: "RESOLVE", changedById: actor.id });

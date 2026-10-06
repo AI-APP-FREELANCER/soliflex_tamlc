@@ -41,6 +41,10 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+    if (error.response?.status === 403 && error.response?.data?.code === "PASSWORD_RESET_REQUIRED") {
+      const { user, accessToken, setSession } = useAuthStore.getState();
+      if (user && accessToken && !user.mustResetPassword) setSession(accessToken, { ...user, mustResetPassword: true });
+    }
     if (error.response?.status === 401 && !original._retry && !original.url?.includes("/auth/")) {
       original._retry = true;
       if (!refreshPromise) {

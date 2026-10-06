@@ -12,22 +12,51 @@ import { buildCsv } from "../../lib/csv";
 import { ApiError } from "../../middleware/errors";
 import { generateCompliantTempPassword } from "../../lib/password-policy";
 
-/** Roles powerful enough that only an Admin (not a Manager) may grant them. */
-const ADMIN_ONLY_ROLES = new Set<Role>([Role.ADMIN, Role.IT_TEAM_LEAD, Role.IT_SUPPORT_ENGINEER]);
+import { ADMIN_ONLY_ROLES } from "../../lib/roles";
+import { revokeAllSessions } from "../auth/auth.service";
 
+/** Roles powerful enough that only an Admin (not a Manager) may grant them. */
 function assertRoleCreatable(actorRole: Role, targetRole: Role) {
   if (ADMIN_ONLY_ROLES.has(targetRole) && actorRole !== Role.ADMIN) {
     throw new ApiError(403, "Only an Admin can create or promote users to this role");
   }
 }
 
+/** A Manager must not be able to touch (reset/deactivate/edit) an account that only an Admin may grant. */
+function assertCanManageTarget(actorRole: Role, targetRole: Role) {
+  if (ADMIN_ONLY_ROLES.has(targetRole) && actorRole !== Role.ADMIN) {
+    throw new ApiError(403, "Only an Admin can manage this account");
+  }
+}
+
+/** Technicians/production staff only work in one workstream; default it so they can actually be assigned tickets. */
+const FIXED_WORKSTREAM: Partial<Record<Role, Workstream>> = {
+  [Role.MECHANIC]: Workstream.MAINTENANCE,
+  [Role.PRODUCTION]: Workstream.MAINTENANCE,
+  [Role.IT_TEAM]: Workstream.IT,
+};
+
+function resolveWorkstream(role: Role, workstream: Workstream | null | undefined): Workstream | null | undefined {
+  const fixed = FIXED_WORKSTREAM[role];
+  if (!fixed) return workstream;
+  if (workstream && workstream !== fixed) {
+    throw new ApiError(400, `${role.replace("_", " ")} users belong to the ${fixed === Workstream.IT ? "IT" : "Maintenance"} workstream`);
+  }
+  return fixed;
+}
+
 const router = Router();
 router.use(requireAuth);
 
-router.get("/", async (req, res) => {
+// The full user list (names, emails, phones) is only for people who manage or assign work.
+router.get("/", requireRole(Role.MANAGER, Role.ADMIN, Role.IT_TEAM_LEAD), async (req, res) => {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
-    where: req.query.workstream ? { workstream: req.query.workstream as Workstream } : undefined,
+    where: {
+      ...(req.query.workstream ? { workstream: req.query.workstream as Workstream } : {}),
+      // A Team Lead only needs the people tickets can be assigned to.
+      ...(req.user!.role === Role.IT_TEAM_LEAD ? { role: { in: [Role.IT_SUPPORT_ENGINEER, Role.IT_TEAM_LEAD, Role.ADMIN] } } : {}),
+    },
   });
   res.json(users.map(sanitizeUser));
 });
@@ -58,6 +87,7 @@ async function createUserRecord(data: z.infer<typeof createUserSchema>, createdB
   const user = await prisma.user.create({
     data: {
       ...data,
+      workstream: resolveWorkstream(data.role, data.workstream) ?? null,
       email: data.email.toLowerCase(),
       passwordHash,
       createdById,
@@ -146,11 +176,24 @@ const updateUserSchema = z.object({
 
 router.patch("/:id", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = updateUserSchema.parse(req.body);
+  const before = await prisma.user.findUniqueOrThrow({ where: { id: req.params.id } });
+  assertCanManageTarget(req.user!.role, before.role);
   if (data.role) {
     assertRoleCreatable(req.user!.role, data.role);
   }
-  const before = await prisma.user.findUniqueOrThrow({ where: { id: req.params.id } });
-  const user = await prisma.user.update({ where: { id: req.params.id }, data });
+  if (before.id === req.user!.sub && ((data.active === false) || (data.role && data.role !== before.role))) {
+    throw new ApiError(400, "You cannot deactivate your own account or change your own role");
+  }
+  const effectiveRole = data.role ?? before.role;
+  const workstream = resolveWorkstream(effectiveRole, data.workstream === undefined ? before.workstream : data.workstream);
+  const user = await prisma.user.update({ where: { id: req.params.id }, data: { ...data, workstream } });
+  if (before.role !== user.role) {
+    await recordAudit(prisma, { entityType: "User", entityId: user.id, field: "role", oldValue: before.role, newValue: user.role, action: "UPDATE", changedById: req.user!.sub });
+  }
+  // Deactivation or a role change takes effect now: end their sessions.
+  if ((before.active && !user.active) || before.role !== user.role) {
+    await revokeAllSessions(user.id);
+  }
   if (before.active !== user.active) {
     await recordAudit(prisma, {
       entityType: "User",
@@ -166,12 +209,15 @@ router.patch("/:id", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => 
 });
 
 router.post("/:id/reset-password", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
+  const target = await prisma.user.findUniqueOrThrow({ where: { id: req.params.id } });
+  assertCanManageTarget(req.user!.role, target.role);
   const tempPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 12);
   const user = await prisma.user.update({
     where: { id: req.params.id },
     data: { passwordHash, mustResetPassword: true },
   });
+  await revokeAllSessions(user.id);
   await recordAudit(prisma, {
     entityType: "User",
     entityId: user.id,

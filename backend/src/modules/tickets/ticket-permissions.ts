@@ -27,7 +27,9 @@ export function canCreateTicket(role: Role, workstream: Workstream, category: Ti
 
   if (workstream === Workstream.MAINTENANCE) {
     if (!MAINTENANCE_CATEGORIES.has(category)) return false;
-    return role === Role.PRODUCTION;
+    // Production raises Production Machine tickets only; Factory/Facility and
+    // Other Machine tickets go through the Admin team (spec §1).
+    return role === Role.PRODUCTION && category === TicketCategory.PRODUCTION_MACHINE;
   }
 
   if (workstream === Workstream.IT) {
