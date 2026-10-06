@@ -3,8 +3,10 @@ import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { DrawerToggleButton } from "expo-router/drawer";
+import { Plus } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
 import { useTickets } from "@/features/tickets/hooks";
+import { allowedWorkstreamsForCreate } from "@/features/tickets/permissions";
 import { TicketRow } from "@/features/tickets/TicketRow";
 import { CreateTicketModal } from "@/features/tickets/CreateTicketModal";
 import { Spinner } from "@/components/Spinner";
@@ -29,6 +31,7 @@ function defaultWorkstream(role: string | undefined): Workstream {
 export default function TicketsListScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const canCreate = allowedWorkstreamsForCreate(user?.role).length > 0;
   const canToggleWorkstream = user?.role === "MANAGER" || user?.role === "ADMIN";
 
   const [workstream, setWorkstream] = useState<Workstream>(defaultWorkstream(user?.role));
@@ -49,6 +52,15 @@ export default function TicketsListScreen() {
           <DrawerToggleButton tintColor="#23272B" />
           <Text className="text-lg font-bold text-soliflex-ink">Maintenance / IT Tickets</Text>
         </View>
+        {canCreate && (
+          <Pressable
+            onPress={() => setCreateOpen(true)}
+            className="flex-row items-center gap-1 rounded-lg bg-soliflex-orange-500 px-3 py-2"
+          >
+            <Plus color="#fff" size={16} />
+            <Text className="text-xs font-semibold text-white">Raise ticket</Text>
+          </Pressable>
+        )}
       </View>
 
       <View className="gap-3 border-b border-soliflex-gray-100 bg-white px-4 py-3">

@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Plus } from "lucide-react";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
 import toast from "react-hot-toast";
 import { useWorkstreamStore } from "../../store/workstream.store";
 import { useAuthStore } from "../../store/auth.store";
+import { useUIStore } from "../../store/ui.store";
+import { allowedWorkstreamsForCreate } from "./permissions";
 import { useTickets, useTicketMutations } from "./hooks";
 import { STATUS_LABELS, OnHoldBadge, PriorityBadge, SlaBreachBadge } from "../../components/badges";
 import { Avatar } from "../../components/Avatar";
@@ -74,6 +77,8 @@ function Column({ status, tickets }: { status: TicketStatus; tickets: Ticket[] }
 export default function TicketsBoardPage() {
   const workstream = useWorkstreamStore((s) => s.workstream);
   const user = useAuthStore((s) => s.user);
+  const setCreateTicketOpen = useUIStore((s) => s.setCreateTicketOpen);
+  const canCreate = user ? allowedWorkstreamsForCreate(user.role).length > 0 : false;
   const { data: tickets = [], isLoading } = useTickets({ workstream });
   const mutations = useTicketMutations();
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
@@ -123,7 +128,17 @@ export default function TicketsBoardPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Board</h1>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h1 className="text-xl font-bold text-soliflex-ink">{workstream === "MAINTENANCE" ? "Maintenance" : "IT"} Board</h1>
+        {canCreate && (
+          <button
+            onClick={() => setCreateTicketOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-soliflex-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600"
+          >
+            <Plus className="h-4 w-4" /> Create
+          </button>
+        )}
+      </div>
       <HelpdeskDiscoveryBanner />
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-3 overflow-x-auto pb-4">
