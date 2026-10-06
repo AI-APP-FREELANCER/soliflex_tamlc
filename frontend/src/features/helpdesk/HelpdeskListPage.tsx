@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Plus } from "lucide-react";
 import { useAuthStore } from "../../store/auth.store";
 import { useHelpdeskTickets } from "./hooks";
 import { HelpdeskStatusBadge, HELPDESK_CATEGORY_LABELS, DeadlineBreachedBadge, OnHoldBadge, MissingDeadlineBadge } from "./badges";
@@ -36,6 +37,8 @@ export default function HelpdeskListPage() {
     ...dateRange,
   });
 
+  // Employees raise IT tickets from "My Requests"; the team queues (lead/admin, engineer) don't show the button.
+  const canRaise = !isLead && !isEngineer;
   const title = isLead ? "Helpdesk Queue" : isEngineer ? "My Queue" : "My Requests";
 
   return (
@@ -70,6 +73,14 @@ export default function HelpdeskListPage() {
             <input type="checkbox" checked={missingDeadline} onChange={(e) => setMissingDeadline(e.target.checked)} />
             Missing deadline
           </label>
+        )}
+        {canRaise && (
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-soliflex-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600"
+          >
+            <Plus className="h-4 w-4" /> Raise ticket
+          </button>
         )}
       </div>
 

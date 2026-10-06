@@ -3,7 +3,7 @@ import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { DrawerToggleButton } from "expo-router/drawer";
-import { LayoutDashboard } from "lucide-react-native";
+import { LayoutDashboard, Plus } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
 import { canSeeHelpdeskDashboard } from "@/lib/roles";
 import { useHelpdeskTickets } from "@/features/helpdesk/hooks";
@@ -32,6 +32,8 @@ export default function HelpdeskListScreen() {
   const user = useAuthStore((s) => s.user);
   const isLead = user?.role === "IT_TEAM_LEAD" || user?.role === "ADMIN";
   const isEngineer = user?.role === "IT_SUPPORT_ENGINEER";
+  // Employees raise IT tickets from "My Requests"; the team queues (lead/admin, engineer) don't show the button.
+  const canRaise = !isLead && !isEngineer;
   const title = isLead ? "Helpdesk Queue" : isEngineer ? "My Queue" : "My Requests";
 
   const [filter, setFilter] = useState<HelpdeskFilter>({});
@@ -53,6 +55,15 @@ export default function HelpdeskListScreen() {
           {canSeeHelpdeskDashboard(user?.role) && (
             <Pressable onPress={() => router.push("/helpdesk/dashboard")} hitSlop={8}>
               <LayoutDashboard color="#23272B" size={22} />
+            </Pressable>
+          )}
+          {canRaise && (
+            <Pressable
+              onPress={() => setCreateOpen(true)}
+              className="flex-row items-center gap-1 rounded-lg bg-soliflex-orange-500 px-3 py-2"
+            >
+              <Plus color="#fff" size={16} />
+              <Text className="text-xs font-semibold text-white">Raise ticket</Text>
             </Pressable>
           )}
         </View>
