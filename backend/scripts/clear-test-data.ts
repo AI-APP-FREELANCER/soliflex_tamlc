@@ -1,13 +1,18 @@
 /**
- * Go-live cleanup: removes the test data for
- *   1. Maintenance assets (+ photos, invoices, QR codes)
- *   2. IT tickets on the Board  (workstream = IT) incl. comments/history/attachments/costs
- *   3. IT Helpdesk tickets      incl. comments/history
- * and everything that only exists because of them (audit rows, notifications,
- * number sequences, uploaded files).
+ * Go-live cleanup. Removes ALL operational data, keeps users.
  *
- * NOT touched: users, sessions, IT assets, Maintenance-workstream board tickets,
- * and any audit/notification row about those.
+ * Deleted:
+ *   - Maintenance assets (+ photos, invoices, QR codes)
+ *   - IT assets (+ invoices, QR codes)
+ *   - All Board tickets, Maintenance and IT (+ comments, status history, attachments, cost entries)
+ *   - All IT Helpdesk tickets (+ comments, status history)
+ *   - All notifications
+ *   - Audit log rows about assets and tickets
+ *   - Number counters (numbering restarts)
+ *   - Every file in the uploads folder (photos, invoices, attachments, QR codes)
+ *
+ * Kept as they are: users (incl. Admin), their passwords/sessions, and the
+ * audit rows about user accounts.
  *
  * Usage (from backend/):
  *   npx tsx scripts/clear-test-data.ts             # dry run: counts only, changes nothing
@@ -22,77 +27,59 @@ const prisma = new PrismaClient();
 const execute = process.argv.includes("--execute");
 const uploadDir = path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
 
-const SEQUENCE_KEYS = ["asset:MAINTENANCE", "ticket:IT", "helpdesk-ticket"];
+// Everything except user-account audit rows.
+const auditWhere = { entityType: { not: "User" } };
+
+function uploadedFiles(): string[] {
+  if (!fs.existsSync(uploadDir)) return [];
+  return fs
+    .readdirSync(uploadDir, { withFileTypes: true })
+    .filter((e) => e.isFile() && !e.name.startsWith("."))
+    .map((e) => e.name);
+}
 
 async function main() {
-  const dbHost = new URL(process.env.DATABASE_URL!).host;
-  console.log(`Database host: ${dbHost}`);
+  console.log(`Database host: ${new URL(process.env.DATABASE_URL!).host}`);
+  console.log(`Uploads folder: ${uploadDir}`);
   console.log(execute ? "MODE: EXECUTE (will delete)\n" : "MODE: DRY RUN (nothing will be changed)\n");
 
-  const assets = await prisma.maintenanceAsset.findMany({ include: { photos: true, invoices: true } });
-  const itTickets = await prisma.ticket.findMany({
-    where: { workstream: "IT" },
+  const maintAssets = await prisma.maintenanceAsset.findMany({ include: { photos: true, invoices: true } });
+  const itAssets = await prisma.iTAsset.findMany({ include: { invoices: true } });
+  const tickets = await prisma.ticket.findMany({
     include: { comments: true, attachments: true, costEntries: true, statusHistory: true },
   });
   const helpdesk = await prisma.helpdeskTicket.findMany({ include: { comments: true, statusHistory: true } });
-
-  const itTicketIds = itTickets.map((t) => t.id);
-
-  const notifWhere = {
-    OR: [
-      { link: { startsWith: "/helpdesk/" } },
-      { link: { startsWith: "/assets/maintenance/" } },
-      ...itTicketIds.map((id) => ({ link: `/tickets/${id}` })),
-    ],
-  };
-  const auditWhere = {
-    OR: [
-      { entityType: "MaintenanceAsset" },
-      { entityType: "HelpdeskTicket" },
-      { entityType: "Ticket", entityId: { in: itTicketIds } },
-    ],
-  };
-
-  const notifications = await prisma.notification.findMany({ where: notifWhere });
+  const notifications = await prisma.notification.findMany();
   const auditRows = await prisma.auditLog.findMany({ where: auditWhere });
-  const sequences = await prisma.sequenceCounter.findMany({ where: { key: { in: SEQUENCE_KEYS } } });
+  const sequences = await prisma.sequenceCounter.findMany();
+  const files = uploadedFiles();
 
-  // Files on disk that belong only to the rows being deleted.
-  const fileNames = new Set<string>();
-  const addFile = (url?: string | null) => url && fileNames.add(path.basename(url));
-  assets.forEach((a) => {
-    addFile(a.qrCodeUrl);
-    a.photos.forEach((p) => addFile(p.fileUrl));
-    a.invoices.forEach((i) => addFile(i.fileUrl));
-  });
-  itTickets.forEach((t) => t.attachments.forEach((a) => addFile(a.fileUrl)));
-
-  const remainingMaintTickets = await prisma.ticket.count({ where: { workstream: "MAINTENANCE" } });
-  const remainingItAssets = await prisma.iTAsset.count();
-
-  const rows = [
-    ["Maintenance assets", assets.length],
-    ["  photos", assets.reduce((n, a) => n + a.photos.length, 0)],
-    ["  invoices", assets.reduce((n, a) => n + a.invoices.length, 0)],
-    ["IT board tickets", itTickets.length],
-    ["  comments", itTickets.reduce((n, t) => n + t.comments.length, 0)],
-    ["  attachments", itTickets.reduce((n, t) => n + t.attachments.length, 0)],
-    ["  cost entries", itTickets.reduce((n, t) => n + t.costEntries.length, 0)],
-    ["  status history", itTickets.reduce((n, t) => n + t.statusHistory.length, 0)],
+  const sum = <T>(arr: T[], f: (x: T) => number) => arr.reduce((n, x) => n + f(x), 0);
+  const rows: [string, number][] = [
+    ["Maintenance assets", maintAssets.length],
+    ["  photos", sum(maintAssets, (a) => a.photos.length)],
+    ["  invoices", sum(maintAssets, (a) => a.invoices.length)],
+    ["IT assets", itAssets.length],
+    ["  invoices", sum(itAssets, (a) => a.invoices.length)],
+    ["Board tickets (Maintenance + IT)", tickets.length],
+    ["  comments", sum(tickets, (t) => t.comments.length)],
+    ["  attachments", sum(tickets, (t) => t.attachments.length)],
+    ["  cost entries", sum(tickets, (t) => t.costEntries.length)],
+    ["  status history", sum(tickets, (t) => t.statusHistory.length)],
     ["Helpdesk tickets", helpdesk.length],
-    ["  comments", helpdesk.reduce((n, t) => n + t.comments.length, 0)],
-    ["  status history", helpdesk.reduce((n, t) => n + t.statusHistory.length, 0)],
-    ["Notifications (about the above)", notifications.length],
-    ["Audit log rows (about the above)", auditRows.length],
+    ["  comments", sum(helpdesk, (t) => t.comments.length)],
+    ["  status history", sum(helpdesk, (t) => t.statusHistory.length)],
+    ["Notifications", notifications.length],
+    ["Audit log rows (assets/tickets)", auditRows.length],
     ["Number counters reset", sequences.length],
-    ["Uploaded files to remove", fileNames.size],
-  ] as const;
+    ["Files in uploads folder", files.length],
+  ];
   console.log("Will delete:");
   rows.forEach(([label, n]) => console.log(`  ${label.padEnd(36)} ${n}`));
-  console.log("\nWill be LEFT UNTOUCHED:");
-  console.log(`  ${"Maintenance board tickets".padEnd(36)} ${remainingMaintTickets}`);
-  console.log(`  ${"IT assets".padEnd(36)} ${remainingItAssets}`);
-  console.log(`  ${"Users".padEnd(36)} ${await prisma.user.count()}`);
+
+  const users = await prisma.user.findMany({ select: { email: true, role: true, active: true }, orderBy: { email: "asc" } });
+  console.log(`\nWill be KEPT: ${users.length} users, their sessions, and ${await prisma.auditLog.count({ where: { entityType: "User" } })} user-account audit rows`);
+  users.forEach((u) => console.log(`  ${u.email.padEnd(40)} ${u.role}${u.active ? "" : " (inactive)"}`));
 
   if (!execute) {
     console.log("\nDry run only. Re-run with --execute to apply.");
@@ -102,31 +89,35 @@ async function main() {
   const backupDir = path.resolve("backups");
   fs.mkdirSync(backupDir, { recursive: true });
   const backupFile = path.join(backupDir, `cleanup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-  fs.writeFileSync(backupFile, JSON.stringify({ assets, itTickets, helpdesk, notifications, auditRows, sequences }, null, 2));
-  console.log(`\nBackup written: ${backupFile}`);
+  fs.writeFileSync(
+    backupFile,
+    JSON.stringify({ maintAssets, itAssets, tickets, helpdesk, notifications, auditRows, sequences, files }, null, 2)
+  );
+  console.log(`\nBackup (database rows) written: ${backupFile}`);
+  console.log("Note: uploaded files are not included in that backup and cannot be restored once deleted.");
 
   // Child rows cascade from their parent (see schema onDelete: Cascade).
-  const result = await prisma.$transaction(async (tx) => {
-    const a = await tx.maintenanceAsset.deleteMany({});
-    const t = await tx.ticket.deleteMany({ where: { workstream: "IT" } });
-    const h = await tx.helpdeskTicket.deleteMany({});
-    const n = await tx.notification.deleteMany({ where: notifWhere });
-    const l = await tx.auditLog.deleteMany({ where: auditWhere });
-    const s = await tx.sequenceCounter.deleteMany({ where: { key: { in: SEQUENCE_KEYS } } });
-    return { assets: a.count, itTickets: t.count, helpdesk: h.count, notifications: n.count, audit: l.count, sequences: s.count };
-  }, { timeout: 60_000 });
+  const result = await prisma.$transaction(
+    async (tx) => ({
+      maintAssets: (await tx.maintenanceAsset.deleteMany({})).count,
+      itAssets: (await tx.iTAsset.deleteMany({})).count,
+      tickets: (await tx.ticket.deleteMany({})).count,
+      helpdesk: (await tx.helpdeskTicket.deleteMany({})).count,
+      notifications: (await tx.notification.deleteMany({})).count,
+      audit: (await tx.auditLog.deleteMany({ where: auditWhere })).count,
+      sequences: (await tx.sequenceCounter.deleteMany({})).count,
+    }),
+    { timeout: 60_000 }
+  );
   console.log("Deleted:", result);
 
   let removed = 0;
-  for (const name of fileNames) {
-    const p = path.join(uploadDir, name);
-    if (fs.existsSync(p)) {
-      fs.unlinkSync(p);
-      removed++;
-    }
+  for (const name of files) {
+    fs.unlinkSync(path.join(uploadDir, name));
+    removed++;
   }
-  console.log(`Removed ${removed} uploaded file(s) from ${uploadDir}`);
-  console.log("\nDone. Numbering restarts at M-AST-001 / IT-1001 / HD-1001.");
+  console.log(`Removed ${removed} file(s) from ${uploadDir}`);
+  console.log("\nDone. Numbering restarts at M-AST-001 / IT-AST-001 / MAIN-1001 / IT-1001 / HD-1001.");
 }
 
 main()
