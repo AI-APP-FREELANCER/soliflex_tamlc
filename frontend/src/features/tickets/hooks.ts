@@ -48,7 +48,7 @@ export function useTicketMutations(ticketId?: string) {
     startProgress: wrap((id: string) => ticketsApi.startProgress(id), "Work started"),
     submitRecommendation: wrap(
       (vars: { id: string; data: Parameters<typeof ticketsApi.submitRecommendation>[1] }) => ticketsApi.submitRecommendation(vars.id, vars.data),
-      "Recommendation submitted for approval"
+      "Diagnosis recorded"
     ),
     decideRecommendation: wrap(
       (vars: { id: string; data: Parameters<typeof ticketsApi.decideRecommendation>[1] }) => ticketsApi.decideRecommendation(vars.id, vars.data),
@@ -58,6 +58,10 @@ export function useTicketMutations(ticketId?: string) {
     markJobCompleted: wrap((id: string) => ticketsApi.markJobCompleted(id), "Marked job completed"),
     markFinalReview: wrap((id: string) => ticketsApi.markFinalReview(id), "Sent to final review"),
     close: wrap((vars: { id: string; data: Parameters<typeof ticketsApi.closeTicket>[1] }) => ticketsApi.closeTicket(vars.id, vars.data), "Ticket closed"),
+    closeDirect: wrap(
+      (vars: { id: string; data: Parameters<typeof ticketsApi.closeTicketDirect>[1] }) => ticketsApi.closeTicketDirect(vars.id, vars.data),
+      "Ticket closed"
+    ),
     reopen: wrap((vars: { id: string; reason: string }) => ticketsApi.reopenTicket(vars.id, vars.reason), "Ticket reopened"),
     hold: wrap((vars: { id: string; data: Parameters<typeof ticketsApi.holdTicket>[1] }) => ticketsApi.holdTicket(vars.id, vars.data), "Ticket put on hold"),
     resume: wrap((id: string) => ticketsApi.resumeTicket(id), "Ticket resumed"),

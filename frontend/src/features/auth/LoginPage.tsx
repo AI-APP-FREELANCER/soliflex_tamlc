@@ -10,7 +10,7 @@ type LoginTab = "employee" | "staff";
 
 export default function LoginPage() {
   const [tab, setTab] = useState<LoginTab>("employee");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +24,7 @@ export default function LoginPage() {
     try {
       const res = await axios.post(
         `${API_BASE_URL}/api/auth/login`,
-        { email, password },
+        { identifier: identifier.trim(), password },
         { withCredentials: true }
       );
       setSession(res.data.accessToken, res.data.user);
@@ -90,15 +90,17 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Email</label>
+              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Email or mobile number</label>
               <input
-                type="email"
+                type="text"
                 required
                 autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                autoCapitalize="none"
+                autoComplete="username"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2.5 text-sm outline-none focus:border-soliflex-orange-500 focus:ring-2 focus:ring-soliflex-orange-100"
-                placeholder="you@soliflex.local"
+                placeholder="you@soliflexpackaging.com or 9876543210"
               />
             </div>
             <div>
@@ -131,11 +133,15 @@ export default function LoginPage() {
               <Link to="/register" className="font-semibold text-soliflex-orange-600 hover:underline">
                 Create your account
               </Link>{" "}
-              with your company email.
+              with your company email or your mobile number.
             </p>
           ) : (
             <p className="mt-6 text-xs text-soliflex-gray-400">
-              No self sign-up for staff roles — accounts are created and managed by your Admin.
+              Maintenance and IT staff accounts are created by your Admin. You can also{" "}
+              <Link to="/register" className="font-semibold text-soliflex-orange-600 hover:underline">
+                register with your mobile number
+              </Link>{" "}
+              and ask your Admin to set up your access.
             </p>
           )}
         </div>

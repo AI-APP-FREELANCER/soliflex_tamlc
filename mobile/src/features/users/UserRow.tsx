@@ -12,7 +12,7 @@ export function UserRow({ user, onPress }: UserRowProps) {
     <Pressable onPress={onPress} className="flex-row items-center justify-between border-b border-soliflex-gray-100 bg-white px-4 py-3">
       <View className="flex-1">
         <Text className="text-sm font-semibold text-soliflex-ink">{user.name}</Text>
-        <Text className="text-xs text-soliflex-gray-500">{user.email}</Text>
+        <Text className="text-xs text-soliflex-gray-500">{[user.email, user.phone].filter(Boolean).join(" · ")}</Text>
         <Text className="mt-0.5 text-xs text-soliflex-gray-500">
           {user.role}
           {user.workstream ? ` · ${user.workstream}` : ""}

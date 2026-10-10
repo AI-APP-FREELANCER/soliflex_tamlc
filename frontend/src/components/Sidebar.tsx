@@ -4,6 +4,7 @@ import { LayoutGrid, List, Boxes, BarChart3, Users, Wrench, Laptop, ScrollText, 
 import { useAuthStore } from "../store/auth.store";
 import { useWorkstreamStore } from "../store/workstream.store";
 import { useUIStore } from "../store/ui.store";
+import { workstreamScopeFor } from "../features/tickets/permissions";
 
 const navItem =
   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-soliflex-gray-600 hover:bg-soliflex-gray-100 hover:text-soliflex-ink";
@@ -20,6 +21,7 @@ export function Sidebar() {
   const isAdmin = user?.role === "ADMIN";
   const showLegacy = isAdmin || (user && LEGACY_ROLES.has(user.role));
   const showHelpdesk = isAdmin || (user && HELPDESK_ROLES.has(user.role));
+  const pinnedWorkstream = user ? workstreamScopeFor(user) : null;
   const helpdeskLabel = user?.role === "IT_SUPPORT_ENGINEER" ? "My Queue" : user?.role === "EMPLOYEE" ? "My Requests" : "Helpdesk Queue";
 
   return (
@@ -38,7 +40,8 @@ export function Sidebar() {
         </button>
       </div>
 
-      {showLegacy && (
+      {/* Only people who work both workstreams get the switch. */}
+      {showLegacy && !pinnedWorkstream && (
         <div className="mx-3 mb-3 grid grid-cols-2 gap-1 rounded-lg bg-soliflex-gray-100 p-1">
           <button
             onClick={() => setWorkstream("MAINTENANCE")}

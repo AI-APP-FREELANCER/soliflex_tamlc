@@ -7,6 +7,7 @@ import { ApiError } from "../../middleware/errors";
 import { env } from "../../config/env";
 import { assertStrongPassword } from "../../lib/password-policy";
 import { recordAudit } from "../audit/audit.service";
+import { looksLikeEmail, normalizePhone, requireNormalizedPhone } from "../../lib/phone";
 
 const ALLOWED_REGISTRATION_DOMAINS = ["soliflexpackaging.com", "indautogroup.com"];
 
@@ -33,14 +34,31 @@ function ttlToMs(ttl: string): number {
   return value * multipliers[unit];
 }
 
-export async function login(email: string, password: string) {
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+/** Canonical form of a sign-in identifier (lower-case email, or E.164 phone) — also the throttle key. */
+export function canonicalIdentifier(identifier: string): string {
+  const value = identifier.trim();
+  if (looksLikeEmail(value)) return value.toLowerCase();
+  return normalizePhone(value) ?? value.toLowerCase();
+}
+
+const INVALID_CREDENTIALS = "Invalid email / mobile number or password";
+
+/** Signs in with either an email address or a mobile number plus the password. */
+export async function login(identifier: string, password: string) {
+  const value = identifier.trim();
+  let user = null;
+  if (looksLikeEmail(value)) {
+    user = await prisma.user.findUnique({ where: { email: value.toLowerCase() } });
+  } else {
+    const phone = normalizePhone(value);
+    if (phone) user = await prisma.user.findUnique({ where: { phone } });
+  }
   if (!user || !user.active) {
-    throw new ApiError(401, "Invalid email or password");
+    throw new ApiError(401, INVALID_CREDENTIALS);
   }
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    throw new ApiError(401, "Invalid email or password");
+    throw new ApiError(401, INVALID_CREDENTIALS);
   }
 
   const accessToken = signAccessToken({
@@ -69,9 +87,10 @@ export async function login(email: string, password: string) {
 export interface RegisterEmployeeInput {
   employeeId: string;
   name: string;
-  email: string;
-  password: string;
+  /** At least one of email / phone is required; both may be given. */
+  email?: string;
   phone?: string;
+  password: string;
 }
 
 /**
@@ -80,15 +99,21 @@ export interface RegisterEmployeeInput {
  * actual security boundary preventing self-service privilege escalation.
  */
 export async function registerEmployee(input: RegisterEmployeeInput) {
-  const email = input.email.toLowerCase();
-  assertAllowedRegistrationDomain(email);
-  assertStrongPassword(input.password, { email, name: input.name });
+  const email = input.email?.trim() ? input.email.trim().toLowerCase() : null;
+  const phone = input.phone?.trim() ? requireNormalizedPhone(input.phone) : null;
+  if (!email && !phone) {
+    throw new ApiError(400, "Provide an email address, a mobile number, or both");
+  }
+  // Only email registration is restricted to company domains; a mobile number
+  // has no domain, so the employee ID + number are what identifies the person.
+  if (email) assertAllowedRegistrationDomain(email);
+  assertStrongPassword(input.password, { email, name: input.name, phone });
 
   const existing = await prisma.user.findFirst({
-    where: { OR: [{ email }, { employeeId: input.employeeId }] },
+    where: { OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : []), { employeeId: input.employeeId }] },
   });
   if (existing) {
-    throw new ApiError(409, "A user with this email or employee ID already exists");
+    throw new ApiError(409, "A user with this email, mobile number or employee ID already exists");
   }
 
   const passwordHash = await bcrypt.hash(input.password, 12);
@@ -98,7 +123,7 @@ export async function registerEmployee(input: RegisterEmployeeInput) {
         employeeId: input.employeeId,
         name: input.name,
         email,
-        phone: input.phone,
+        phone,
         passwordHash,
         role: Role.EMPLOYEE,
         workstream: null,
@@ -181,12 +206,56 @@ export async function changeOwnPassword(userId: string, currentPassword: string,
   if (currentPassword === newPassword) {
     throw new ApiError(400, "Choose a new password that is different from your current one");
   }
-  assertStrongPassword(newPassword, { email: user.email, name: user.name });
+  assertStrongPassword(newPassword, { email: user.email, name: user.name, phone: user.phone });
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({
     where: { id: userId },
     data: { passwordHash, mustResetPassword: false },
   });
+}
+
+/**
+ * Lets a signed-in user add or change the email / mobile number they sign in
+ * with, so someone who registered with one can capture the other. Requires the
+ * current password; at least one identifier must always remain.
+ */
+export async function updateOwnContact(
+  userId: string,
+  input: { currentPassword: string; email?: string | null; phone?: string | null }
+) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+  if (!valid) throw new ApiError(400, "Current password is incorrect");
+
+  const email =
+    input.email === undefined ? user.email : input.email === null || !input.email.trim() ? null : input.email.trim().toLowerCase();
+  const phone =
+    input.phone === undefined ? user.phone : input.phone === null || !input.phone.trim() ? null : requireNormalizedPhone(input.phone);
+  if (!email && !phone) {
+    throw new ApiError(400, "You must keep at least one of email or mobile number to sign in");
+  }
+  if (email && email !== user.email) {
+    assertAllowedRegistrationDomain(email);
+    if (await prisma.user.findFirst({ where: { email, NOT: { id: userId } } })) {
+      throw new ApiError(409, "That email address is already used by another account");
+    }
+  }
+  if (phone && phone !== user.phone) {
+    if (await prisma.user.findFirst({ where: { phone, NOT: { id: userId } } })) {
+      throw new ApiError(409, "That mobile number is already used by another account");
+    }
+  }
+  const updated = await prisma.$transaction(async (tx) => {
+    const u = await tx.user.update({ where: { id: userId }, data: { email, phone } });
+    if (email !== user.email) {
+      await recordAudit(tx, { entityType: "User", entityId: userId, field: "email", oldValue: user.email ?? undefined, newValue: email ?? undefined, action: "UPDATE", changedById: userId });
+    }
+    if (phone !== user.phone) {
+      await recordAudit(tx, { entityType: "User", entityId: userId, field: "phone", oldValue: user.phone ?? undefined, newValue: phone ?? undefined, action: "UPDATE", changedById: userId });
+    }
+    return u;
+  });
+  return sanitizeUser(updated);
 }
 
 export function sanitizeUser<T extends { passwordHash: string }>(user: T) {

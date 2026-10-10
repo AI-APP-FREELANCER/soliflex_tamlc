@@ -18,7 +18,10 @@ import { CloseModal } from "./CloseModal";
 import { apiErrorMessage } from "../../lib/api";
 import { HelpdeskDiscoveryBanner } from "../helpdesk/HelpdeskDiscoveryBanner";
 
-const COLUMNS: TicketStatus[] = ["OPEN", "ASSIGNED", "IN_PROGRESS", "FIRST_LINE_REVIEW", "JOB_COMPLETED", "FINAL_REVIEW", "CLOSED"];
+const MAINTENANCE_COLUMNS: TicketStatus[] = ["OPEN", "ASSIGNED", "IN_PROGRESS", "FIRST_LINE_REVIEW", "JOB_COMPLETED", "FINAL_REVIEW", "CLOSED"];
+// IT has no review chain: the engineer resolves and closes.
+const IT_COLUMNS: TicketStatus[] = ["OPEN", "ASSIGNED", "IN_PROGRESS", "CLOSED"];
+const IT_LEGACY_REVIEW: TicketStatus[] = ["FIRST_LINE_REVIEW", "JOB_COMPLETED", "FINAL_REVIEW"];
 
 const NEXT_STATUS: Partial<Record<TicketStatus, TicketStatus>> = {
   OPEN: "ASSIGNED",
@@ -84,6 +87,17 @@ export default function TicketsBoardPage() {
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
   const [assignTarget, setAssignTarget] = useState<Ticket | null>(null);
   const [closeTarget, setCloseTarget] = useState<Ticket | null>(null);
+  const [directCloseTarget, setDirectCloseTarget] = useState<Ticket | null>(null);
+
+  // Tickets that were already in a review stage before IT moved to the shorter flow stay visible.
+  const columns: TicketStatus[] =
+    workstream === "IT"
+      ? [
+          ...IT_COLUMNS.slice(0, 3),
+          ...IT_LEGACY_REVIEW.filter((s) => tickets.some((t) => t.status === s)),
+          "CLOSED",
+        ]
+      : MAINTENANCE_COLUMNS;
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -101,6 +115,22 @@ export default function TicketsBoardPage() {
     const targetStatus = over.id as TicketStatus;
     if (targetStatus === ticket.status) return;
 
+    const isManager = user?.role === "MANAGER" || user?.role === "ADMIN";
+    const isAssignee = ticket.assignedToId === user?.id;
+    // Fast close: always for IT; for Maintenance once the diagnosis shows no approval is needed.
+    const fastCloseOk =
+      ticket.status === "IN_PROGRESS" &&
+      !ticket.onHold &&
+      (isManager || isAssignee) &&
+      (ticket.workstream === "IT" || (ticket.fixType !== null && !ticket.approvalRequired));
+    if (targetStatus === "CLOSED" && fastCloseOk) {
+      setDirectCloseTarget(ticket);
+      return;
+    }
+    if (ticket.workstream === "IT" && ticket.status === "IN_PROGRESS" && targetStatus === "CLOSED") {
+      toast.error("Put the ticket back on track first - it is on hold or not yours to close.");
+      return;
+    }
     if (NEXT_STATUS[ticket.status] !== targetStatus) {
       toast.error("Tickets move one stage at a time — open the ticket for other actions.");
       return;
@@ -142,7 +172,7 @@ export default function TicketsBoardPage() {
       <HelpdeskDiscoveryBanner />
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-3 overflow-x-auto pb-4">
-          {COLUMNS.map((status) => (
+          {columns.map((status) => (
             <Column key={status} status={status} tickets={tickets.filter((t) => t.status === status)} />
           ))}
         </div>
@@ -151,6 +181,7 @@ export default function TicketsBoardPage() {
 
       {assignTarget && (user?.role === "MANAGER" || user?.role === "ADMIN") && <AssignModal ticket={assignTarget} onClose={() => setAssignTarget(null)} />}
       {closeTarget && (user?.role === "MANAGER" || user?.role === "ADMIN") && <CloseModal ticket={closeTarget} onClose={() => setCloseTarget(null)} />}
+      {directCloseTarget && <CloseModal direct ticket={directCloseTarget} onClose={() => setDirectCloseTarget(null)} />}
     </div>
   );
 }

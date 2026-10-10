@@ -9,7 +9,8 @@ export async function fetchUsers(): Promise<User[]> {
 export interface CreateUserInput {
   employeeId: string;
   name: string;
-  email: string;
+  /** Provide an email, a mobile number, or both. */
+  email?: string;
   role: Role;
   workstream?: Workstream | null;
   department?: string;
@@ -26,7 +27,8 @@ export interface UpdateUserInput {
   role?: Role;
   workstream?: Workstream | null;
   department?: string;
-  phone?: string;
+  email?: string;
+  phone?: string | null;
   active?: boolean;
 }
 

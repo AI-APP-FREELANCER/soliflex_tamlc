@@ -5,6 +5,56 @@ import { api, apiErrorMessage } from "../../lib/api";
 import { useAuthStore } from "../../store/auth.store";
 import type { User } from "../../lib/types";
 
+function SignInDetails() {
+  const user = useAuthStore((s) => s.user)!;
+  const [email, setEmail] = useState(user.email ?? "");
+  const [phone, setPhone] = useState(user.phone ?? "");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await api.patch<User>("/auth/me/contact", {
+        currentPassword: password,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+      });
+      const token = useAuthStore.getState().accessToken;
+      if (token) useAuthStore.getState().setSession(token, res.data);
+      setPassword("");
+      toast.success("Sign-in details updated");
+    } catch (err) {
+      toast.error(apiErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={save} className="mt-6 space-y-3 rounded-xl border border-soliflex-gray-100 bg-white p-5">
+      <h2 className="text-sm font-bold text-soliflex-ink">Sign-in details</h2>
+      <p className="text-xs text-soliflex-gray-400">You can sign in with your email, your mobile number, or either. Keep at least one.</p>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Email</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@soliflexpackaging.com" className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Mobile number</label>
+        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Current password</label>
+        <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+      </div>
+      <button type="submit" disabled={saving || !password || (!email.trim() && !phone.trim())} className="w-full rounded-lg border border-soliflex-gray-200 px-4 py-2.5 text-sm font-semibold text-soliflex-gray-700 hover:bg-soliflex-gray-50 disabled:opacity-50">
+        Save sign-in details
+      </button>
+    </form>
+  );
+}
+
 export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -53,6 +103,7 @@ export default function ChangePasswordPage() {
           Update password
         </button>
       </form>
+      {!forced && <SignInDetails />}
     </div>
   );
 }

@@ -7,17 +7,19 @@ export interface LoginResponse {
   refreshToken: string; // present because we send X-Client-Type: mobile
 }
 
-export async function login(email: string, password: string): Promise<LoginResponse> {
-  const res = await api.post("/auth/login", { email, password });
+/** Signs in with an email address or a mobile number. */
+export async function login(identifier: string, password: string): Promise<LoginResponse> {
+  const res = await api.post("/auth/login", { identifier: identifier.trim(), password });
   return res.data;
 }
 
 export interface RegisterInput {
   employeeId: string;
   name: string;
-  email: string;
-  password: string;
+  /** Provide an email, a mobile number, or both. */
+  email?: string;
   phone?: string;
+  password: string;
 }
 
 export async function registerEmployee(input: RegisterInput): Promise<LoginResponse> {
@@ -32,6 +34,11 @@ export async function fetchMe(): Promise<User> {
 
 export async function logout(refreshToken: string | null): Promise<void> {
   await api.post("/auth/logout", refreshToken ? { refreshToken } : {});
+}
+
+export async function updateContact(input: { currentPassword: string; email?: string | null; phone?: string | null }): Promise<User> {
+  const res = await api.patch("/auth/me/contact", input);
+  return res.data;
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {

@@ -7,6 +7,7 @@ import {
   addTicketCost,
   assignTicket,
   closeTicket,
+  closeTicketDirect,
   createTicket,
   decideRecommendation,
   fetchTicket,
@@ -24,6 +25,7 @@ import {
   uploadTicketAttachment,
   type AssignTicketInput,
   type CreateTicketInput,
+  type RecommendationInput,
   type UpdateAssignmentInput,
 } from "@/api/tickets";
 
@@ -76,8 +78,7 @@ export function useTicketMutations(ticketId?: string) {
   });
 
   const submitRecommendationM = useMutation({
-    mutationFn: ({ id, diagnosis, recommendedFix }: { id: string; diagnosis: string; recommendedFix: string }) =>
-      submitRecommendation(id, diagnosis, recommendedFix),
+    mutationFn: ({ id, ...input }: { id: string } & RecommendationInput) => submitRecommendation(id, input),
     onSuccess: invalidate,
     onError: onErr,
   });
@@ -110,6 +111,13 @@ export function useTicketMutations(ticketId?: string) {
   const close = useMutation({
     mutationFn: ({ id, confirmEquipmentOperational, closingComment }: { id: string; confirmEquipmentOperational: boolean; closingComment?: string }) =>
       closeTicket(id, confirmEquipmentOperational, closingComment),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  const closeDirect = useMutation({
+    mutationFn: ({ id, confirmEquipmentOperational, closingComment }: { id: string; confirmEquipmentOperational: boolean; closingComment?: string }) =>
+      closeTicketDirect(id, confirmEquipmentOperational, closingComment),
     onSuccess: invalidate,
     onError: onErr,
   });
@@ -164,6 +172,7 @@ export function useTicketMutations(ticketId?: string) {
     markJobCompleted: markJobCompletedM,
     markFinalReview: markFinalReviewM,
     close,
+    closeDirect,
     reopen,
     hold,
     resume,

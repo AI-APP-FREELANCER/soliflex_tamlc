@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, View } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { Modal } from "@/components/Modal";
 import { TextField } from "@/components/TextField";
 import { SelectField } from "@/components/SelectField";
@@ -48,7 +48,7 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
       {
         employeeId: employeeId.trim(),
         name: name.trim(),
-        email: email.trim(),
+        email: email.trim() || undefined,
         role,
         workstream: workstream ?? null,
         department: department.trim() || undefined,
@@ -64,18 +64,19 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
     );
   }
 
-  const canSubmit = !!employeeId.trim() && !!name.trim() && !!email.trim() && !!role;
+  const canSubmit = !!employeeId.trim() && !!name.trim() && (!!email.trim() || !!phone.trim()) && !!role;
 
   return (
     <Modal visible={visible} title="Add user" onClose={onClose}>
       <View className="gap-4 pb-4">
         <TextField label="Employee ID" value={employeeId} onChangeText={setEmployeeId} autoCapitalize="none" />
         <TextField label="Name" value={name} onChangeText={setName} />
-        <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+        <TextField label="Email (optional)" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+        <TextField label="Mobile number (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+        <Text className="-mt-2 text-xs text-soliflex-gray-500">At least one is required — the person signs in with whichever you enter.</Text>
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream (optional)" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
         <TextField label="Department (optional)" value={department} onChangeText={setDepartment} />
-        <TextField label="Phone (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
         <Button title="Create" onPress={handleSubmit} disabled={!canSubmit} loading={create.isPending} />
       </View>
     </Modal>

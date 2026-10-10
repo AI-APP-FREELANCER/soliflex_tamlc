@@ -74,7 +74,7 @@ export default function UsersPage() {
                     <Avatar name={u.name} size={26} />
                     <div>
                       <p className="font-medium text-soliflex-ink">{u.name}</p>
-                      <p className="text-xs text-soliflex-gray-400">{u.email}</p>
+                      <p className="text-xs text-soliflex-gray-400">{[u.email, u.phone].filter(Boolean).join(" · ")}</p>
                     </div>
                   </div>
                 </td>
@@ -119,12 +119,19 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
     role: user.role,
     workstream: user.workstream,
     department: user.department ?? "",
+    email: user.email ?? "",
     phone: user.phone ?? "",
   });
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: () => updateUser(user.id, { ...form, department: form.department || undefined, phone: form.phone || undefined }),
+    mutationFn: () =>
+      updateUser(user.id, {
+        ...form,
+        department: form.department || undefined,
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || null,
+      }),
     onSuccess: () => {
       toast.success("User updated");
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -141,7 +148,7 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
     <Modal title={`Edit ${user.name}`} onClose={onClose}>
       <div className="space-y-3">
         <p className="text-xs text-soliflex-gray-400">
-          Employee ID and email are fixed identifiers and can't be changed here.
+          Employee ID can't be changed here. Email and mobile number are sign-in identifiers — at least one is required.
         </p>
         <input placeholder="Full name" value={form.name} onChange={(e) => set("name", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <div className="grid grid-cols-2 gap-3">
@@ -159,10 +166,11 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
           </select>
         </div>
         <input placeholder="Department" value={form.department} onChange={(e) => set("department", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
-        <input placeholder="Phone" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        <input placeholder="Email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        <input placeholder="Mobile number" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <button
           onClick={() => mutation.mutate()}
-          disabled={!form.name || mutation.isPending}
+          disabled={!form.name || (!form.email.trim() && !form.phone.trim()) || mutation.isPending}
           className="w-full rounded-lg bg-soliflex-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-soliflex-orange-600 disabled:opacity-50"
         >
           Save changes
@@ -175,7 +183,7 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
 function CreateUserModal({ onClose }: { onClose: () => void }) {
   const actor = useAuthStore((s) => s.user);
   const roles = assignableRoles(actor?.role);
-  const [form, setForm] = useState<CreateUserInput>({ employeeId: "", name: "", email: "", role: "MECHANIC", workstream: "MAINTENANCE", department: "" });
+  const [form, setForm] = useState<CreateUserInput>({ employeeId: "", name: "", email: "", phone: "", role: "MECHANIC", workstream: "MAINTENANCE", department: "" });
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -199,7 +207,11 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
           <input placeholder="Employee ID" value={form.employeeId} onChange={(e) => set("employeeId", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
           <input placeholder="Full name" value={form.name} onChange={(e) => set("name", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         </div>
-        <input placeholder="Email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        <div className="grid grid-cols-2 gap-3">
+          <input placeholder="Email (optional)" type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+          <input placeholder="Mobile number (optional)" type="tel" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        </div>
+        <p className="-mt-1 text-xs text-soliflex-gray-400">At least one is required — the person signs in with whichever you enter.</p>
         <div className="grid grid-cols-2 gap-3">
           <select value={form.role} onChange={(e) => set("role", e.target.value as Role)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
             {roles.map((r) => (
@@ -216,8 +228,8 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
         </div>
         <input placeholder="Department" value={form.department} onChange={(e) => set("department", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <button
-          onClick={() => mutation.mutate(form)}
-          disabled={!form.employeeId || !form.name || !form.email || mutation.isPending}
+          onClick={() => mutation.mutate({ ...form, email: form.email?.trim() || undefined, phone: form.phone?.trim() || undefined })}
+          disabled={!form.employeeId || !form.name || (!form.email?.trim() && !form.phone?.trim()) || mutation.isPending}
           className="w-full rounded-lg bg-soliflex-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-soliflex-orange-600 disabled:opacity-50"
         >
           Create user

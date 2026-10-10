@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { QrCode } from "lucide-react";
 import { Modal } from "../../components/Modal";
 import { QrScannerModal } from "../../components/QrScannerModal";
 import { useAuthStore } from "../../store/auth.store";
 import { useUIStore } from "../../store/ui.store";
+import { useWorkstreamStore } from "../../store/workstream.store";
 import { allowedCategoriesForCreate, allowedWorkstreamsForCreate, categoriesFor } from "./permissions";
 import { useTicketMutations } from "./hooks";
 import type { TicketCategory, Workstream } from "../../lib/types";
@@ -30,6 +31,21 @@ export function CreateTicketModal() {
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const { create } = useTicketMutations();
+  const boardWorkstream = useWorkstreamStore((s) => s.workstream);
+
+  // Each time the dialog opens, start from the workstream the user is looking at
+  // (raising from the IT board must default to IT, not Maintenance).
+  useEffect(() => {
+    if (!open || !user) return;
+    const allowed = allowedWorkstreamsForCreate(user.role);
+    const ws = allowed.includes(boardWorkstream) ? boardWorkstream : allowed[0];
+    if (!ws) return;
+    setWorkstream(ws);
+    setCategory(allowedCategoriesForCreate(user.role, ws)[0] ?? "");
+    setAssetId(null);
+    setAssetSearch("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const { data: maintenanceAssets = [] } = useQuery({
     queryKey: ["maintenance-assets", assetSearch],
@@ -83,7 +99,7 @@ export function CreateTicketModal() {
                     key={ws}
                     onClick={() => {
                       setWorkstream(ws);
-                      setCategory("");
+                      setCategory(user ? allowedCategoriesForCreate(user.role, ws)[0] ?? "" : "");
                       setAssetId(null);
                     }}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium ${

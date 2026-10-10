@@ -9,7 +9,8 @@ export async function fetchUsers(workstream?: Workstream): Promise<User[]> {
 export interface CreateUserInput {
   employeeId: string;
   name: string;
-  email: string;
+  /** Provide an email, a mobile number, or both. */
+  email?: string;
   role: Role;
   workstream?: Workstream | null;
   department?: string;
@@ -21,7 +22,10 @@ export async function createUser(input: CreateUserInput): Promise<{ user: User; 
   return res.data;
 }
 
-export async function updateUser(id: string, data: Partial<CreateUserInput & { active: boolean }>): Promise<User> {
+export async function updateUser(
+  id: string,
+  data: Partial<Omit<CreateUserInput, "phone">> & { active?: boolean; phone?: string | null }
+): Promise<User> {
   const res = await api.patch(`/users/${id}`, data);
   return res.data;
 }
@@ -34,7 +38,7 @@ export async function resetPassword(id: string): Promise<{ tempPassword: string 
 export interface UserBulkImportResult {
   imported: number;
   failed: number;
-  created: { name: string; email: string; tempPassword: string }[];
+  created: { name: string; email: string | null; phone: string | null; tempPassword: string }[];
   errors: { row: number; message: string }[];
 }
 

@@ -14,6 +14,25 @@ export const IT_CATEGORIES: { value: TicketCategory; label: string }[] = [
   { value: "SOFTWARE", label: "Software" },
 ];
 
+/**
+ * Which workstream a board user works in. Maintenance and IT are separate
+ * workflows, so each user only sees their own. null = may see both.
+ * (Mirrors backend/src/lib/workstream-scope.ts.)
+ */
+export function workstreamScopeFor(user: { role: Role; workstream: Workstream | null }): Workstream | null {
+  switch (user.role) {
+    case "MECHANIC":
+    case "PRODUCTION":
+      return "MAINTENANCE";
+    case "IT_TEAM":
+      return "IT";
+    case "MANAGER":
+      return user.workstream ?? null;
+    default:
+      return null;
+  }
+}
+
 export function categoriesFor(workstream: Workstream) {
   return workstream === "MAINTENANCE" ? MAINTENANCE_CATEGORIES : IT_CATEGORIES;
 }

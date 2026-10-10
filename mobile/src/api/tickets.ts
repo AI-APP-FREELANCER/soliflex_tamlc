@@ -1,5 +1,5 @@
 import { api } from "@/lib/api-client";
-import type { AttachmentType, Priority, Ticket, TicketCategory, TicketFilter, Workstream } from "@/lib/types";
+import type { AttachmentType, FixType, Priority, Ticket, TicketCategory, TicketFilter, Workstream } from "@/lib/types";
 
 export async function fetchTickets(filter: TicketFilter): Promise<Ticket[]> {
   const res = await api.get("/tickets", {
@@ -72,8 +72,15 @@ export async function startTicketProgress(id: string): Promise<Ticket> {
   return res.data;
 }
 
-export async function submitRecommendation(id: string, diagnosis: string, recommendedFix: string): Promise<Ticket> {
-  const res = await api.post(`/tickets/${id}/submit-recommendation`, { diagnosis, recommendedFix });
+export interface RecommendationInput {
+  diagnosis: string;
+  recommendedFix: string;
+  fixType: FixType;
+  estimatedCost?: number;
+}
+
+export async function submitRecommendation(id: string, input: RecommendationInput): Promise<Ticket> {
+  const res = await api.post(`/tickets/${id}/submit-recommendation`, input);
   return res.data;
 }
 
@@ -99,6 +106,12 @@ export async function markFinalReview(id: string): Promise<Ticket> {
 
 export async function closeTicket(id: string, confirmEquipmentOperational: boolean, closingComment?: string): Promise<Ticket> {
   const res = await api.post(`/tickets/${id}/close`, { confirmEquipmentOperational, closingComment });
+  return res.data;
+}
+
+/** Engineer / manager fast close - no review chain (see the approval rules on the ticket). */
+export async function closeTicketDirect(id: string, confirmEquipmentOperational: boolean, closingComment?: string): Promise<Ticket> {
+  const res = await api.post(`/tickets/${id}/close-direct`, { confirmEquipmentOperational, closingComment });
   return res.data;
 }
 

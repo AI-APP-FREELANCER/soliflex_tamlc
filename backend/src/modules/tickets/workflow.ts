@@ -19,6 +19,7 @@ export type TicketAction =
   | "MARK_JOB_COMPLETED"
   | "MARK_FINAL_REVIEW"
   | "CLOSE"
+  | "DIRECT_CLOSE"
   | "HOLD"
   | "RESUME"
   | "REOPEN";
@@ -84,6 +85,15 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
     from: [TicketStatus.FINAL_REVIEW],
     to: TicketStatus.CLOSED,
     roles: [Role.MANAGER, Role.ADMIN],
+  },
+  DIRECT_CLOSE: {
+    // Fast path: the engineer (or a manager) closes the job without the review
+    // chain. Maintenance: only when no approval is needed (minor adjustment, or a
+    // spare part below the cost threshold). IT: always. Extra rules in the service.
+    from: [TicketStatus.IN_PROGRESS, TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW],
+    to: TicketStatus.CLOSED,
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
+    requireAssignee: true,
   },
   HOLD: {
     from: [TicketStatus.OPEN, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW],

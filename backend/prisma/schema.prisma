@@ -67,6 +67,16 @@ enum Priority {
   @@schema("tms")
 }
 
+// What the engineer found while working the ticket. A spare part replacement
+// costing at/above the approval threshold needs manager approval; anything
+// else can be closed straight away by the engineer.
+enum FixType {
+  SPARE_PART_REPLACEMENT
+  MINOR_ADJUSTMENT
+
+  @@schema("tms")
+}
+
 enum OnHoldReason {
   VENDOR
   MATERIAL
@@ -152,32 +162,35 @@ enum AssetStatus {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String     @id @default(cuid())
-  employeeId   String     @unique
-  name         String
-  email        String     @unique
-  passwordHash String
-  role         Role
-  workstream   Workstream?
-  department   String?
-  phone        String?
-  active       Boolean    @default(true)
-  mustResetPassword Boolean @default(true)
-  createdById  String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id                String      @id @default(cuid())
+  employeeId        String      @unique
+  name              String
+  // Sign-in identifiers: at least one of email / phone must be set (enforced by
+  // a CHECK constraint). Both are unique, and either can be used to log in.
+  // phone is stored normalised (E.164, e.g. +919876543210).
+  email             String?     @unique
+  passwordHash      String
+  role              Role
+  workstream        Workstream?
+  department        String?
+  phone             String?     @unique
+  active            Boolean     @default(true)
+  mustResetPassword Boolean     @default(true)
+  createdById       String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
-  reportedTickets  Ticket[]        @relation("ReportedBy")
-  assignedTickets  Ticket[]        @relation("AssignedTo")
-  managedTickets   Ticket[]        @relation("ManagedBy")
-  approvedTickets  Ticket[]        @relation("ApprovedBy")
-  closedTickets    Ticket[]        @relation("ClosedBy")
-  comments         TicketComment[]
-  attachments      TicketAttachment[]
-  notifications    Notification[]
-  auditLogs        AuditLog[]
-  statusChanges    TicketStatusHistory[]
-  refreshTokens    RefreshToken[]
+  reportedTickets Ticket[]              @relation("ReportedBy")
+  assignedTickets Ticket[]              @relation("AssignedTo")
+  managedTickets  Ticket[]              @relation("ManagedBy")
+  approvedTickets Ticket[]              @relation("ApprovedBy")
+  closedTickets   Ticket[]              @relation("ClosedBy")
+  comments        TicketComment[]
+  attachments     TicketAttachment[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  statusChanges   TicketStatusHistory[]
+  refreshTokens   RefreshToken[]
 
   helpdeskRaised        HelpdeskTicket[]        @relation("HelpdeskRaisedBy")
   helpdeskAssigned      HelpdeskTicket[]        @relation("HelpdeskAssignedTo")
@@ -210,83 +223,87 @@ model SequenceCounter {
 }
 
 model Ticket {
-  id             String         @id @default(cuid())
-  ticketNumber   String         @unique
-  workstream     Workstream
-  category       TicketCategory
-  title          String
-  description    String
-  plantLocation  String?
+  id            String         @id @default(cuid())
+  ticketNumber  String         @unique
+  workstream    Workstream
+  category      TicketCategory
+  title         String
+  description   String
+  plantLocation String?
 
   // asset link (cross-schema — plain id reference, joined at the app layer)
   maintenanceAssetId String?
   itAssetId          String?
 
-  status         TicketStatus   @default(OPEN)
-  priority       Priority?
+  status   TicketStatus @default(OPEN)
+  priority Priority?
 
-  onHold         Boolean        @default(false)
-  onHoldReason   OnHoldReason?
-  onHoldDetail   String?
-  onHoldSince    DateTime?
-  resumeStatus   TicketStatus?
+  onHold       Boolean       @default(false)
+  onHoldReason OnHoldReason?
+  onHoldDetail String?
+  onHoldSince  DateTime?
+  resumeStatus TicketStatus?
 
-  reportedById   String
-  reportedBy     User           @relation("ReportedBy", fields: [reportedById], references: [id])
-  assignedToId   String?
-  assignedTo     User?          @relation("AssignedTo", fields: [assignedToId], references: [id])
-  managerId      String?
-  manager        User?          @relation("ManagedBy", fields: [managerId], references: [id])
+  reportedById String
+  reportedBy   User    @relation("ReportedBy", fields: [reportedById], references: [id])
+  assignedToId String?
+  assignedTo   User?   @relation("AssignedTo", fields: [assignedToId], references: [id])
+  managerId    String?
+  manager      User?   @relation("ManagedBy", fields: [managerId], references: [id])
 
-  diagnosis         String?
-  recommendedFix     String?
-  approvedById   String?
-  approvedBy     User?          @relation("ApprovedBy", fields: [approvedById], references: [id])
-  approvedAt     DateTime?
+  diagnosis        String?
+  recommendedFix   String?
+  fixType          FixType?
+  estimatedCost    Float?
+  // true until a diagnosis shows the job is below the approval threshold
+  approvalRequired Boolean   @default(true)
+  approvedById     String?
+  approvedBy       User?     @relation("ApprovedBy", fields: [approvedById], references: [id])
+  approvedAt       DateTime?
 
-  effortEstimateHours Float?
+  effortEstimateHours  Float?
   targetCompletionDate DateTime?
-  slaBreached    Boolean        @default(false)
+  slaBreached          Boolean   @default(false)
 
-  actualCost     Float?
+  actualCost Float?
 
-  closedById     String?
-  closedBy       User?          @relation("ClosedBy", fields: [closedById], references: [id])
-  closedAt       DateTime?
+  closedById String?
+  closedBy   User?     @relation("ClosedBy", fields: [closedById], references: [id])
+  closedAt   DateTime?
 
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  comments       TicketComment[]
-  attachments    TicketAttachment[]
-  costEntries    TicketCostEntry[]
-  statusHistory  TicketStatusHistory[]
+  comments      TicketComment[]
+  attachments   TicketAttachment[]
+  costEntries   TicketCostEntry[]
+  statusHistory TicketStatusHistory[]
 
   @@schema("tms")
 }
 
 model TicketStatusHistory {
-  id           String       @id @default(cuid())
-  ticketId     String
-  ticket       Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  fromStatus   TicketStatus?
-  toStatus     TicketStatus
-  changedById  String
-  changedBy    User         @relation(fields: [changedById], references: [id])
-  comment      String?
-  createdAt    DateTime     @default(now())
+  id          String        @id @default(cuid())
+  ticketId    String
+  ticket      Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus  TicketStatus?
+  toStatus    TicketStatus
+  changedById String
+  changedBy   User          @relation(fields: [changedById], references: [id])
+  comment     String?
+  createdAt   DateTime      @default(now())
 
   @@schema("tms")
 }
 
 model TicketComment {
-  id         String   @id @default(cuid())
-  ticketId   String
-  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId   String
-  author     User     @relation(fields: [authorId], references: [id])
-  body       String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
 
   @@schema("tms")
 }
@@ -308,13 +325,13 @@ model TicketAttachment {
 }
 
 model TicketCostEntry {
-  id           String   @id @default(cuid())
-  ticketId     String
-  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  description  String
-  amount       Float
-  sparePartUsed Boolean @default(false)
-  createdAt    DateTime @default(now())
+  id            String   @id @default(cuid())
+  ticketId      String
+  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  description   String
+  amount        Float
+  sparePartUsed Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
   @@schema("tms")
 }
@@ -333,16 +350,16 @@ model Notification {
 }
 
 model AuditLog {
-  id           String   @id @default(cuid())
-  entityType   String
-  entityId     String
-  field        String?
-  oldValue     String?
-  newValue     String?
-  action       String
-  changedById  String
-  changedBy    User     @relation(fields: [changedById], references: [id])
-  changedAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  field       String?
+  oldValue    String?
+  newValue    String?
+  action      String
+  changedById String
+  changedBy   User     @relation(fields: [changedById], references: [id])
+  changedAt   DateTime @default(now())
 
   @@schema("tms")
 }
@@ -354,57 +371,57 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model HelpdeskTicket {
-  id               String           @id @default(cuid())
-  ticketNumber     String           @unique
-  category         HelpdeskCategory
-  title            String
-  description      String
-  priority         Priority?
-  status           HelpdeskStatus   @default(OPEN)
+  id           String           @id @default(cuid())
+  ticketNumber String           @unique
+  category     HelpdeskCategory
+  title        String
+  description  String
+  priority     Priority?
+  status       HelpdeskStatus   @default(OPEN)
 
-  onHold           Boolean          @default(false)
-  onHoldReason     String?
-  onHoldSince      DateTime?
+  onHold       Boolean   @default(false)
+  onHoldReason String?
+  onHoldSince  DateTime?
 
-  raisedById       String
-  raisedBy         User             @relation("HelpdeskRaisedBy", fields: [raisedById], references: [id])
-  assignedToId     String?
-  assignedTo       User?            @relation("HelpdeskAssignedTo", fields: [assignedToId], references: [id])
-  teamLeadId       String?
-  teamLead         User?            @relation("HelpdeskAssignedBy", fields: [teamLeadId], references: [id])
+  raisedById   String
+  raisedBy     User    @relation("HelpdeskRaisedBy", fields: [raisedById], references: [id])
+  assignedToId String?
+  assignedTo   User?   @relation("HelpdeskAssignedTo", fields: [assignedToId], references: [id])
+  teamLeadId   String?
+  teamLead     User?   @relation("HelpdeskAssignedBy", fields: [teamLeadId], references: [id])
 
   // asset link (cross-schema — plain id reference, joined at the app layer, mirrors Ticket.itAssetId)
-  itAssetId        String?
+  itAssetId String?
 
   deadline                 DateTime?
   deadlineSetAt            DateTime?
   deadlineBreached         Boolean   @default(false)
   missingDeadlineAlertedAt DateTime?
 
-  resolvedAt       DateTime?
-  resolvedById     String?
-  resolvedBy       User?            @relation("HelpdeskResolvedBy", fields: [resolvedById], references: [id])
-  closedAt         DateTime?
-  closedById       String?
-  closedBy         User?            @relation("HelpdeskClosedBy", fields: [closedById], references: [id])
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?     @relation("HelpdeskResolvedBy", fields: [resolvedById], references: [id])
+  closedAt     DateTime?
+  closedById   String?
+  closedBy     User?     @relation("HelpdeskClosedBy", fields: [closedById], references: [id])
 
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  comments         HelpdeskComment[]
-  statusHistory    HelpdeskStatusHistory[]
+  comments      HelpdeskComment[]
+  statusHistory HelpdeskStatusHistory[]
 
   @@schema("tms")
 }
 
 model HelpdeskComment {
-  id         String         @id @default(cuid())
-  ticketId   String
-  ticket     HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId   String
-  author     User           @relation("HelpdeskCommentAuthor", fields: [authorId], references: [id])
-  body       String
-  createdAt  DateTime       @default(now())
+  id        String         @id @default(cuid())
+  ticketId  String
+  ticket    HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User           @relation("HelpdeskCommentAuthor", fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime       @default(now())
 
   @@schema("tms")
 }
@@ -428,8 +445,8 @@ model HelpdeskStatusHistory {
 // ---------------------------------------------------------------------------
 
 model MaintenanceAsset {
-  id                String                    @id @default(cuid())
-  itemCode          String                    @unique
+  id                String      @id @default(cuid())
+  itemCode          String      @unique
   name              String
   category          String
   model             String?
@@ -439,40 +456,40 @@ model MaintenanceAsset {
   purchaseDate      DateTime?
   warrantyStartDate DateTime?
   warrantyEndDate   DateTime?
-  status            AssetStatus               @default(ACTIVE)
+  status            AssetStatus @default(ACTIVE)
   statusSince       DateTime?
-  expiryAlertedAt    DateTime?
-  downtimeAlertedAt  DateTime?
+  expiryAlertedAt   DateTime?
+  downtimeAlertedAt DateTime?
   qrCodeUrl         String?
   createdById       String
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
-  photos            MaintenanceAssetPhoto[]
-  invoices          MaintenanceAssetInvoice[]
+  photos   MaintenanceAssetPhoto[]
+  invoices MaintenanceAssetInvoice[]
 
   @@schema("maintenance_inventory")
 }
 
 model MaintenanceAssetPhoto {
-  id         String            @id @default(cuid())
+  id         String           @id @default(cuid())
   assetId    String
-  asset      MaintenanceAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  asset      MaintenanceAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
   fileUrl    String
   caption    String?
-  uploadedAt DateTime          @default(now())
+  uploadedAt DateTime         @default(now())
 
   @@schema("maintenance_inventory")
 }
 
 model MaintenanceAssetInvoice {
-  id            String            @id @default(cuid())
+  id            String           @id @default(cuid())
   assetId       String
-  asset         MaintenanceAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  asset         MaintenanceAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
   fileUrl       String
   invoiceNumber String?
   amount        Float?
-  uploadedAt    DateTime          @default(now())
+  uploadedAt    DateTime         @default(now())
 
   @@schema("maintenance_inventory")
 }
@@ -482,30 +499,30 @@ model MaintenanceAssetInvoice {
 // ---------------------------------------------------------------------------
 
 model ITAsset {
-  id               String          @id @default(cuid())
-  itemCode         String          @unique
-  name             String
-  category         String
-  serialNumber     String?
-  specifications   String?
-  ipAddress        String?
-  macAddress       String?
-  vendor           String?
-  purchaseDate     DateTime?
-  warrantyEndDate  DateTime?
+  id                String      @id @default(cuid())
+  itemCode          String      @unique
+  name              String
+  category          String
+  serialNumber      String?
+  specifications    String?
+  ipAddress         String?
+  macAddress        String?
+  vendor            String?
+  purchaseDate      DateTime?
+  warrantyEndDate   DateTime?
   licenseExpiryDate DateTime?
-  costCenter       String?
-  assignedToUserId String?
-  status           AssetStatus     @default(ACTIVE)
-  statusSince      DateTime?
+  costCenter        String?
+  assignedToUserId  String?
+  status            AssetStatus @default(ACTIVE)
+  statusSince       DateTime?
   expiryAlertedAt   DateTime?
   downtimeAlertedAt DateTime?
-  qrCodeUrl        String?
-  createdById      String
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  qrCodeUrl         String?
+  createdById       String
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
-  invoices         ITAssetInvoice[]
+  invoices ITAssetInvoice[]
 
   @@schema("it_inventory")
 }

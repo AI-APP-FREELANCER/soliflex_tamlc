@@ -22,6 +22,11 @@ export const env = {
   corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:5173",
   uploadDir: path.resolve(process.env.UPLOAD_DIR ?? "./uploads"),
   publicUploadBaseUrl: process.env.PUBLIC_UPLOAD_BASE_URL ?? "/uploads",
+  /**
+   * Maintenance jobs whose spare-part cost is at or above this amount (INR) need
+   * manager approval; anything below can be closed by the engineer directly.
+   */
+  approvalCostThreshold: Number(process.env.APPROVAL_COST_THRESHOLD ?? 2500),
 };
 
 export const isProd = env.nodeEnv === "production";

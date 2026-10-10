@@ -19,7 +19,10 @@ interface AttachmentSectionProps {
 }
 
 export function AttachmentSection({ ticket }: AttachmentSectionProps) {
-  const [type, setType] = useState<AttachmentType>("PRE_FIX_PHOTO");
+  const isIT = ticket.workstream === "IT";
+  const typeOptions = isIT ? TYPE_OPTIONS.filter((o) => o.value === "OTHER" || o.value === "INVOICE") : TYPE_OPTIONS;
+  const [chosen, setType] = useState<AttachmentType>("PRE_FIX_PHOTO");
+  const type: AttachmentType = typeOptions.some((o) => o.value === chosen) ? chosen : typeOptions[0].value;
   const { uploadAttachment } = useTicketMutations(ticket.id);
 
   async function pickAndUpload(source: "camera" | "library") {
@@ -48,7 +51,7 @@ export function AttachmentSection({ ticket }: AttachmentSectionProps) {
     <View>
       <Text className="mb-2 text-sm font-semibold text-soliflex-ink">Attachments</Text>
       <View className="gap-2">
-        <SelectField label="Type for next upload" value={type} options={TYPE_OPTIONS} onChange={setType} />
+        <SelectField label="Type for next upload" value={type} options={typeOptions} onChange={setType} />
         <View className="flex-row gap-2">
           <View className="flex-1">
             <Button title="Take photo" variant="secondary" onPress={() => pickAndUpload("camera")} loading={uploadAttachment.isPending} />

@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 export default function RegisterPage() {
   const [employeeId, setEmployeeId] = useState("");
   const [name, setName] = useState("");
+  const [method, setMethod] = useState<"email" | "mobile" | "both">("email");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +29,13 @@ export default function RegisterPage() {
     try {
       const res = await axios.post(
         `${API_BASE_URL}/api/auth/register`,
-        { employeeId, name, email, phone: phone || undefined, password },
+        {
+          employeeId,
+          name,
+          email: method !== "mobile" ? email.trim() : undefined,
+          phone: method !== "email" ? phone.trim() : undefined,
+          password,
+        },
         { withCredentials: true }
       );
       setSession(res.data.accessToken, res.data.user);
@@ -63,8 +70,9 @@ export default function RegisterPage() {
           <img src="/soliflex-logo.png" alt="Soliflex" className="mb-8 h-9 lg:hidden" />
           <h2 className="text-2xl font-bold text-soliflex-ink">Create your account</h2>
           <p className="mt-1 text-sm text-soliflex-gray-500">
-            For employees raising IT support requests. Use your company email —
-            <span className="font-medium"> @soliflexpackaging.com</span> or <span className="font-medium">@indautogroup.com</span>.
+            Register with your company email
+            (<span className="font-medium">@soliflexpackaging.com</span> or <span className="font-medium">@indautogroup.com</span>),
+            your mobile number, or both.
           </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-3">
@@ -91,25 +99,55 @@ export default function RegisterPage() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Company email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2.5 text-sm outline-none focus:border-soliflex-orange-500 focus:ring-2 focus:ring-soliflex-orange-100"
-                placeholder="you@soliflexpackaging.com"
-              />
+              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Sign in with</label>
+              <div className="grid grid-cols-3 gap-1 rounded-lg bg-soliflex-gray-100 p-1">
+                {([
+                  ["email", "Email"],
+                  ["mobile", "Mobile number"],
+                  ["both", "Both"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setMethod(value)}
+                    className={`rounded-md py-1.5 text-xs font-semibold transition ${
+                      method === value ? "bg-white text-soliflex-orange-600 shadow-sm" : "text-soliflex-gray-500"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-soliflex-gray-400">
+                {method === "both" ? "You can sign in later with either one." : "You will sign in with this and your password."}
+              </p>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Phone (optional)</label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2.5 text-sm outline-none focus:border-soliflex-orange-500 focus:ring-2 focus:ring-soliflex-orange-100"
-                placeholder="9876543210"
-              />
-            </div>
+            {method !== "mobile" && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Company email</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2.5 text-sm outline-none focus:border-soliflex-orange-500 focus:ring-2 focus:ring-soliflex-orange-100"
+                  placeholder="you@soliflexpackaging.com"
+                />
+              </div>
+            )}
+            {method !== "email" && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Mobile number</label>
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2.5 text-sm outline-none focus:border-soliflex-orange-500 focus:ring-2 focus:ring-soliflex-orange-100"
+                  placeholder="9876543210"
+                />
+              </div>
+            )}
             <div>
               <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Password</label>
               <input

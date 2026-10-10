@@ -16,6 +16,7 @@ import {
   canAssign,
   canClose,
   canDecideRecommendation,
+  canDirectClose,
   canEditAssignment,
   canHold,
   canMarkFinalReview,
@@ -49,6 +50,7 @@ export default function TicketDetailScreen() {
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
+  const [directCloseOpen, setDirectCloseOpen] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
   const [recommendOpen, setRecommendOpen] = useState(false);
   const [decideComment, setDecideComment] = useState("");
@@ -94,6 +96,13 @@ export default function TicketDetailScreen() {
 
           {(ticket.diagnosis || ticket.recommendedFix) && (
             <View className="mt-3 rounded-lg bg-soliflex-gray-50 p-3">
+              {ticket.fixType && (
+                <Text className="text-xs text-soliflex-gray-700">
+                  <Text className="font-semibold">Repair type: </Text>
+                  {ticket.fixType === "SPARE_PART_REPLACEMENT" ? "Spare part replacement" : "Minor adjustment"}
+                  {ticket.estimatedCost ? ` · est. ₹${ticket.estimatedCost.toLocaleString("en-IN")}` : ""}
+                </Text>
+              )}
               {ticket.diagnosis && (
                 <Text className="text-xs text-soliflex-gray-700">
                   <Text className="font-semibold">Diagnosis: </Text>
@@ -108,6 +117,17 @@ export default function TicketDetailScreen() {
               )}
               {ticket.approvedAt && (
                 <Text className="mt-1 text-xs text-soliflex-gray-500">Approved {formatIST(ticket.approvedAt)}</Text>
+              )}
+              {ticket.fixType && !ticket.approvalRequired && (
+                <Text className="mt-1 text-xs text-green-700">
+                  No manager approval needed
+                  {ticket.fixType === "SPARE_PART_REPLACEMENT" ? ` (under ₹${(ticket.approvalThreshold ?? 2500).toLocaleString("en-IN")})` : " (minor adjustment)"}. The engineer can close this ticket directly.
+                </Text>
+              )}
+              {ticket.fixType && ticket.approvalRequired && !ticket.approvedAt && !ticket.onHold && (
+                <Text className="mt-1 text-xs text-amber-700">
+                  Needs manager approval (₹{(ticket.approvalThreshold ?? 2500).toLocaleString("en-IN")} or more).
+                </Text>
               )}
             </View>
           )}
@@ -133,7 +153,13 @@ export default function TicketDetailScreen() {
             <Button title="Start work" onPress={() => mutations.startProgress.mutate(ticket.id)} loading={mutations.startProgress.isPending} />
           )}
 
-          {canSubmitRecommendation(ticket, user) && <Button title="Submit diagnosis & fix" onPress={() => setRecommendOpen(true)} />}
+          {canSubmitRecommendation(ticket, user) && (
+            <Button title={ticket.fixType ? "Update diagnosis & fix" : "Submit diagnosis & fix"} onPress={() => setRecommendOpen(true)} />
+          )}
+
+          {canDirectClose(ticket, user) && (
+            <Button title={ticket.workstream === "IT" ? "Resolve & close" : "Close ticket"} onPress={() => setDirectCloseOpen(true)} />
+          )}
 
           {canDecideRecommendation(ticket, user) && (
             <View className="gap-2">
@@ -254,6 +280,7 @@ export default function TicketDetailScreen() {
 
       <AssignModal visible={assignOpen} ticket={ticket} onClose={() => setAssignOpen(false)} />
       <CloseModal visible={closeOpen} ticket={ticket} onClose={() => setCloseOpen(false)} />
+      <CloseModal direct visible={directCloseOpen} ticket={ticket} onClose={() => setDirectCloseOpen(false)} />
       <HoldModal visible={holdOpen} ticket={ticket} onClose={() => setHoldOpen(false)} />
       <RecommendationModal visible={recommendOpen} ticket={ticket} onClose={() => setRecommendOpen(false)} />
     </SafeAreaView>

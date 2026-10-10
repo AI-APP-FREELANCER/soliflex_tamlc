@@ -29,11 +29,22 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
   const [role, setRole] = useState<Role>(user.role);
   const [workstream, setWorkstream] = useState<Workstream | undefined>(user.workstream ?? undefined);
   const [department, setDepartment] = useState(user.department ?? "");
+  const [email, setEmail] = useState(user.email ?? "");
   const [phone, setPhone] = useState(user.phone ?? "");
 
   function handleSubmit() {
     update.mutate(
-      { id: user.id, input: { name: name.trim(), role, workstream: workstream ?? null, department: department.trim() || undefined, phone: phone.trim() || undefined } },
+      {
+        id: user.id,
+        input: {
+          name: name.trim(),
+          role,
+          workstream: workstream ?? null,
+          department: department.trim() || undefined,
+          email: email.trim() || undefined,
+          phone: phone.trim() || null,
+        },
+      },
       { onSuccess: onClose }
     );
   }
@@ -52,16 +63,15 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
     <Modal visible={visible} title={`Edit ${user.name}`} onClose={onClose}>
       <View className="gap-4 pb-4">
         <View>
-          <Text className="text-xs text-soliflex-gray-500">Employee ID / Email (fixed)</Text>
-          <Text className="mt-1 text-sm text-soliflex-ink">
-            {user.employeeId} · {user.email}
-          </Text>
+          <Text className="text-xs text-soliflex-gray-500">Employee ID (fixed)</Text>
+          <Text className="mt-1 text-sm text-soliflex-ink">{user.employeeId}</Text>
         </View>
         <TextField label="Name" value={name} onChangeText={setName} />
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
         <TextField label="Department" value={department} onChangeText={setDepartment} />
-        <TextField label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+        <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+        <TextField label="Mobile number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
         <Button title="Save" onPress={handleSubmit} loading={update.isPending} />
         <Button
           title={user.active ? "Deactivate" : "Activate"}

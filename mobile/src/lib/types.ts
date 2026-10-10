@@ -14,11 +14,14 @@ export type Role =
 
 export type Workstream = "MAINTENANCE" | "IT";
 
+export type FixType = "SPARE_PART_REPLACEMENT" | "MINOR_ADJUSTMENT";
+
 export interface User {
   id: string;
   employeeId: string;
   name: string;
-  email: string;
+  /** Email and mobile number are both sign-in identifiers; at least one is set. */
+  email: string | null;
   role: Role;
   workstream: Workstream | null;
   department: string | null;
@@ -213,6 +216,12 @@ export interface Ticket {
   manager?: NamedRef | null;
   diagnosis: string | null;
   recommendedFix: string | null;
+  fixType: FixType | null;
+  estimatedCost: number | null;
+  /** false once a diagnosis shows the job is under the approval cost threshold */
+  approvalRequired: boolean;
+  /** INR amount at/above which a spare part replacement needs manager approval (detail view only) */
+  approvalThreshold?: number;
   approvedById: string | null;
   approvedBy?: NamedRef | null;
   approvedAt: string | null;

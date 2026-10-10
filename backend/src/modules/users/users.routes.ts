@@ -11,6 +11,7 @@ import { recordAudit } from "../audit/audit.service";
 import { buildCsv } from "../../lib/csv";
 import { ApiError } from "../../middleware/errors";
 import { generateCompliantTempPassword } from "../../lib/password-policy";
+import { requireNormalizedPhone } from "../../lib/phone";
 
 import { ADMIN_ONLY_ROLES } from "../../lib/roles";
 import { revokeAllSessions } from "../auth/auth.service";
@@ -61,26 +62,32 @@ router.get("/", requireRole(Role.MANAGER, Role.ADMIN, Role.IT_TEAM_LEAD), async 
   res.json(users.map(sanitizeUser));
 });
 
-const createUserSchema = z.object({
-  employeeId: z.string().min(1),
-  name: z.string().min(1),
-  email: z.string().email(),
-  role: z.nativeEnum(Role),
-  workstream: z.nativeEnum(Workstream).optional().nullable(),
-  department: z.string().optional(),
-  phone: z.string().optional(),
-});
+// Staff without a company email can be created with just a mobile number —
+// at least one of email / phone is required and either can be used to sign in.
+const createUserSchema = z
+  .object({
+    employeeId: z.string().min(1),
+    name: z.string().min(1),
+    email: z.string().trim().email().optional().or(z.literal("").transform(() => undefined)),
+    role: z.nativeEnum(Role),
+    workstream: z.nativeEnum(Workstream).optional().nullable(),
+    department: z.string().optional(),
+    phone: z.string().trim().optional(),
+  })
+  .refine((v) => !!v.email || !!v.phone, { message: "Provide an email address or a mobile number", path: ["email"] });
 
 function generateTempPassword(): string {
   return generateCompliantTempPassword();
 }
 
 async function createUserRecord(data: z.infer<typeof createUserSchema>, createdById: string) {
+  const email = data.email ? data.email.toLowerCase() : null;
+  const phone = data.phone ? requireNormalizedPhone(data.phone) : null;
   const existing = await prisma.user.findFirst({
-    where: { OR: [{ email: data.email.toLowerCase() }, { employeeId: data.employeeId }] },
+    where: { OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : []), { employeeId: data.employeeId }] },
   });
   if (existing) {
-    throw new ApiError(409, "A user with this email or employee ID already exists");
+    throw new ApiError(409, "A user with this email, mobile number or employee ID already exists");
   }
   const tempPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 12);
@@ -88,7 +95,8 @@ async function createUserRecord(data: z.infer<typeof createUserSchema>, createdB
     data: {
       ...data,
       workstream: resolveWorkstream(data.role, data.workstream) ?? null,
-      email: data.email.toLowerCase(),
+      email,
+      phone,
       passwordHash,
       createdById,
       mustResetPassword: true,
@@ -139,7 +147,7 @@ router.post("/bulk-import", requireRole(Role.MANAGER, Role.ADMIN), csvUpload.sin
   }
 
   const errors: { row: number; message: string }[] = [];
-  const created: { name: string; email: string; tempPassword: string }[] = [];
+  const created: { name: string; email: string | null; phone: string | null; tempPassword: string }[] = [];
 
   for (let i = 0; i < records.length; i++) {
     const rowNumber = i + 2;
@@ -156,7 +164,7 @@ router.post("/bulk-import", requireRole(Role.MANAGER, Role.ADMIN), csvUpload.sin
     try {
       assertRoleCreatable(req.user!.role, parsed.data.role);
       const { user, tempPassword } = await createUserRecord(parsed.data, req.user!.sub);
-      created.push({ name: user.name, email: user.email, tempPassword });
+      created.push({ name: user.name, email: user.email, phone: user.phone, tempPassword });
     } catch (e) {
       errors.push({ row: rowNumber, message: e instanceof ApiError ? e.message : (e as Error).message });
     }
@@ -170,7 +178,8 @@ const updateUserSchema = z.object({
   role: z.nativeEnum(Role).optional(),
   workstream: z.nativeEnum(Workstream).optional().nullable(),
   department: z.string().optional(),
-  phone: z.string().optional(),
+  email: z.string().trim().email().optional(),
+  phone: z.string().trim().nullable().optional(),
   active: z.boolean().optional(),
 });
 
@@ -186,7 +195,23 @@ router.patch("/:id", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => 
   }
   const effectiveRole = data.role ?? before.role;
   const workstream = resolveWorkstream(effectiveRole, data.workstream === undefined ? before.workstream : data.workstream);
-  const user = await prisma.user.update({ where: { id: req.params.id }, data: { ...data, workstream } });
+
+  // Contact details: normalise, keep at least one sign-in identifier, stay unique.
+  const email = data.email === undefined ? undefined : data.email.toLowerCase();
+  const phone = data.phone === undefined ? undefined : data.phone === null || data.phone === "" ? null : requireNormalizedPhone(data.phone);
+  const finalEmail = email === undefined ? before.email : email;
+  const finalPhone = phone === undefined ? before.phone : phone;
+  if (!finalEmail && !finalPhone) {
+    throw new ApiError(400, "A user needs an email address or a mobile number to sign in");
+  }
+  if (email && email !== before.email && (await prisma.user.findFirst({ where: { email, NOT: { id: before.id } } }))) {
+    throw new ApiError(409, "That email address is already used by another account");
+  }
+  if (phone && phone !== before.phone && (await prisma.user.findFirst({ where: { phone, NOT: { id: before.id } } }))) {
+    throw new ApiError(409, "That mobile number is already used by another account");
+  }
+
+  const user = await prisma.user.update({ where: { id: req.params.id }, data: { ...data, email, phone, workstream } });
   if (before.role !== user.role) {
     await recordAudit(prisma, { entityType: "User", entityId: user.id, field: "role", oldValue: before.role, newValue: user.role, action: "UPDATE", changedById: req.user!.sub });
   }

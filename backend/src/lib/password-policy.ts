@@ -81,8 +81,9 @@ const COMMON_PASSWORDS = new Set(
 );
 
 export interface PasswordContext {
-  email?: string;
+  email?: string | null;
   name?: string;
+  phone?: string | null;
 }
 
 /**
@@ -104,6 +105,10 @@ export function assertStrongPassword(password: string, ctx: PasswordContext = {}
   const localPart = ctx.email?.split("@")[0]?.toLowerCase();
   if (localPart && localPart.length >= 3 && password.toLowerCase().includes(localPart)) {
     errors.push("not contain your email address");
+  }
+  const phoneDigits = ctx.phone?.replace(/[^0-9]/g, "").slice(-10);
+  if (phoneDigits && phoneDigits.length >= 8 && password.replace(/[^0-9]/g, "").includes(phoneDigits)) {
+    errors.push("not contain your mobile number");
   }
   const firstName = ctx.name?.trim().split(/\s+/)[0]?.toLowerCase();
   if (firstName && firstName.length >= 3 && password.toLowerCase().includes(firstName)) {

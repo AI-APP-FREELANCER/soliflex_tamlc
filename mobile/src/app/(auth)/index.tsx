@@ -12,13 +12,13 @@ type LoginTab = "employee" | "staff";
 
 export default function LoginScreen() {
   const [tab, setTab] = useState<LoginTab>("employee");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const setSession = useAuthStore((s) => s.setSession);
 
   const mutation = useMutation({
-    mutationFn: () => auth.login(email, password),
+    mutationFn: () => auth.login(identifier, password),
     onSuccess: async (res) => {
       await persistRefreshToken(res.refreshToken);
       setSession(res.accessToken, res.user);
@@ -76,13 +76,12 @@ export default function LoginScreen() {
 
           <View className="mt-6 gap-4">
             <TextField
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
+              label="Email or mobile number"
+              value={identifier}
+              onChangeText={setIdentifier}
               autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              placeholder="you@soliflex.local"
+              autoComplete="username"
+              placeholder="you@soliflexpackaging.com or 9876543210"
             />
             <TextField
               label="Password"
@@ -108,11 +107,15 @@ export default function LoginScreen() {
               <Link href="/(auth)/register" className="font-semibold text-soliflex-orange-600">
                 Create your account
               </Link>{" "}
-              with your company email.
+              with your company email or your mobile number.
             </Text>
           ) : (
             <Text className="mt-6 text-xs text-soliflex-gray-400">
-              No self sign-up for staff roles — accounts are created and managed by your Admin.
+              Maintenance and IT staff accounts are created by your Admin. You can also{" "}
+              <Link href="/(auth)/register" className="font-semibold text-soliflex-orange-600">
+                register with your mobile number
+              </Link>{" "}
+              and ask your Admin to set up your access.
             </Text>
           )}
         </View>

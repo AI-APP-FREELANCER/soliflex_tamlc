@@ -62,8 +62,8 @@ function ok(label: string, cond: boolean, detail = "") {
 const is = (label: string, r: R, status: number) => ok(label, r.status === status, `expected ${status}, got ${r.status} ${typeof r.body === "object" ? JSON.stringify(r.body).slice(0, 160) : String(r.body).slice(0, 80)}`);
 const section = (name: string) => console.log(`\n== ${name}`);
 
-async function login(email: string, password = SEED, mobile = false) {
-  const r = await call("POST", "/api/auth/login", { body: { email, password }, headers: mobile ? { "X-Client-Type": "mobile" } : {} });
+async function login(identifier: string, password = SEED, mobile = false) {
+  const r = await call("POST", "/api/auth/login", { body: { identifier, password }, headers: mobile ? { "X-Client-Type": "mobile" } : {} });
   return r;
 }
 async function tokenFor(email: string, password = SEED): Promise<string> {
@@ -191,6 +191,60 @@ async function main() {
   }
   const mgrMFresh = await tokenFor("ravi.menon@soliflex.local");
 
+  // ================================================================= MOBILE SIGN-IN
+  section("AUTH: mobile-number registration and sign-in");
+  {
+    const mreg = (o: Record<string, unknown>) => call("POST", "/api/auth/register", { body: { employeeId: "M-1", name: "Raju Kumar", phone: "98765 43210", password: "Str0ng#Passw0rd", ...o } });
+    const r = await mreg({});
+    is("register with a mobile number only", r, 201);
+    ok("account has no email and a normalised phone", r.body?.user?.email === null && r.body?.user?.phone === "+919876543210", JSON.stringify(r.body?.user));
+    ok("mobile-only registration is an EMPLOYEE", r.body?.user?.role === "EMPLOYEE");
+    for (const idf of ["9876543210", "+91 98765-43210", "09876543210", "+919876543210"]) {
+      is(`sign in with mobile '${idf}'`, await login(idf, "Str0ng#Passw0rd"), 200);
+    }
+    is("mobile sign-in: wrong password", await login("9876543210", "Wrong#Pass123"), 401);
+    is("mobile sign-in: unknown number", await login("9123456780", "Str0ng#Passw0rd"), 401);
+    ok("unknown number and wrong password give the same message", (await login("9123456780", "x")).body.error === (await login("9876543210", "x")).body.error);
+    is("legacy {email,password} body still signs in", await call("POST", "/api/auth/login", { body: { email: "ravi.menon@soliflex.local", password: SEED } }), 200);
+    is("register: duplicate mobile number rejected", await mreg({ employeeId: "M-2", phone: "+91 9876543210" }), 409);
+    is("register: neither email nor mobile -> 400", await mreg({ employeeId: "M-3", phone: undefined }), 400);
+    is("register: invalid mobile -> 400", await mreg({ employeeId: "M-4", phone: "12345" }), 400);
+    is("register: password containing the mobile number rejected", await mreg({ employeeId: "M-5", phone: "9123456789", password: "Zx#9123456789Qq" }), 400);
+    is("register: mobile-only has no email-domain restriction", await mreg({ employeeId: "M-6", phone: "9123456789", name: "Lata Devi" }), 201);
+
+    const both = await mreg({ employeeId: "M-7", phone: "9012345678", email: "both.person@soliflexpackaging.com", name: "Both Person" });
+    is("register with both email and mobile", both, 201);
+    is("both: sign in by email", await login("both.person@soliflexpackaging.com", "Str0ng#Passw0rd"), 200);
+    is("both: sign in by mobile", await login("9012345678", "Str0ng#Passw0rd"), 200);
+    is("both: email still limited to company domains", await mreg({ employeeId: "M-8", phone: "9012345600", email: "x@gmail.com" }), 400);
+
+    // capture the other identifier later
+    const tok = await tokenFor("9876543210", "Str0ng#Passw0rd");
+    is("add email: wrong current password", await call("PATCH", "/api/auth/me/contact", { token: tok, body: { currentPassword: "nope", email: "raju.kumar@soliflexpackaging.com" } }), 400);
+    is("add email: outside company domain", await call("PATCH", "/api/auth/me/contact", { token: tok, body: { currentPassword: "Str0ng#Passw0rd", email: "raju@gmail.com" } }), 400);
+    is("add email: already used by someone else", await call("PATCH", "/api/auth/me/contact", { token: tok, body: { currentPassword: "Str0ng#Passw0rd", email: "both.person@soliflexpackaging.com" } }), 409);
+    const add = await call("PATCH", "/api/auth/me/contact", { token: tok, body: { currentPassword: "Str0ng#Passw0rd", email: "raju.kumar@soliflexpackaging.com" } });
+    is("add email to a mobile-only account", add, 200);
+    is("then sign in with the new email", await login("raju.kumar@soliflexpackaging.com", "Str0ng#Passw0rd"), 200);
+    is("and still with the mobile number", await login("9876543210", "Str0ng#Passw0rd"), 200);
+    is("cannot remove both identifiers", await call("PATCH", "/api/auth/me/contact", { token: tok, body: { currentPassword: "Str0ng#Passw0rd", email: null, phone: null } }), 400);
+    is("mobile number already used by another account", await call("PATCH", "/api/auth/me/contact", { token: tok, body: { currentPassword: "Str0ng#Passw0rd", phone: "9012345678" } }), 409);
+
+    // admin-created staff without email
+    const mkPhone = await post(admin, "/users", { employeeId: "PH-1", name: "Floor Operator", phone: "9345678901", role: "MECHANIC" });
+    is("admin creates a staff member with a mobile number only", mkPhone, 201);
+    ok("they have no email and are forced to reset the temp password", mkPhone.body.user.email === null && mkPhone.body.user.mustResetPassword === true);
+    const phoneTok = await tokenFor("9345678901", mkPhone.body.tempPassword);
+    is("temp password works with the mobile number", await get(phoneTok, "/auth/me"), 200);
+    is("...but the API stays locked until it is changed", await get(phoneTok, "/tickets"), 403);
+    is("create user: neither email nor mobile -> 400", await post(admin, "/users", { employeeId: "PH-2", name: "Nobody", role: "MECHANIC" }), 400);
+    is("create user: duplicate mobile -> 409", await post(admin, "/users", { employeeId: "PH-3", name: "Dup", phone: "+91 93456 78901", role: "MECHANIC" }), 409);
+    is("update user: mobile already used -> 409", await patch(admin, `/users/${mkPhone.body.user.id}`, { phone: "9876543210" }), 409);
+    is("update user: cannot clear the only identifier", await patch(admin, `/users/${mkPhone.body.user.id}`, { phone: null }), 400);
+    is("update user: can add an email", await patch(admin, `/users/${mkPhone.body.user.id}`, { email: "floor.operator@soliflexpackaging.com" }), 200);
+    is("bulk import template mentions phone", await call("GET", "/api/users/template", { token: admin }), 200);
+  }
+
   // ================================================================= USERS
   section("USERS: access control, creation, privilege protection, lifecycle");
   const ids: Record<string, { id: string; email: string; token: string }> = {};
@@ -309,7 +363,7 @@ async function main() {
     is("production cannot raise 'other machine' tickets (admin team only)", await post(prod, "/tickets", body({ category: "OTHER_MACHINE" })), 403);
     is("admin team (ADMIN) can raise facility tickets", await post(admin, "/tickets", body({ category: "FACTORY_FACILITY", title: "Roof leak in bay 3" })), 201);
     is("IT tech cannot raise maintenance tickets", await post(itTech, "/tickets", body()), 403);
-    is("IT tech cannot use a maintenance category in IT workstream", await post(itTech, "/tickets", body({ workstream: "IT", category: "PRODUCTION_MACHINE" })), 403);
+    is("IT tech cannot use a maintenance category in IT workstream", await post(itTech, "/tickets", body({ workstream: "IT", category: "PRODUCTION_MACHINE" })), 400);
     is("title too short -> 400", await post(prod, "/tickets", body({ title: "ab" })), 400);
     is("description too short -> 400", await post(prod, "/tickets", body({ description: "x" })), 400);
     is("invalid category -> 400", await post(prod, "/tickets", body({ category: "NOPE" })), 400);
@@ -360,7 +414,7 @@ async function main() {
 
     // attachments
     const up = (token: string, type: string, f = file()) => { f.append("type", type); return call("POST", `/api${base}/attachments`, { token, form: f }); };
-    is("recommendation blocked without pre-fix photo", await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing" }), 400);
+    is("recommendation blocked without pre-fix photo", await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing", fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 4500 }), 400);
     is("upload: invalid attachment type -> 400 (not 500)", await up(mech, "BOGUS"), 400);
     is("upload: unsupported file type -> 400 (not 500)", await up(mech, "PRE_FIX_PHOTO", file("x.exe", "application/x-msdownload", Buffer.from("MZ"))), 400);
     is("upload: no file -> 400", await call("POST", `/api${base}/attachments`, { token: mech, form: (() => { const f = new FormData(); f.append("type", "PRE_FIX_PHOTO"); return f; })() }), 400);
@@ -370,13 +424,14 @@ async function main() {
     ok("uploaded file can be opened by URL", (await fetch(`${baseUrl}${pre.body.fileUrl}`)).status === 200);
     is("employee cannot attach to board tickets", await up(emp, "OTHER"), 403);
 
-    is("empty diagnosis rejected", await post(mech, `${base}/submit-recommendation`, { diagnosis: "", recommendedFix: "x" }), 400);
-    is("other mechanic cannot submit recommendation", await post(mech2.token, `${base}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b" }), 403);
-    const sr = await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing" });
+    is("empty diagnosis rejected", await post(mech, `${base}/submit-recommendation`, { diagnosis: "", recommendedFix: "x", fixType: "MINOR_ADJUSTMENT" }), 400);
+    is("diagnosis without a fix type rejected", await post(mech, `${base}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b" }), 400);
+    is("other mechanic cannot submit recommendation", await post(mech2.token, `${base}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b", fixType: "MINOR_ADJUSTMENT" }), 403);
+    const sr = await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing", fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 4500 });
     is("assignee submits diagnosis & fix", sr, 200);
     ok("ticket is now on hold awaiting approval", sr.body.onHold === true && sr.body.onHoldReason === "APPROVAL");
     ok("manager notified of approval request", hasNotif(await notifs(mgrMFresh), "awaiting your approval"));
-    is("cannot submit recommendation again while waiting", await post(mech, `${base}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b" }), 400);
+    is("cannot submit recommendation again while waiting", await post(mech, `${base}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b", fixType: "MINOR_ADJUSTMENT" }), 400);
     is("cannot put on hold again", await post(mech, `${base}/hold`, { reason: "VENDOR", detail: "waiting" }), 400);
     is("cannot resume an approval hold", await post(mech, `${base}/resume`), 400);
     is("cannot send for review while awaiting approval", await post(mech, `${base}/mark-first-line-review`), 400);
@@ -388,7 +443,7 @@ async function main() {
     ok("rejection clears the hold and stores no approval", rej.body.onHold === false && rej.body.approvedAt === null);
     ok("rejection comment saved and technician notified", hasNotif(await notifs(mech), "rejected your fix"));
     is("review blocked until the fix is approved", await post(mech, `${base}/mark-first-line-review`), 400);
-    is("technician resubmits", await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing + cost 4500" }), 200);
+    is("technician resubmits", await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing + cost 4500", fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 4500 }), 200);
     is("cannot decide when nothing is waiting (after decision)", await (async () => { await post(mgrMFresh, `${base}/decide-recommendation`, { approve: true }); return post(mgrMFresh, `${base}/decide-recommendation`, { approve: true }); })(), 400);
     const cur = await get(mgrMFresh, base);
     ok("recommendation approved and recorded", cur.body.approvedAt && cur.body.approvedBy?.id === id("ravi.menon@soliflex.local") && !cur.body.onHold);
@@ -470,18 +525,156 @@ async function main() {
     is("IT manager can assign to an IT technician", await post(mgrIT, `/tickets/${itT.id}/assign`, { assignedToId: id("neha.verma@soliflex.local"), priority: "MEDIUM", targetCompletionDate: "2030-02-01" }), 200);
     is("IT technician cannot be assigned a maintenance ticket", await post(mgrMFresh, `/tickets/${T.id}/assign`, { assignedToId: itTech2.id, priority: "LOW" }), 403);
     is("IT technician starts IT ticket", await post(itTech, `/tickets/${itT.id}/start-progress`), 200);
-    const list = await get(mgrMFresh, "/tickets?workstream=IT");
+    const list = await get(mgrIT, "/tickets?workstream=IT");
     ok("workstream filter returns only IT tickets", list.body.length >= 2 && list.body.every((t: any) => t.workstream === "IT"));
     ok("status filter", (await get(mgrMFresh, "/tickets?status=IN_PROGRESS")).body.every((t: any) => t.status === "IN_PROGRESS"));
     ok("priority filter", (await get(mgrMFresh, "/tickets?priority=MEDIUM")).body.every((t: any) => t.priority === "MEDIUM"));
-    ok("search by ticket number", (await get(mgrMFresh, `/tickets?search=${itT.ticketNumber}`)).body.map((t: any) => t.id).join() === itT.id);
-    ok("search by title (case-insensitive)", (await get(mgrMFresh, "/tickets?search=MAIL%20SERVER")).body.some((t: any) => t.id === itT.id));
+    ok("search by ticket number", (await get(mgrIT, `/tickets?search=${itT.ticketNumber}`)).body.map((t: any) => t.id).join() === itT.id);
+    ok("search by title (case-insensitive)", (await get(mgrIT, "/tickets?search=MAIL%20SERVER")).body.some((t: any) => t.id === itT.id));
     ok("assignee filter", (await get(mgrMFresh, `/tickets?assignedToId=${id("neha.verma@soliflex.local")}`)).body.every((t: any) => t.assignedToId === id("neha.verma@soliflex.local")));
-    ok("date preset 'today' includes tickets created now", (await get(mgrMFresh, "/tickets?range=today")).body.some((t: any) => t.id === itT.id));
+    ok("date preset 'today' includes tickets created now", (await get(mgrIT, "/tickets?range=today")).body.some((t: any) => t.id === itT.id));
     ok("custom range in the past excludes them", (await get(mgrMFresh, "/tickets?range=custom&from=2019-01-01&to=2019-01-31")).body.length === 0);
     ok("onHold filter", (await get(mgrMFresh, "/tickets?onHold=true")).body.every((t: any) => t.onHold));
     const hist = await get(admin, `/audit?entityType=Ticket&entityId=${T.id}`);
     ok("audit trail recorded the key ticket events", ["CREATE", "CLOSE", "REOPEN", "HOLD", "RESUME", "RECOMMENDATION_SUBMITTED", "RECOMMENDATION_APPROVED", "RECOMMENDATION_REJECTED"].every((a) => hist.body.entries.some((e: any) => e.action === a)));
+  }
+
+
+  const THRESHOLD = 2500;
+  section("TICKETS: repair type and cost-based approval (maintenance)");
+  {
+    const mechId = id("suresh.patil@soliflex.local");
+    const upload = (token: string, tid: string, type: string) => {
+      const f = file();
+      f.append("type", type);
+      return call("POST", `/api/tickets/${tid}/attachments`, { token, form: f });
+    };
+    // raise -> assign -> start work, optionally with the pre-fix photo
+    const inProgress = async (title: string, withPhoto = true) => {
+      const t = (await post(prod, "/tickets", { workstream: "MAINTENANCE", category: "PRODUCTION_MACHINE", title, description: "needs attention" })).body;
+      await post(mgrMFresh, `/tickets/${t.id}/assign`, { assignedToId: mechId, priority: "MEDIUM" });
+      await post(mech, `/tickets/${t.id}/start-progress`);
+      if (withPhoto) await upload(mech, t.id, "PRE_FIX_PHOTO");
+      return t;
+    };
+    const sr = (tid: string, o: Record<string, unknown>) => post(mech, `/tickets/${tid}/submit-recommendation`, { diagnosis: "Checked on site", recommendedFix: "Fix applied", ...o });
+    const close = (token: string, tid: string, o: Record<string, unknown> = {}) => post(token, `/tickets/${tid}/close-direct`, { confirmEquipmentOperational: true, closingComment: "Done and tested", ...o });
+
+    const seen = await get(mgrMFresh, `/tickets/${(await inProgress("Threshold probe")).id}`);
+    ok("ticket detail exposes the approval threshold", seen.body.approvalThreshold === THRESHOLD, String(seen.body.approvalThreshold));
+
+    // A. minor adjustment: no approval, engineer closes with a photo
+    const a = await inProgress("Loose drive belt");
+    is("close before any diagnosis is refused", await close(mech, a.id), 400);
+    is("diagnosis needs a repair type", await sr(a.id, {}), 400);
+    is("spare part needs an estimated cost", await sr(a.id, { fixType: "SPARE_PART_REPLACEMENT" }), 400);
+    is("estimated cost must be positive", await sr(a.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 0 }), 400);
+    is("invalid repair type -> 400", await sr(a.id, { fixType: "MAGIC" }), 400);
+    const ra = await sr(a.id, { fixType: "MINOR_ADJUSTMENT", recommendedFix: "Re-tension belt" });
+    is("engineer logs a minor adjustment", ra, 200);
+    ok("no approval hold and approval not required", ra.body.onHold === false && ra.body.approvalRequired === false && ra.body.fixType === "MINOR_ADJUSTMENT", JSON.stringify(ra.body).slice(0, 200));
+    ok("manager is told it needs no approval", hasNotif(await notifs(mgrMFresh), `diagnosed ${a.ticketNumber}`));
+    is("close needs a post-fix photo", await close(mech, a.id), 400);
+    is("upload post-fix photo", await upload(mech, a.id, "POST_FIX_PHOTO"), 201);
+    is("close needs the operational confirmation", await close(mech, a.id, { confirmEquipmentOperational: false }), 400);
+    is("another mechanic cannot close it", await close(mech2.token, a.id), 403);
+    is("production cannot close it", await close(prod, a.id), 403);
+    is("spare part cost cannot be added to a minor adjustment", await post(mech, `/tickets/${a.id}/costs`, { description: "washer", amount: 10, sparePartUsed: true }), 400);
+    const ca = await close(mech, a.id);
+    is("engineer closes the ticket directly", ca, 200);
+    ok("closed by the engineer, no review chain", ca.body.status === "CLOSED" && ca.body.closedById === mechId);
+    const fa = (await get(mgrMFresh, `/tickets/${a.id}`)).body;
+    ok("history records the direct close", fa.statusHistory.some((h: any) => h.toStatus === "CLOSED" && /minor adjustment/.test(h.comment ?? "")));
+    ok("raiser and manager notified", hasNotif(await notifs(prod), `${a.ticketNumber} was closed by`) && hasNotif(await notifs(mgrMFresh), `${a.ticketNumber} was closed by`));
+    is("cannot close twice", await close(mech, a.id), 403);
+
+    // B. spare part below the threshold: no approval
+    const b = await inProgress("Worn limit switch");
+    const rb = await sr(b.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: THRESHOLD - 1 });
+    is("spare part under the threshold", rb, 200);
+    ok("no approval hold; estimate kept", rb.body.onHold === false && rb.body.approvalRequired === false && rb.body.estimatedCost === THRESHOLD - 1);
+    is("record part cost", await post(mech, `/tickets/${b.id}/costs`, { description: "Limit switch", amount: 1000, sparePartUsed: true }), 201);
+    is("cost that would reach the threshold is refused", await post(mech, `/tickets/${b.id}/costs`, { description: "More", amount: 1500 }), 400);
+    is("cost under the threshold is fine", await post(mech, `/tickets/${b.id}/costs`, { description: "Labour", amount: 1400 }), 201);
+    await upload(mech, b.id, "POST_FIX_PHOTO");
+    is("engineer closes a sub-threshold spare part job", await close(mech, b.id), 200);
+
+    // C. at/above the threshold: approval, then the review chain; no shortcut
+    const c = await inProgress("Gearbox failure");
+    const rc = await sr(c.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: THRESHOLD });
+    is("spare part exactly at the threshold", rc, 200);
+    ok("held for manager approval", rc.body.onHold === true && rc.body.onHoldReason === "APPROVAL" && rc.body.approvalRequired === true);
+    ok("manager asked for approval with the cost", hasNotif(await notifs(mgrMFresh), `awaiting your approval (est.`));
+    is("cannot close while approval is pending", await close(mech, c.id), 400);
+    is("manager approves", await post(mgrMFresh, `/tickets/${c.id}/decide-recommendation`, { approve: true }), 200);
+    await upload(mech, c.id, "POST_FIX_PHOTO");
+    const direct = await close(mech, c.id);
+    is("approved high-cost job cannot take the shortcut", direct, 400);
+    ok("message explains approval is needed", /approval/i.test(direct.body.error ?? ""));
+    is("approved job follows the review chain", await post(mech, `/tickets/${c.id}/mark-first-line-review`), 200);
+    is("review chain: job completed", await post(mech, `/tickets/${c.id}/mark-job-completed`), 200);
+    is("review chain: final review", await post(mgrMFresh, `/tickets/${c.id}/mark-final-review`), 200);
+    is("review chain: manager closes", await post(mgrMFresh, `/tickets/${c.id}/close`, { confirmEquipmentOperational: true, closingComment: "Verified" }), 200);
+
+    // D. no approval-needed job can still be sent to review if the engineer prefers
+    const d = await inProgress("Sensor drift");
+    await sr(d.id, { fixType: "MINOR_ADJUSTMENT" });
+    await upload(mech, d.id, "POST_FIX_PHOTO");
+    is("no-approval job may still go to 1st line review", await post(mech, `/tickets/${d.id}/mark-first-line-review`), 200);
+    is("direct close is refused once the ticket is in the review stage", await close(mgrMFresh, d.id), 400);
+
+    // E. no approval path cannot be gamed through costs: escalate by resubmitting
+    const e = await inProgress("Hydraulic hose");
+    await sr(e.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 900 });
+    is("big cost on a cleared job is refused", await post(mech, `/tickets/${e.id}/costs`, { description: "Hose + fittings", amount: 5200, sparePartUsed: true }), 400);
+    const re = await sr(e.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 5200 });
+    is("engineer resubmits with the real cost", re, 200);
+    ok("now requires approval", re.body.onHold === true && re.body.approvalRequired === true && re.body.approvedAt === null);
+
+    // F. costs recorded before the diagnosis count towards the threshold
+    const f = await inProgress("Pump seal");
+    is("cost before diagnosis is allowed", await post(mech, `/tickets/${f.id}/costs`, { description: "Seal kit", amount: 3000, sparePartUsed: true }), 201);
+    const rf = await sr(f.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 500 });
+    ok("understated estimate cannot hide recorded cost", rf.body.onHold === true && rf.body.approvalRequired === true, JSON.stringify(rf.body).slice(0, 160));
+    const g = await inProgress("Panel tweak");
+    await post(mech, `/tickets/${g.id}/costs`, { description: "Part", amount: 100, sparePartUsed: true });
+    is("minor adjustment refused when spare parts are already recorded", await sr(g.id, { fixType: "MINOR_ADJUSTMENT" }), 400);
+
+    ok("audit trail shows the cost outcome", (await get(admin, `/audit?entityType=Ticket&entityId=${b.id}`)).body.entries.some((x: any) => x.action === "RECOMMENDATION_SUBMITTED" && /no approval needed/.test(x.newValue ?? "")));
+  }
+
+  section("TICKETS: IT workflow is separate from Maintenance, and each team sees only its own");
+  {
+    const netha = id("neha.verma@soliflex.local");
+    const itT = (await post(itTech, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Printer driver missing", description: "Cannot print from the laptop" })).body;
+    await post(mgrIT, `/tickets/${itT.id}/assign`, { assignedToId: netha, priority: "LOW" });
+    is("IT engineer starts work", await post(itTech, `/tickets/${itT.id}/start-progress`), 200);
+    is("IT: the maintenance diagnosis/approval step is not used", await post(itTech, `/tickets/${itT.id}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b", fixType: "MINOR_ADJUSTMENT" }), 400);
+    is("IT: there is no 1st line review", await post(itTech, `/tickets/${itT.id}/mark-first-line-review`), 400);
+    is("IT: closing needs a resolution note", await post(itTech, `/tickets/${itT.id}/close-direct`, { confirmEquipmentOperational: true }), 400);
+    is("IT: closing needs the resolved confirmation", await post(itTech, `/tickets/${itT.id}/close-direct`, { confirmEquipmentOperational: false, closingComment: "Installed" }), 400);
+    is("IT: another technician cannot close it", await post(itTech2.token, `/tickets/${itT.id}/close-direct`, { confirmEquipmentOperational: true, closingComment: "x" }), 403);
+    const closedIT = await post(itTech, `/tickets/${itT.id}/close-direct`, { confirmEquipmentOperational: true, closingComment: "Installed the driver and printed a test page" });
+    is("IT engineer resolves and closes (no photo needed)", closedIT, 200);
+    ok("IT ticket is CLOSED without a review chain", closedIT.body.status === "CLOSED");
+    is("IT manager can reopen it", await post(mgrIT, `/tickets/${itT.id}/reopen`, { reason: "Printing fails again" }), 200);
+
+    // isolation
+    is("maintenance manager cannot open an IT ticket", await get(mgrMFresh, `/tickets/${itT.id}`), 404);
+    is("maintenance manager cannot act on an IT ticket", await post(mgrMFresh, `/tickets/${itT.id}/hold`, { reason: "VENDOR", detail: "x" }), 404);
+    is("maintenance technician cannot open an IT ticket", await get(mech, `/tickets/${itT.id}`), 404);
+    is("IT technician cannot open a maintenance ticket", await get(itTech, `/tickets/${T.id}`), 404);
+    is("IT manager cannot open a maintenance ticket", await get(mgrIT, `/tickets/${T.id}`), 404);
+    ok("maintenance manager list holds only maintenance tickets - even when IT is requested", (await get(mgrMFresh, "/tickets?workstream=IT")).body.every((t: any) => t.workstream === "MAINTENANCE"));
+    ok("IT manager list holds only IT tickets - even when Maintenance is requested", (await get(mgrIT, "/tickets?workstream=MAINTENANCE")).body.every((t: any) => t.workstream === "IT"));
+    ok("IT technician list holds only IT tickets", (await get(itTech, "/tickets")).body.every((t: any) => t.workstream === "IT"));
+    ok("mechanic list holds only maintenance tickets", (await get(mech, "/tickets")).body.every((t: any) => t.workstream === "MAINTENANCE"));
+    const all = (await get(admin, "/tickets")).body;
+    ok("admin still sees both workstreams", all.some((t: any) => t.workstream === "IT") && all.some((t: any) => t.workstream === "MAINTENANCE"));
+    is("maintenance manager cannot raise an IT ticket", await post(mgrMFresh, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Laptop dead", description: "no power" }), 403);
+    is("IT manager cannot raise a maintenance ticket", await post(mgrIT, "/tickets", { workstream: "MAINTENANCE", category: "OTHER_MACHINE", title: "Press jammed", description: "stuck" }), 403);
+    is("admin cannot pair an IT workstream with a maintenance category", await post(admin, "/tickets", { workstream: "IT", category: "PRODUCTION_MACHINE", title: "Mixed up", description: "wrong category" }), 400);
+    is("admin cannot pair a maintenance workstream with an IT category", await post(admin, "/tickets", { workstream: "MAINTENANCE", category: "LAPTOP", title: "Mixed up", description: "wrong category" }), 400);
   }
 
   // ===================================================== HELPDESK

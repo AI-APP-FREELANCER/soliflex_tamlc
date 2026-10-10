@@ -6,7 +6,7 @@ import { DrawerToggleButton } from "expo-router/drawer";
 import { Plus } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
 import { useTickets } from "@/features/tickets/hooks";
-import { allowedWorkstreamsForCreate } from "@/features/tickets/permissions";
+import { allowedWorkstreamsForCreate, workstreamScopeFor } from "@/features/tickets/permissions";
 import { TicketRow } from "@/features/tickets/TicketRow";
 import { CreateTicketModal } from "@/features/tickets/CreateTicketModal";
 import { Spinner } from "@/components/Spinner";
@@ -18,23 +18,25 @@ import { TICKET_STATUS_LABELS } from "@/features/tickets/badges";
 import { PRIORITY_LABELS } from "@/features/helpdesk/badges";
 import type { Priority, TicketFilter, TicketStatus, Workstream } from "@/lib/types";
 
-const STATUS_OPTIONS = (Object.keys(TICKET_STATUS_LABELS) as TicketStatus[]).map((value) => ({
-  value,
-  label: TICKET_STATUS_LABELS[value],
-}));
+const IT_STATUSES: TicketStatus[] = ["OPEN", "ASSIGNED", "IN_PROGRESS", "CLOSED"];
+const statusOptionsFor = (workstream: Workstream) =>
+  (Object.keys(TICKET_STATUS_LABELS) as TicketStatus[])
+    // IT has no review chain, so those stages are not offered as filters.
+    .filter((value) => workstream === "MAINTENANCE" || IT_STATUSES.includes(value))
+    .map((value) => ({ value, label: TICKET_STATUS_LABELS[value] }));
 const PRIORITY_OPTIONS = (Object.keys(PRIORITY_LABELS) as Priority[]).map((value) => ({ value, label: PRIORITY_LABELS[value] }));
 
-function defaultWorkstream(role: string | undefined): Workstream {
-  return role === "IT_TEAM" ? "IT" : "MAINTENANCE";
-}
 
 export default function TicketsListScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const canCreate = allowedWorkstreamsForCreate(user?.role).length > 0;
-  const canToggleWorkstream = user?.role === "MANAGER" || user?.role === "ADMIN";
+  const canCreate = allowedWorkstreamsForCreate(user?.role, user?.workstream).length > 0;
+  // Maintenance and IT are separate workflows: only people who work both get the switch.
+  const pinned = workstreamScopeFor(user?.role, user?.workstream);
+  const canToggleWorkstream = !pinned && (user?.role === "MANAGER" || user?.role === "ADMIN");
 
-  const [workstream, setWorkstream] = useState<Workstream>(defaultWorkstream(user?.role));
+  const [selected, setWorkstream] = useState<Workstream>("MAINTENANCE");
+  const workstream: Workstream = pinned ?? selected;
   const [filter, setFilter] = useState<TicketFilter>({});
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -50,7 +52,9 @@ export default function TicketsListScreen() {
       <View className="flex-row items-center justify-between border-b border-soliflex-gray-100 bg-white py-1 pl-1 pr-4">
         <View className="flex-row items-center">
           <DrawerToggleButton tintColor="#23272B" />
-          <Text className="text-lg font-bold text-soliflex-ink">Maintenance / IT Tickets</Text>
+          <Text className="text-lg font-bold text-soliflex-ink">
+            {workstream === "IT" ? "IT Tickets" : "Maintenance Tickets"}
+          </Text>
         </View>
         {canCreate && (
           <Pressable
@@ -90,7 +94,7 @@ export default function TicketsListScreen() {
             <SelectField
               placeholder="All statuses"
               value={filter.status}
-              options={STATUS_OPTIONS}
+              options={statusOptionsFor(workstream)}
               onChange={(status) => setFilter((f) => ({ ...f, status }))}
             />
           </View>

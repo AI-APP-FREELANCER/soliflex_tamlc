@@ -26,14 +26,21 @@ function isMobileClient(req: import("express").Request): boolean {
   return req.get("X-Client-Type") === "mobile";
 }
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
+// `identifier` is an email address or a mobile number. `email` is still
+// accepted so apps installed before mobile sign-in existed keep working.
+const loginSchema = z
+  .object({
+    identifier: z.string().trim().min(1).optional(),
+    email: z.string().trim().min(1).optional(),
+    password: z.string().min(1),
+  })
+  .refine((v) => !!(v.identifier ?? v.email), { message: "Enter your email address or mobile number" });
 
 router.post("/login", async (req, res) => {
-  const { email, password } = loginSchema.parse(req.body);
-  const limiterKey = `${req.ip}|${email.toLowerCase()}`;
+  const parsed = loginSchema.parse(req.body);
+  const identifier = (parsed.identifier ?? parsed.email)!;
+  const password = parsed.password;
+  const limiterKey = `${req.ip}|${authService.canonicalIdentifier(identifier)}`;
   const retryAfter = loginRetryAfterSeconds(limiterKey);
   if (retryAfter > 0) {
     res.setHeader("Retry-After", String(retryAfter));
@@ -41,7 +48,7 @@ router.post("/login", async (req, res) => {
   }
   let result;
   try {
-    result = await authService.login(email, password);
+    result = await authService.login(identifier, password);
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) recordLoginFailure(limiterKey);
     throw err;
@@ -55,9 +62,10 @@ router.post("/login", async (req, res) => {
 const registerSchema = z.object({
   employeeId: z.string().min(1),
   name: z.string().min(1),
-  email: z.string().email(),
+  // Register with an email, a mobile number, or both (at least one).
+  email: z.string().trim().email().optional().or(z.literal("").transform(() => undefined)),
+  phone: z.string().trim().optional(),
   password: z.string().min(1),
-  phone: z.string().optional(),
 });
 
 router.post("/register", async (req, res) => {
@@ -92,6 +100,17 @@ router.post("/logout", async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.sub } });
   res.json(sanitizeUser(user));
+});
+
+const updateContactSchema = z.object({
+  currentPassword: z.string().min(1),
+  email: z.string().trim().email().nullable().optional(),
+  phone: z.string().trim().nullable().optional(),
+});
+
+router.patch("/me/contact", requireAuth, async (req, res) => {
+  const data = updateContactSchema.parse(req.body);
+  res.json(await authService.updateOwnContact(req.user!.sub, data));
 });
 
 const changePasswordSchema = z.object({

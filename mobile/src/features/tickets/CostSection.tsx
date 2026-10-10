@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { Check } from "lucide-react-native";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
 import { useTicketMutations } from "@/features/tickets/hooks";
@@ -13,14 +14,15 @@ interface CostSectionProps {
 export function CostSection({ ticket, canEdit }: CostSectionProps) {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [isPart, setIsPart] = useState(false);
   const { addCost } = useTicketMutations(ticket.id);
 
   function handleAdd() {
     const amt = Number(amount);
     if (!description.trim() || !amt || amt <= 0) return;
     addCost.mutate(
-      { id: ticket.id, description: description.trim(), amount: amt },
-      { onSuccess: () => { setDescription(""); setAmount(""); } }
+      { id: ticket.id, description: description.trim(), amount: amt, sparePartUsed: isPart },
+      { onSuccess: () => { setDescription(""); setAmount(""); setIsPart(false); } }
     );
   }
 
@@ -49,6 +51,18 @@ export function CostSection({ ticket, canEdit }: CostSectionProps) {
         <View className="mt-3 gap-2">
           <TextField placeholder="Description" value={description} onChangeText={setDescription} />
           <TextField placeholder="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
+          {ticket.workstream === "MAINTENANCE" && (
+            <Pressable onPress={() => setIsPart((v) => !v)} className="flex-row items-center gap-2">
+              <View
+                className={`h-5 w-5 items-center justify-center rounded border ${
+                  isPart ? "border-soliflex-orange-500 bg-soliflex-orange-500" : "border-soliflex-gray-300"
+                }`}
+              >
+                {isPart && <Check color="#fff" size={14} />}
+              </View>
+              <Text className="text-sm text-soliflex-ink">This is a spare part</Text>
+            </Pressable>
+          )}
           <Button title="Add" variant="secondary" onPress={handleAdd} loading={addCost.isPending} />
         </View>
       )}

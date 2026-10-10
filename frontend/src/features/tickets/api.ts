@@ -1,5 +1,5 @@
 import { api } from "../../lib/api";
-import type { AttachmentType, OnHoldReason, Priority, Ticket, TicketCategory, TicketStatus, Workstream } from "../../lib/types";
+import type { AttachmentType, FixType, OnHoldReason, Priority, Ticket, TicketCategory, TicketStatus, Workstream } from "../../lib/types";
 import type { DateRangeValue } from "../../components/DateRangeFilter";
 
 export interface TicketFilter extends DateRangeValue {
@@ -56,7 +56,10 @@ export async function startProgress(id: string) {
   return res.data;
 }
 
-export async function submitRecommendation(id: string, data: { diagnosis: string; recommendedFix: string }) {
+export async function submitRecommendation(
+  id: string,
+  data: { diagnosis: string; recommendedFix: string; fixType: FixType; estimatedCost?: number }
+) {
   const res = await api.post(`/tickets/${id}/submit-recommendation`, data);
   return res.data;
 }
@@ -83,6 +86,12 @@ export async function markFinalReview(id: string) {
 
 export async function closeTicket(id: string, data: { confirmEquipmentOperational: boolean; closingComment?: string }) {
   const res = await api.post(`/tickets/${id}/close`, data);
+  return res.data;
+}
+
+/** Engineer / manager fast close: no review chain (see the approval rules on the ticket). */
+export async function closeTicketDirect(id: string, data: { confirmEquipmentOperational: boolean; closingComment?: string }) {
+  const res = await api.post(`/tickets/${id}/close-direct`, data);
   return res.data;
 }
 

@@ -19,7 +19,7 @@ interface CreateTicketModalProps {
 
 export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketModalProps) {
   const user = useAuthStore((s) => s.user);
-  const workstreamOptions = useMemo(() => allowedWorkstreamsForCreate(user?.role), [user?.role]);
+  const workstreamOptions = useMemo(() => allowedWorkstreamsForCreate(user?.role, user?.workstream), [user?.role, user?.workstream]);
 
   const [workstream, setWorkstream] = useState<Workstream | undefined>(workstreamOptions[0]);
   const [category, setCategory] = useState<TicketCategory | undefined>(undefined);

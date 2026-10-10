@@ -31,6 +31,27 @@ export default function ProfileScreen() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [contactEmail, setContactEmail] = useState(user?.email ?? "");
+  const [contactPhone, setContactPhone] = useState(user?.phone ?? "");
+  const [contactPassword, setContactPassword] = useState("");
+  const [contactMessage, setContactMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const setSession = useAuthStore((s) => s.setSession);
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  const contactMutation = useMutation({
+    mutationFn: () =>
+      auth.updateContact({
+        currentPassword: contactPassword,
+        email: contactEmail.trim() || null,
+        phone: contactPhone.trim() || null,
+      }),
+    onSuccess: (updated) => {
+      if (accessToken) setSession(accessToken, updated);
+      setContactPassword("");
+      setContactMessage({ type: "success", text: "Sign-in details updated." });
+    },
+    onError: (err) => setContactMessage({ type: "error", text: apiErrorMessage(err) }),
+  });
 
   const changePasswordMutation = useMutation({
     mutationFn: () => auth.changePassword(currentPassword, newPassword),
@@ -67,7 +88,7 @@ export default function ProfileScreen() {
             <Text className="text-xl font-bold text-white">{user.name.slice(0, 2).toUpperCase()}</Text>
           </View>
           <Text className="mt-3 text-lg font-bold text-soliflex-ink">{user.name}</Text>
-          <Text className="text-sm text-soliflex-gray-500">{user.email}</Text>
+          <Text className="text-sm text-soliflex-gray-500">{[user.email, user.phone].filter(Boolean).join(" · ")}</Text>
         </View>
 
         <Pressable
@@ -91,6 +112,29 @@ export default function ProfileScreen() {
           <InfoRow label="Employee ID" value={user.employeeId} />
           <InfoRow label="Workstream" value={user.workstream ?? "—"} />
           <InfoRow label="Department" value={user.department ?? "—"} />
+        </View>
+
+        <Text className="mb-1 mt-6 text-sm font-bold text-soliflex-ink">Sign-in details</Text>
+        <Text className="mb-3 text-xs text-soliflex-gray-500">
+          You can sign in with your email, your mobile number, or either. Keep at least one.
+        </Text>
+        <View className="gap-3 rounded-xl border border-soliflex-gray-100 bg-white p-4">
+          <TextField label="Email" value={contactEmail} onChangeText={setContactEmail} autoCapitalize="none" keyboardType="email-address" />
+          <TextField label="Mobile number" value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" />
+          <TextField label="Current password" value={contactPassword} onChangeText={setContactPassword} secureTextEntry />
+          {contactMessage && (
+            <Text className={`text-sm ${contactMessage.type === "error" ? "text-red-600" : "text-green-700"}`}>{contactMessage.text}</Text>
+          )}
+          <Button
+            title="Save sign-in details"
+            variant="secondary"
+            loading={contactMutation.isPending}
+            disabled={!contactPassword || (!contactEmail.trim() && !contactPhone.trim())}
+            onPress={() => {
+              setContactMessage(null);
+              contactMutation.mutate();
+            }}
+          />
         </View>
 
         <Text className="mb-3 mt-6 text-sm font-bold text-soliflex-ink">Change password</Text>

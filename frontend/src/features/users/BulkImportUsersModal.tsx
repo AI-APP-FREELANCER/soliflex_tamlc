@@ -95,7 +95,7 @@ export function BulkImportUsersModal({ onClose }: { onClose: () => void }) {
                     <thead>
                       <tr className="text-left text-green-900">
                         <th className="pr-2 font-semibold">Name</th>
-                        <th className="pr-2 font-semibold">Email</th>
+                        <th className="pr-2 font-semibold">Email / mobile</th>
                         <th className="font-semibold">Temp password</th>
                       </tr>
                     </thead>
@@ -103,7 +103,7 @@ export function BulkImportUsersModal({ onClose }: { onClose: () => void }) {
                       {result.created.map((c, i) => (
                         <tr key={i} className="text-green-800">
                           <td className="pr-2">{c.name}</td>
-                          <td className="pr-2">{c.email}</td>
+                          <td className="pr-2">{c.email ?? c.phone}</td>
                           <td className="font-mono">{c.tempPassword}</td>
                         </tr>
                       ))}

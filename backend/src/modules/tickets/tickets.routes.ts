@@ -1,12 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
-import { AttachmentType, OnHoldReason, Priority, TicketCategory, TicketStatus, Workstream } from "@prisma/client";
+import { AttachmentType, FixType, OnHoldReason, Priority, TicketCategory, TicketStatus, Workstream } from "@prisma/client";
 import { requireAuth, requireRole } from "../../middleware/auth";
 import { LEGACY_ROLES } from "../../lib/roles";
 import { upload } from "../../middleware/upload";
 import { Role } from "@prisma/client";
 import * as tickets from "./tickets.service";
 import { resolveDateRange } from "../../lib/date-range";
+import { prisma } from "../../lib/prisma";
+import { workstreamScope } from "../../lib/workstream-scope";
+import { ApiError } from "../../middleware/errors";
 
 const router = Router();
 // Maintenance/IT board data is for board roles only (helpdesk-only roles use /api/helpdesk).
@@ -16,9 +19,25 @@ function actorFromReq(req: Express.Request | any) {
   return { id: req.user.sub, role: req.user.role, workstream: req.user.workstream, name: req.user.name };
 }
 
+// Maintenance and IT are separate workflows: a user only reaches their own
+// workstream's tickets. Out-of-scope tickets look like they do not exist.
+router.param("id", async (req, _res, next, id) => {
+  try {
+    const scope = workstreamScope({ role: req.user!.role as Role, workstream: (req.user!.workstream ?? null) as Workstream | null });
+    if (scope) {
+      const t = await prisma.ticket.findUnique({ where: { id }, select: { workstream: true } });
+      if (t && t.workstream !== scope) throw new ApiError(404, "Ticket not found");
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/", async (req, res) => {
+  const scope = workstreamScope({ role: req.user!.role as Role, workstream: (req.user!.workstream ?? null) as Workstream | null });
   const result = await tickets.listTickets({
-    workstream: req.query.workstream as Workstream | undefined,
+    workstream: scope ?? (req.query.workstream as Workstream | undefined),
     status: req.query.status as TicketStatus | undefined,
     assignedToId: req.query.assignedToId as string | undefined,
     reportedById: req.query.reportedById as string | undefined,
@@ -87,10 +106,15 @@ router.post("/:id/start-progress", async (req, res) => {
   res.json(await tickets.startProgress(actorFromReq(req), req.params.id));
 });
 
-const recommendationSchema = z.object({ diagnosis: z.string().min(1), recommendedFix: z.string().min(1) });
+const recommendationSchema = z.object({
+  diagnosis: z.string().min(1),
+  recommendedFix: z.string().min(1),
+  fixType: z.nativeEnum(FixType),
+  estimatedCost: z.number().positive().optional(),
+});
 router.post("/:id/submit-recommendation", async (req, res) => {
   const data = recommendationSchema.parse(req.body);
-  res.json(await tickets.submitRecommendation(actorFromReq(req), req.params.id, data.diagnosis, data.recommendedFix));
+  res.json(await tickets.submitRecommendation(actorFromReq(req), req.params.id, data));
 });
 
 const decisionSchema = z.object({ approve: z.boolean(), comment: z.string().optional() });
@@ -115,6 +139,12 @@ const closeSchema = z.object({ confirmEquipmentOperational: z.boolean(), closing
 router.post("/:id/close", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = closeSchema.parse(req.body);
   res.json(await tickets.closeTicket(actorFromReq(req), req.params.id, data.confirmEquipmentOperational, data.closingComment));
+});
+
+// Engineer/manager fast close - the rules (no approval needed, photo, comment) live in the service.
+router.post("/:id/close-direct", async (req, res) => {
+  const data = closeSchema.parse(req.body);
+  res.json(await tickets.closeDirect(actorFromReq(req), req.params.id, data.confirmEquipmentOperational, data.closingComment));
 });
 
 const reopenSchema = z.object({ reason: z.string().min(1) });
