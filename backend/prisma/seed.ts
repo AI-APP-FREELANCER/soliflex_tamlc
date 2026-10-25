@@ -1,4 +1,4 @@
-import { PrismaClient, Role, Workstream, TicketCategory, Priority, HelpdeskCategory } from "@prisma/client";
+import { PrismaClient, Role, Workstream, TicketCategory, Priority, HelpdeskCategory, ProblemType, MachineStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { nextSequenceValue, formatTicketNumber, formatAssetItemCode, formatHelpdeskTicketNumber } from "../src/modules/sequences/sequence.service";
 
@@ -157,8 +157,29 @@ async function main() {
 
   console.log("Seeded assets.");
 
+  // --- plants & departments (Oct 2026 maintenance redesign) ---
+  const plantNames = ["Unit_1", "Unit_2"];
+  const plants: Record<string, { id: string }> = {};
+  for (const name of plantNames) {
+    plants[name] = await prisma.plant.upsert({
+      where: { name },
+      update: {},
+      create: { name, createdById: adminUser.id },
+    });
+  }
+  const departmentNames = ["Fabric", "Cutting", "Finishing", "Utility", "Container liner", "RP", "General"];
+  const departments: Record<string, { id: string }> = {};
+  for (const name of departmentNames) {
+    departments[name] = await prisma.department.upsert({
+      where: { name },
+      update: {},
+      create: { name, createdById: adminUser.id },
+    });
+  }
+  console.log("Seeded plants and departments.");
+
   // --- sample ticket ---
-  const existingTicket = await prisma.ticket.findFirst({ where: { title: "Extrusion Line 3 - unusual vibration" } });
+  const existingTicket = await prisma.ticket.findFirst({ where: { description: { startsWith: "Operator reported unusual vibration" } } });
   if (!existingTicket) {
     await prisma.$transaction(async (tx) => {
       const seq = await nextSequenceValue(tx as typeof prisma, `ticket:${Workstream.MAINTENANCE}`, 1000);
@@ -167,19 +188,21 @@ async function main() {
           ticketNumber: formatTicketNumber(Workstream.MAINTENANCE, seq),
           workstream: Workstream.MAINTENANCE,
           category: TicketCategory.PRODUCTION_MACHINE,
-          title: "Extrusion Line 3 - unusual vibration",
           description: "Operator reported unusual vibration and noise from the main drive motor during the night shift.",
-          plantLocation: "Plant A - Bay 3",
+          plantId: plants["Unit_1"].id,
+          departmentId: departments["Fabric"].id,
+          problemType: ProblemType.MECHANICAL,
+          machineStatus: MachineStatus.RUNNING,
           maintenanceAssetId: maintenanceAsset.id,
           reportedById: productionUser.id,
           managerId: maintenanceManager.id,
           assignedToId: mechanic.id,
           priority: Priority.HIGH,
-          status: "ASSIGNED",
+          status: "ACKNOWLEDGED",
         },
       });
       await tx.ticketStatusHistory.create({ data: { ticketId: ticket.id, toStatus: "OPEN", changedById: productionUser.id, comment: "Ticket raised" } });
-      await tx.ticketStatusHistory.create({ data: { ticketId: ticket.id, fromStatus: "OPEN", toStatus: "ASSIGNED", changedById: maintenanceManager.id, comment: `Assigned to ${mechanic.name}` } });
+      await tx.ticketStatusHistory.create({ data: { ticketId: ticket.id, fromStatus: "OPEN", toStatus: "ACKNOWLEDGED", changedById: mechanic.id, comment: `Acknowledged, assigned to ${mechanic.name}` } });
     });
     console.log("Seeded sample ticket.");
   }

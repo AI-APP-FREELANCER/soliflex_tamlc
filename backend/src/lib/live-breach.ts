@@ -8,7 +8,9 @@
 
 const HELPDESK_FINISHED = new Set(["CLOSED", "RESOLVED"]);
 
-export function withLiveSlaBreach<T extends { status: string; targetCompletionDate: Date | null; slaBreached: boolean }>(ticket: T, now = new Date()): T {
+// Target-date/SLA tracking is IT only (Oct 2026 maintenance redesign).
+export function withLiveSlaBreach<T extends { status: string; workstream?: string; targetCompletionDate: Date | null; slaBreached: boolean }>(ticket: T, now = new Date()): T {
+  if (ticket.workstream === "MAINTENANCE") return ticket;
   const pastTarget = ticket.status !== "CLOSED" && ticket.targetCompletionDate !== null && ticket.targetCompletionDate < now;
   return pastTarget && !ticket.slaBreached ? { ...ticket, slaBreached: true } : ticket;
 }

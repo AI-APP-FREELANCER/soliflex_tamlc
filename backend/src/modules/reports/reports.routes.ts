@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from "../../middleware/auth";
 import { LEGACY_ROLES } from "../../lib/roles";
 import { prisma } from "../../lib/prisma";
 import { resolveDateRange } from "../../lib/date-range";
-import { buildDashboardReport, buildOverdueReport, helpdeskWhere, includesHelpdesk, ticketWhere } from "./reports.service";
+import { buildDashboardReport, buildMaintenanceAnalytics, buildOverdueReport, helpdeskWhere, includesHelpdesk, ticketWhere } from "./reports.service";
 
 const router = Router();
 router.use(requireAuth, requireRole(...LEGACY_ROLES));
@@ -33,6 +33,13 @@ router.get("/overdue-tickets", async (req, res) => {
   res.json(await buildOverdueReport(workstreamFromQuery(req), dateRangeFromQuery(req)));
 });
 
+// Maintenance no longer tracks overdue/target dates (Oct 2026 redesign) - instead
+// this returns phase-by-phase time analytics and breakdowns for that workstream.
+router.get("/maintenance-analytics", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(await buildMaintenanceAnalytics(dateRangeFromQuery(req)));
+});
+
 router.get("/expiring-assets", async (req, res) => {
   const days = Number(req.query.days ?? 60);
   const cutoff = new Date(Date.now() + days * 86_400_000);
@@ -57,6 +64,8 @@ router.get("/export", async (req, res) => {
     include: {
       reportedBy: { select: { name: true } },
       assignedTo: { select: { name: true } },
+      plant: true,
+      department: true,
     },
     orderBy: { createdAt: "desc" },
   });
@@ -68,12 +77,16 @@ router.get("/export", async (req, res) => {
     { header: "Workstream", key: "workstream", width: 12 },
     { header: "Category", key: "category", width: 18 },
     { header: "Title", key: "title", width: 30 },
+    { header: "Plant", key: "plant", width: 14 },
+    { header: "Department", key: "department", width: 16 },
+    { header: "Problem Type", key: "problemType", width: 14 },
+    { header: "Machine Status", key: "machineStatus", width: 14 },
     { header: "Status", key: "status", width: 18 },
     { header: "Priority", key: "priority", width: 10 },
     { header: "Reported By", key: "reportedBy", width: 18 },
     { header: "Assigned To", key: "assignedTo", width: 18 },
     { header: "On Hold", key: "onHold", width: 10 },
-    { header: "SLA Breached", key: "slaBreached", width: 12 },
+    { header: "SLA Breached (IT only)", key: "slaBreached", width: 16 },
     { header: "Actual Cost", key: "actualCost", width: 12 },
     { header: "Created At", key: "createdAt", width: 18 },
     { header: "Closed At", key: "closedAt", width: 18 },
@@ -83,13 +96,17 @@ router.get("/export", async (req, res) => {
       ticketNumber: t.ticketNumber,
       workstream: t.workstream,
       category: t.category,
-      title: t.title,
+      title: t.title ?? "",
+      plant: t.plant?.name ?? "",
+      department: t.department?.name ?? "",
+      problemType: t.problemType ?? "",
+      machineStatus: t.machineStatus ?? "",
       status: t.status,
       priority: t.priority ?? "",
       reportedBy: t.reportedBy?.name ?? "",
       assignedTo: t.assignedTo?.name ?? "",
-      onHold: t.onHold ? "Yes" : "No",
-      slaBreached: t.slaBreached || (t.status !== "CLOSED" && t.targetCompletionDate !== null && t.targetCompletionDate < new Date()) ? "Yes" : "No",
+      onHold: t.onHold || t.status === "ON_HOLD" ? "Yes" : "No",
+      slaBreached: t.workstream === "IT" && (t.slaBreached || (t.status !== "CLOSED" && t.targetCompletionDate !== null && t.targetCompletionDate < new Date())) ? "Yes" : "No",
       actualCost: t.actualCost ?? 0,
       createdAt: t.createdAt.toISOString(),
       closedAt: t.closedAt?.toISOString() ?? "",

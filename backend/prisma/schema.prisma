@@ -48,12 +48,65 @@ enum TicketCategory {
 
 enum TicketStatus {
   OPEN
-  ASSIGNED
+  ASSIGNED // IT only
   IN_PROGRESS
-  FIRST_LINE_REVIEW
-  JOB_COMPLETED
-  FINAL_REVIEW
+  FIRST_LINE_REVIEW // legacy maintenance workflow, kept for historical tickets only
+  JOB_COMPLETED // legacy maintenance workflow, kept for historical tickets only
+  FINAL_REVIEW // legacy maintenance workflow, kept for historical tickets only
+  // Current maintenance workflow (2026-10 redesign): OPEN -> ACKNOWLEDGED ->
+  // IN_PROGRESS -> (ON_HOLD <-> IN_PROGRESS) -> VERIFICATION_NEEDED ->
+  // VERIFIED/REJECTED -> CLOSED (REJECTED loops back to IN_PROGRESS).
+  ACKNOWLEDGED
+  ON_HOLD
+  VERIFICATION_NEEDED
+  VERIFIED
+  REJECTED
   CLOSED
+
+  @@schema("tms")
+}
+
+// Maintenance-only ticket classification (spec: Oct 2026 production-release changes).
+enum ProblemType {
+  ELECTRICAL
+  MECHANICAL
+  PNEUMATIC
+  HYDRAULIC
+  OTHERS
+
+  @@schema("tms")
+}
+
+enum MachineStatus {
+  RUNNING
+  STOPPED
+
+  @@schema("tms")
+}
+
+enum DelayReason {
+  TECHNICIAN_NOT_AVAILABLE
+  WAITING_FOR_SPARES
+  WAITING_FOR_EXTERNAL_SERVICE
+  NEED_TECHNICAL_SUPPORT
+  OTHERS
+
+  @@schema("tms")
+}
+
+enum ChecklistAnswer {
+  YES
+  NO
+  NA
+
+  @@schema("tms")
+}
+
+enum QualityRating {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
 
   @@schema("tms")
 }
@@ -115,6 +168,8 @@ enum NotificationType {
   HELPDESK_TICKET_CLOSED
   HELPDESK_DEADLINE_BREACHED
   HELPDESK_DEADLINE_MISSING
+  VERIFICATION_NEEDED
+  VERIFICATION_REJECTED
 
   @@schema("tms")
 }
@@ -180,17 +235,20 @@ model User {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  reportedTickets Ticket[]              @relation("ReportedBy")
-  assignedTickets Ticket[]              @relation("AssignedTo")
-  managedTickets  Ticket[]              @relation("ManagedBy")
-  approvedTickets Ticket[]              @relation("ApprovedBy")
-  closedTickets   Ticket[]              @relation("ClosedBy")
-  comments        TicketComment[]
-  attachments     TicketAttachment[]
-  notifications   Notification[]
-  auditLogs       AuditLog[]
-  statusChanges   TicketStatusHistory[]
-  refreshTokens   RefreshToken[]
+  reportedTickets            Ticket[]              @relation("ReportedBy")
+  assignedTickets            Ticket[]              @relation("AssignedTo")
+  managedTickets             Ticket[]              @relation("ManagedBy")
+  approvedTickets            Ticket[]              @relation("ApprovedBy")
+  closedTickets              Ticket[]              @relation("ClosedBy")
+  productionCertifiedTickets Ticket[]              @relation("ProductionCertifiedBy")
+  createdPlants              Plant[]
+  createdDepartments         Department[]
+  comments                   TicketComment[]
+  attachments                TicketAttachment[]
+  notifications              Notification[]
+  auditLogs                  AuditLog[]
+  statusChanges              TicketStatusHistory[]
+  refreshTokens              RefreshToken[]
 
   helpdeskRaised        HelpdeskTicket[]        @relation("HelpdeskRaisedBy")
   helpdeskAssigned      HelpdeskTicket[]        @relation("HelpdeskAssignedTo")
@@ -227,7 +285,9 @@ model Ticket {
   ticketNumber  String         @unique
   workstream    Workstream
   category      TicketCategory
-  title         String
+  // Title was removed from the maintenance ticket form (Oct 2026): nullable so
+  // old tickets keep showing theirs; IT still requires one (enforced in the service).
+  title         String?
   description   String
   plantLocation String?
 
@@ -274,10 +334,67 @@ model Ticket {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // --- Maintenance-only fields (Oct 2026 production-release redesign) ---
+  plantId       String?
+  plant         Plant?         @relation(fields: [plantId], references: [id])
+  departmentId  String?
+  department    Department?    @relation(fields: [departmentId], references: [id])
+  problemType   ProblemType?
+  machineStatus MachineStatus?
+
+  // Optional, only meaningful while status = ON_HOLD.
+  delayReason DelayReason?
+  delayNotes  String?
+
+  // Post-maintenance checklist, required before moving to VERIFICATION_NEEDED.
+  checklistToolsReclaimed ChecklistAnswer?
+  checklistMachineCleaned ChecklistAnswer?
+  checklistCableRouting   ChecklistAnswer?
+
+  // Production's verification feedback + mandatory sign-off before closing.
+  qualityRating           QualityRating?
+  qualityFeedback         String?
+  productionCertified     Boolean        @default(false)
+  productionCertifiedAt   DateTime?
+  productionCertifiedById String?
+  productionCertifiedBy   User?          @relation("ProductionCertifiedBy", fields: [productionCertifiedById], references: [id])
+
   comments      TicketComment[]
   attachments   TicketAttachment[]
   costEntries   TicketCostEntry[]
   statusHistory TicketStatusHistory[]
+
+  @@schema("tms")
+}
+
+// Admin-managed plant/location list (replaces the free-text field on maintenance
+// tickets). Name format is enforced in the service: letters/numbers, words
+// joined by a single underscore, 3-20 characters (e.g. "Unit_1").
+model Plant {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  active      Boolean  @default(true)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@schema("tms")
+}
+
+// Admin-managed "Department / Product Category" list for maintenance tickets.
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  active      Boolean  @default(true)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets Ticket[]
 
   @@schema("tms")
 }
@@ -460,6 +577,7 @@ model MaintenanceAsset {
   statusSince       DateTime?
   expiryAlertedAt   DateTime?
   downtimeAlertedAt DateTime?
+  powerCapacity     String?
   qrCodeUrl         String?
   createdById       String
   createdAt         DateTime    @default(now())

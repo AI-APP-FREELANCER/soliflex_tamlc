@@ -9,6 +9,8 @@ const SCOPES: [prefix: string, scope: string][] = [
   ["/api/helpdesk", "helpdesk"],
   ["/api/assets", "assets"],
   ["/api/users", "users"],
+  ["/api/plants", "tickets"],
+  ["/api/departments", "tickets"],
 ];
 
 /**

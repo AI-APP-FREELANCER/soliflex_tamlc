@@ -37,7 +37,7 @@ export interface OverdueItem {
   id: string;
   source: ReportSource;
   ticketNumber: string;
-  title: string;
+  title: string | null;
   status: string;
   priority: Priority | null;
   targetCompletionDate: Date;
@@ -56,12 +56,19 @@ function helpdeskWhere(range: DateRange | undefined): Prisma.HelpdeskTicketWhere
   return range ? { createdAt: range } : {};
 }
 
+// Target-completion-date tracking (and so overdue/SLA breach) only applies to
+// IT tickets - the Oct 2026 maintenance redesign dropped it entirely in favour
+// of phase-by-phase status analytics (see buildMaintenanceAnalytics below).
 function ticketBreachedWhere(now: Date): Prisma.TicketWhereInput {
-  return { OR: [{ slaBreached: true }, { status: { not: TicketStatus.CLOSED }, targetCompletionDate: { lt: now } }] };
+  return { workstream: Workstream.IT, OR: [{ slaBreached: true }, { status: { not: TicketStatus.CLOSED }, targetCompletionDate: { lt: now } }] };
 }
 
 function ticketOverdueWhere(now: Date): Prisma.TicketWhereInput {
-  return { status: { not: TicketStatus.CLOSED }, targetCompletionDate: { lt: now } };
+  return { workstream: Workstream.IT, status: { not: TicketStatus.CLOSED }, targetCompletionDate: { lt: now } };
+}
+
+function ticketOnHoldWhere(): Prisma.TicketWhereInput {
+  return { OR: [{ onHold: true }, { status: TicketStatus.ON_HOLD }] };
 }
 
 function helpdeskBreachedWhere(now: Date): Prisma.HelpdeskTicketWhereInput {
@@ -75,7 +82,12 @@ function helpdeskOverdueWhere(now: Date): Prisma.HelpdeskTicketWhereInput {
 const STATUS_ORDER = [
   "OPEN",
   "ASSIGNED",
+  "ACKNOWLEDGED",
   "IN_PROGRESS",
+  "ON_HOLD",
+  "VERIFICATION_NEEDED",
+  "VERIFIED",
+  "REJECTED",
   "FIRST_LINE_REVIEW",
   "JOB_COMPLETED",
   "FINAL_REVIEW",
@@ -104,7 +116,7 @@ export async function buildDashboardReport(workstream: Workstream | undefined, r
     prisma.ticket.groupBy({ by: ["priority"], where: tWhere, _count: true }),
     prisma.ticket.count({ where: tWhere }),
     prisma.ticket.count({ where: { ...tWhere, status: TicketStatus.CLOSED } }),
-    prisma.ticket.count({ where: { ...tWhere, onHold: true } }),
+    prisma.ticket.count({ where: { AND: [tWhere, ticketOnHoldWhere()] } }),
     prisma.ticket.count({ where: { AND: [tWhere, ticketBreachedWhere(now)] } }),
     prisma.ticket.count({ where: { AND: [tWhere, ticketOverdueWhere(now)] } }),
     prisma.ticket.findMany({ where: { ...tWhere, status: TicketStatus.CLOSED, closedAt: { not: null } }, select: { createdAt: true, closedAt: true } }),
@@ -237,6 +249,124 @@ export async function buildOverdueReport(workstream: Workstream | undefined, ran
   }
 
   return items.sort((a, b) => a.targetCompletionDate.getTime() - b.targetCompletionDate.getTime());
+}
+
+// ======================================================================
+// Maintenance-only analytics (Oct 2026 redesign): no overdue/target-date
+// tracking any more, replaced by phase-by-phase time-in-status, broken down
+// by problem type, plant, department, machine status and delay reason.
+// Hours are only counted while a ticket is actually in that status - a
+// RUNNING machine's ticket sitting in VERIFICATION_NEEDED still counts as
+// "time in verification", it's just not counted as asset downtime.
+// ======================================================================
+
+export interface MaintenanceAnalytics {
+  ticketCount: number;
+  avgHoursByStatus: { status: string; avgHours: number; count: number }[];
+  avgTotalResolutionHours: number;
+  avgDowntimeHours: number; // only while machineStatus = STOPPED, and only resolved tickets
+  byProblemType: { problemType: string; count: number }[];
+  byPlant: { plant: string; count: number }[];
+  byDepartment: { department: string; count: number }[];
+  byMachineStatus: { machineStatus: string; count: number }[];
+  byDelayReason: { delayReason: string; count: number }[];
+  checklistCompliance: { field: string; yes: number; no: number; na: number }[];
+  qualityRatings: { rating: string; count: number }[];
+  rejectedCount: number;
+}
+
+export async function buildMaintenanceAnalytics(range: DateRange | undefined, now = new Date()): Promise<MaintenanceAnalytics> {
+  const where: Prisma.TicketWhereInput = { workstream: Workstream.MAINTENANCE, ...(range ? { createdAt: range } : {}) };
+
+  const [tickets, byProblemType, byPlant, byDepartment, byMachineStatus, byDelayReason, rejectedCount] = await Promise.all([
+    prisma.ticket.findMany({
+      where,
+      select: {
+        id: true,
+        createdAt: true,
+        closedAt: true,
+        status: true,
+        machineStatus: true,
+        qualityRating: true,
+        checklistToolsReclaimed: true,
+        checklistMachineCleaned: true,
+        checklistCableRouting: true,
+        statusHistory: { select: { toStatus: true, createdAt: true }, orderBy: { createdAt: "asc" } },
+      },
+    }),
+    prisma.ticket.groupBy({ by: ["problemType"], where, _count: true }),
+    prisma.ticket.groupBy({ by: ["plantId"], where, _count: true }),
+    prisma.ticket.groupBy({ by: ["departmentId"], where, _count: true }),
+    prisma.ticket.groupBy({ by: ["machineStatus"], where, _count: true }),
+    prisma.ticket.groupBy({ by: ["delayReason"], where, _count: true }),
+    prisma.ticket.count({ where: { ...where, statusHistory: { some: { toStatus: TicketStatus.REJECTED } } } }),
+  ]);
+
+  const [plants, departments] = await Promise.all([prisma.plant.findMany(), prisma.department.findMany()]);
+  const plantName = new Map(plants.map((p) => [p.id, p.name]));
+  const deptName = new Map(departments.map((d) => [d.id, d.name]));
+
+  // Time-in-status: for each ticket, walk its history and accumulate the gap
+  // between consecutive entries under the status it was leaving.
+  const hoursByStatus = new Map<string, { total: number; count: number }>();
+  let totalResolutionMs = 0;
+  let resolvedCount = 0;
+  let totalDowntimeMs = 0;
+  let downtimeCount = 0;
+
+  for (const t of tickets) {
+    const history = t.statusHistory;
+    for (let i = 0; i < history.length; i++) {
+      const start = history[i].createdAt;
+      const end = i + 1 < history.length ? history[i + 1].createdAt : t.closedAt ?? now;
+      const ms = Math.max(0, end.getTime() - start.getTime());
+      const status = history[i].toStatus;
+      const bucket = hoursByStatus.get(status) ?? { total: 0, count: 0 };
+      bucket.total += ms;
+      bucket.count += 1;
+      hoursByStatus.set(status, bucket);
+    }
+    if (t.closedAt) {
+      totalResolutionMs += t.closedAt.getTime() - t.createdAt.getTime();
+      resolvedCount++;
+      if (t.machineStatus === "STOPPED") {
+        totalDowntimeMs += t.closedAt.getTime() - t.createdAt.getTime();
+        downtimeCount++;
+      }
+    }
+  }
+
+  const checklistField = (vals: (string | null)[]) => ({
+    yes: vals.filter((v) => v === "YES").length,
+    no: vals.filter((v) => v === "NO").length,
+    na: vals.filter((v) => v === "NA").length,
+  });
+
+  const qualityCounts = new Map<string, number>();
+  for (const t of tickets) {
+    if (t.qualityRating) qualityCounts.set(t.qualityRating, (qualityCounts.get(t.qualityRating) ?? 0) + 1);
+  }
+
+  return {
+    ticketCount: tickets.length,
+    avgHoursByStatus: [...hoursByStatus.entries()]
+      .map(([status, { total, count }]) => ({ status, avgHours: Math.round((total / count / 3_600_000) * 10) / 10, count }))
+      .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)),
+    avgTotalResolutionHours: resolvedCount > 0 ? Math.round((totalResolutionMs / resolvedCount / 3_600_000) * 10) / 10 : 0,
+    avgDowntimeHours: downtimeCount > 0 ? Math.round((totalDowntimeMs / downtimeCount / 3_600_000) * 10) / 10 : 0,
+    byProblemType: byProblemType.map((r) => ({ problemType: r.problemType ?? "Not set", count: r._count })),
+    byPlant: byPlant.map((r) => ({ plant: r.plantId ? plantName.get(r.plantId) ?? "Unknown" : "Not set", count: r._count })),
+    byDepartment: byDepartment.map((r) => ({ department: r.departmentId ? deptName.get(r.departmentId) ?? "Unknown" : "Not set", count: r._count })),
+    byMachineStatus: byMachineStatus.map((r) => ({ machineStatus: r.machineStatus ?? "Not set", count: r._count })),
+    byDelayReason: byDelayReason.filter((r) => r.delayReason).map((r) => ({ delayReason: r.delayReason!, count: r._count })),
+    checklistCompliance: [
+      { field: "Tools reclaimed (5S)", ...checklistField(tickets.map((t) => t.checklistToolsReclaimed)) },
+      { field: "Machine cleaned (5S)", ...checklistField(tickets.map((t) => t.checklistMachineCleaned)) },
+      { field: "Cable routing (5S)", ...checklistField(tickets.map((t) => t.checklistCableRouting)) },
+    ],
+    qualityRatings: [...qualityCounts.entries()].map(([rating, count]) => ({ rating, count })),
+    rejectedCount,
+  };
 }
 
 export { ticketWhere, helpdeskWhere };

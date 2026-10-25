@@ -1,11 +1,14 @@
 import cron from "node-cron";
-import { NotificationType, TicketStatus } from "@prisma/client";
+import { NotificationType, TicketStatus, Workstream } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { notify } from "../modules/notifications/notifications.service";
 
+// Target-completion-date / SLA tracking is IT only (the Oct 2026 maintenance
+// redesign dropped overdue tracking in favour of phase-by-phase analytics).
 async function checkSlaBreaches() {
   const overdueTickets = await prisma.ticket.findMany({
     where: {
+      workstream: Workstream.IT,
       status: { not: TicketStatus.CLOSED },
       slaBreached: false,
       targetCompletionDate: { lt: new Date() },

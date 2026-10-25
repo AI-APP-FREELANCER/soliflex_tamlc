@@ -349,174 +349,183 @@ async function main() {
   const mech2 = ids.mech2, emp2 = ids.emp2, eng2 = ids.eng2, itTech2 = ids.itTech2;
   await prisma.user.update({ where: { id: mech2.id }, data: { active: true } });
 
+  // ===================================================== PLANTS & DEPARTMENTS
+  section("PLANTS & DEPARTMENTS: admin-managed lists");
+  const unit1 = await prisma.plant.findUniqueOrThrow({ where: { name: "Unit_1" } });
+  const deptFabric = await prisma.department.findUniqueOrThrow({ where: { name: "Fabric" } });
+  let inactivePlant: any;
+  {
+    is("GET /plants needs auth", await get(undefined, "/plants"), 401);
+    ok("any signed-in user can list plants", (await get(mech, "/plants")).status === 200);
+    is("mechanic cannot create a plant", await post(mech, "/plants", { name: "Unit_9" }), 403);
+    is("manager cannot create a plant (admin only)", await post(mgrMFresh, "/plants", { name: "Unit_9" }), 403);
+    is("plant name with a space is rejected", await post(admin, "/plants", { name: "Unit 9" }), 400);
+    is("plant name too short is rejected", await post(admin, "/plants", { name: "U9" }), 400);
+    is("plant name too long is rejected", await post(admin, "/plants", { name: "A".repeat(21) }), 400);
+    is("plant name with other symbols is rejected", await post(admin, "/plants", { name: "Unit-9" }), 400);
+    const p1 = await post(admin, "/plants", { name: "Unit_9" });
+    is("admin creates a plant", p1, 201);
+    inactivePlant = p1.body;
+    is("duplicate plant name rejected", await post(admin, "/plants", { name: "Unit_9" }), 409);
+    is("admin renames a plant", await patch(admin, `/plants/${inactivePlant.id}`, { name: "Unit_9_North" }), 200);
+    const used = await post(prod, "/tickets", {
+      workstream: "MAINTENANCE",
+      category: "PRODUCTION_MACHINE",
+      description: "Needs attention for plant deletion test",
+      plantId: inactivePlant.id,
+      departmentId: deptFabric.id,
+      problemType: "MECHANICAL",
+      machineStatus: "RUNNING",
+    });
+    is("ticket raised against the new plant", used, 201);
+    is("deleting a plant in use is refused", await call("DELETE", `/api/plants/${inactivePlant.id}`, { token: admin }), 409);
+    is("deactivating it instead works", await patch(admin, `/plants/${inactivePlant.id}`, { active: false }), 200);
+    ok("inactive plants are hidden from the default (active-only) listing", !(await get(mech, "/plants")).body.some((x: any) => x.id === inactivePlant.id));
+    ok("…but still show up with ?all=true", (await get(admin, "/plants?all=true")).body.some((x: any) => x.id === inactivePlant.id));
+    is("creating a ticket against an inactive plant is refused", await post(prod, "/tickets", { workstream: "MAINTENANCE", category: "PRODUCTION_MACHINE", description: "x".repeat(10), plantId: inactivePlant.id, departmentId: deptFabric.id, problemType: "MECHANICAL", machineStatus: "RUNNING" }), 400);
+
+    is("mechanic cannot create a department", await post(mech, "/departments", { name: "Packing" }), 403);
+    is("department name too short is rejected", await post(admin, "/departments", { name: "X" }), 400);
+    const d1 = await post(admin, "/departments", { name: "Packing" });
+    is("admin creates a department (spaces allowed)", d1, 201);
+    is("duplicate department name rejected", await post(admin, "/departments", { name: "Packing" }), 409);
+    is("admin deactivates a department", await patch(admin, `/departments/${d1.body.id}`, { active: false }), 200);
+    is("unused department can be hard-deleted", await call("DELETE", `/api/departments/${d1.body.id}`, { token: admin }), 200);
+    const seeded = await get(mech, "/departments");
+    ok("the 7 seeded departments are present", ["Fabric", "Cutting", "Finishing", "Utility", "Container liner", "RP", "General"].every((n) => seeded.body.some((x: any) => x.name === n)));
+  }
+
+  /** Maintenance ticket-creation body: Plant/Department/Problem type/Machine status replace the old free-text plant field and Title. */
+  const mtBody = (o: Record<string, unknown> = {}) => ({
+    workstream: "MAINTENANCE",
+    category: "PRODUCTION_MACHINE",
+    description: "Strong vibration on the main drive",
+    plantId: unit1.id,
+    departmentId: deptFabric.id,
+    problemType: "MECHANICAL",
+    machineStatus: "RUNNING",
+    ...o,
+  });
+
   // ===================================================== LEGACY TICKETS
   section("TICKETS (Maintenance & IT board): permissions");
   {
-    const body = (o: Record<string, unknown> = {}) => ({ workstream: "MAINTENANCE", category: "PRODUCTION_MACHINE", title: "Press line vibration", description: "Strong vibration on the main drive", ...o });
     is("employee (helpdesk-only role) cannot list board tickets", await get(emp, "/tickets"), 403);
     is("engineer cannot list board tickets", await get(eng, "/tickets"), 403);
     is("Team Lead cannot list board tickets", await get(lead, "/tickets"), 403);
-    is("employee cannot create a board ticket", await post(emp, "/tickets", body()), 403);
-    is("mechanic cannot raise tickets", await post(mech, "/tickets", body()), 403);
-    is("production cannot raise IT tickets", await post(prod, "/tickets", body({ workstream: "IT", category: "LAPTOP" })), 403);
-    is("production cannot raise facility tickets (admin team only)", await post(prod, "/tickets", body({ category: "FACTORY_FACILITY" })), 403);
-    is("production cannot raise 'other machine' tickets (admin team only)", await post(prod, "/tickets", body({ category: "OTHER_MACHINE" })), 403);
-    is("admin team (ADMIN) can raise facility tickets", await post(admin, "/tickets", body({ category: "FACTORY_FACILITY", title: "Roof leak in bay 3" })), 201);
-    is("IT tech cannot raise maintenance tickets", await post(itTech, "/tickets", body()), 403);
-    is("IT tech cannot use a maintenance category in IT workstream", await post(itTech, "/tickets", body({ workstream: "IT", category: "PRODUCTION_MACHINE" })), 400);
-    is("title too short -> 400", await post(prod, "/tickets", body({ title: "ab" })), 400);
-    is("description too short -> 400", await post(prod, "/tickets", body({ description: "x" })), 400);
-    is("invalid category -> 400", await post(prod, "/tickets", body({ category: "NOPE" })), 400);
+    is("employee cannot create a board ticket", await post(emp, "/tickets", mtBody()), 403);
+    is("mechanic cannot raise tickets", await post(mech, "/tickets", mtBody()), 403);
+    is("production cannot raise IT tickets", await post(prod, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Laptop dead", description: "no power" }), 403);
+    is("production cannot raise facility tickets (admin team only)", await post(prod, "/tickets", mtBody({ category: "FACTORY_FACILITY" })), 403);
+    is("production cannot raise 'other machine' tickets (admin team only)", await post(prod, "/tickets", mtBody({ category: "OTHER_MACHINE" })), 403);
+    is("admin team (ADMIN) can raise facility tickets", await post(admin, "/tickets", mtBody({ category: "FACTORY_FACILITY" })), 201);
+    is("IT tech cannot raise maintenance tickets", await post(itTech, "/tickets", mtBody()), 403);
+    is("IT tech cannot use a maintenance category in IT workstream", await post(itTech, "/tickets", { workstream: "IT", category: "PRODUCTION_MACHINE", title: "x", description: "wrong category here" }), 400);
+    is("description too short -> 400", await post(prod, "/tickets", mtBody({ description: "x" })), 400);
+    is("invalid category -> 400", await post(prod, "/tickets", mtBody({ category: "NOPE" })), 400);
+    is("missing plant -> 400", await post(prod, "/tickets", mtBody({ plantId: undefined })), 400);
+    is("missing department -> 400", await post(prod, "/tickets", mtBody({ departmentId: undefined })), 400);
+    is("missing problem type -> 400", await post(prod, "/tickets", mtBody({ problemType: undefined })), 400);
+    is("missing machine status -> 400", await post(prod, "/tickets", mtBody({ machineStatus: undefined })), 400);
+    is("unknown plant -> 400", await post(prod, "/tickets", mtBody({ plantId: "nope" })), 400);
+    is("IT ticket without a title -> 400 (title still required for IT)", await post(itTech, "/tickets", { workstream: "IT", category: "LAPTOP", description: "no power at all" }), 400);
     is("unknown ticket -> 404", await get(mgrMFresh, "/tickets/does-not-exist"), 404);
     is("invalid status filter -> 400 (not 500)", await get(mgrMFresh, "/tickets?status=BOGUS"), 400);
   }
 
-  section("TICKETS: full maintenance workflow (create -> assign -> work -> approve -> review -> close -> reopen)");
+  section("TICKETS: full maintenance workflow (create -> acknowledge -> work -> hold/resume -> verify/reject -> close)");
   let T: any;
   {
-    const c = await post(prod, "/tickets", { workstream: "MAINTENANCE", category: "PRODUCTION_MACHINE", title: "Extruder motor overheating", description: "Motor trips after 20 minutes", plantLocation: "Plant A" });
+    const c = await post(prod, "/tickets", mtBody());
     is("production raises a maintenance ticket", c, 201);
     T = c.body;
     ok("ticket gets MAIN- number and OPEN status", /^MAIN-\d+$/.test(T.ticketNumber) && T.status === "OPEN");
+    ok("no title is stored any more - displayTitle falls back to a composed label", T.title === null && /Mechanical/.test(T.displayTitle));
     ok("raiser recorded and history started", T.reportedBy?.id === id("vikram.singh@soliflex.local") && T.statusHistory.length === 1);
     ok("maintenance manager notified of the new ticket", hasNotif(await notifs(mgrMFresh), T.ticketNumber));
     ok("raiser is not notified of their own ticket", !hasNotif(await notifs(prod), `New MAINTENANCE ticket ${T.ticketNumber}`));
-    const c2 = await post(mgrMFresh, "/tickets", { workstream: "MAINTENANCE", category: "OTHER_MACHINE", title: "Second ticket", description: "for sequence" });
+    const c2 = await post(mgrMFresh, "/tickets", mtBody());
     ok("ticket numbers are sequential and unique", Number(c2.body.ticketNumber.split("-")[1]) === Number(T.ticketNumber.split("-")[1]) + 1);
-    ok("IT tickets use their own IT- sequence", /^IT-\d+$/.test((await post(itTech, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Laptop dead", description: "no power" })).body.ticketNumber));
+    ok("IT tickets use their own IT- sequence and still collect a title", /^IT-\d+$/.test((await post(itTech, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Laptop dead", description: "no power" })).body.ticketNumber));
 
     const mechId = id("suresh.patil@soliflex.local");
     const base = `/tickets/${T.id}`;
-    is("mechanic cannot assign", await post(mech, `${base}/assign`, { assignedToId: mechId, priority: "HIGH" }), 403);
-    is("production cannot assign", await post(prod, `${base}/assign`, { assignedToId: mechId, priority: "HIGH" }), 403);
-    is("assign: priority required", await post(mgrMFresh, `${base}/assign`, { assignedToId: mechId }), 400);
-    is("assign: cannot give work to a PRODUCTION user", await post(mgrMFresh, `${base}/assign`, { assignedToId: id("vikram.singh@soliflex.local"), priority: "HIGH" }), 400);
-    is("assign: cannot give work to a manager", await post(mgrMFresh, `${base}/assign`, { assignedToId: id("ravi.menon@soliflex.local"), priority: "HIGH" }), 400);
-    is("assign: IT technician rejected for a maintenance ticket", await post(mgrMFresh, `${base}/assign`, { assignedToId: id("neha.verma@soliflex.local"), priority: "HIGH" }), 400);
-    is("assign: invalid target date -> 400", await post(mgrMFresh, `${base}/assign`, { assignedToId: mechId, priority: "HIGH", targetCompletionDate: "garbage" }), 400);
-    is("assign: negative effort -> 400", await post(mgrMFresh, `${base}/assign`, { assignedToId: mechId, priority: "HIGH", effortEstimateHours: -3 }), 400);
-    await prisma.user.update({ where: { id: mech2.id }, data: { active: false } });
-    is("assign: inactive technician rejected", await post(mgrMFresh, `${base}/assign`, { assignedToId: mech2.id, priority: "HIGH" }), 400);
-    await prisma.user.update({ where: { id: mech2.id }, data: { active: true } });
-    is("assign: unknown user -> 404", await post(mgrMFresh, `${base}/assign`, { assignedToId: "nope", priority: "HIGH" }), 404);
-    is("start before assignment rejected", await post(mech, `${base}/start-progress`), 403);
 
-    const as = await post(mgrMFresh, `${base}/assign`, { assignedToId: mechId, priority: "HIGH", targetCompletionDate: "2030-01-15", effortEstimateHours: 6 });
-    is("manager assigns (flexible date accepted)", as, 200);
-    ok("status ASSIGNED, manager recorded", as.body.status === "ASSIGNED" && as.body.managerId === id("ravi.menon@soliflex.local"));
-    ok("assignee notified", hasNotif(await notifs(mech), `assigned ticket ${T.ticketNumber}`));
-    is("cannot assign again once assigned (use edit assignment)", await post(mgrMFresh, `${base}/assign`, { assignedToId: mechId, priority: "LOW" }), 403);
+    is("production cannot acknowledge", await post(prod, `${base}/acknowledge`, {}), 403);
+    is("mechanic can only acknowledge to self, not someone else", await post(mech, `${base}/acknowledge`, { assigneeId: mech2.id }), 403);
+    is("manager must choose an assignee", await post(mgrMFresh, `${base}/acknowledge`, {}), 400);
+    is("start before acknowledge is rejected", await post(mech, `${base}/start-progress`), 403);
+    const ack = await post(mech, `${base}/acknowledge`, {});
+    is("mechanic self-assigns and acknowledges in one action", ack, 200);
+    ok("status ACKNOWLEDGED, assignee set together (never one without the other)", ack.body.status === "ACKNOWLEDGED" && ack.body.assignedToId === mechId);
+    ok("manager notified of the acknowledgement", hasNotif(await notifs(mgrMFresh), `acknowledged ${T.ticketNumber}`));
+    is("cannot acknowledge again once acknowledged", await post(mech, `${base}/acknowledge`, {}), 403);
 
     is("different mechanic cannot start", await post(mech2.token, `${base}/start-progress`), 403);
     is("manager cannot start (technician action)", await post(mgrMFresh, `${base}/start-progress`), 403);
     is("assignee starts work", await post(mech, `${base}/start-progress`), 200);
     is("cannot start twice", await post(mech, `${base}/start-progress`), 403);
 
-    // attachments
-    const up = (token: string, type: string, f = file()) => { f.append("type", type); return call("POST", `/api${base}/attachments`, { token, form: f }); };
-    is("recommendation blocked without pre-fix photo", await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing", fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 4500 }), 400);
-    is("upload: invalid attachment type -> 400 (not 500)", await up(mech, "BOGUS"), 400);
-    is("upload: unsupported file type -> 400 (not 500)", await up(mech, "PRE_FIX_PHOTO", file("x.exe", "application/x-msdownload", Buffer.from("MZ"))), 400);
-    is("upload: no file -> 400", await call("POST", `/api${base}/attachments`, { token: mech, form: (() => { const f = new FormData(); f.append("type", "PRE_FIX_PHOTO"); return f; })() }), 400);
-    const pre = await up(mech, "PRE_FIX_PHOTO");
-    is("upload pre-fix photo", pre, 201);
-    ok("upload stored under /uploads with random name", /^\/uploads\/\d+-[0-9a-f]{32}\.png$/.test(pre.body.fileUrl), pre.body.fileUrl);
-    ok("uploaded file can be opened by URL", (await fetch(`${baseUrl}${pre.body.fileUrl}`)).status === 200);
-    is("employee cannot attach to board tickets", await up(emp, "OTHER"), 403);
-
-    is("empty diagnosis rejected", await post(mech, `${base}/submit-recommendation`, { diagnosis: "", recommendedFix: "x", fixType: "MINOR_ADJUSTMENT" }), 400);
-    is("diagnosis without a fix type rejected", await post(mech, `${base}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b" }), 400);
-    is("other mechanic cannot submit recommendation", await post(mech2.token, `${base}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b", fixType: "MINOR_ADJUSTMENT" }), 403);
-    const sr = await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing", fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 4500 });
-    is("assignee submits diagnosis & fix", sr, 200);
-    ok("ticket is now on hold awaiting approval", sr.body.onHold === true && sr.body.onHoldReason === "APPROVAL");
-    ok("manager notified of approval request", hasNotif(await notifs(mgrMFresh), "awaiting your approval"));
-    is("cannot submit recommendation again while waiting", await post(mech, `${base}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b", fixType: "MINOR_ADJUSTMENT" }), 400);
-    is("cannot put on hold again", await post(mech, `${base}/hold`, { reason: "VENDOR", detail: "waiting" }), 400);
-    is("cannot resume an approval hold", await post(mech, `${base}/resume`), 400);
-    is("cannot send for review while awaiting approval", await post(mech, `${base}/mark-first-line-review`), 400);
-    is("mechanic cannot approve", await post(mech, `${base}/decide-recommendation`, { approve: true }), 403);
-    is("production cannot approve", await post(prod, `${base}/decide-recommendation`, { approve: true }), 403);
-
-    const rej = await post(mgrMFresh, `${base}/decide-recommendation`, { approve: false, comment: "Need cost estimate first" });
-    is("manager rejects recommendation", rej, 200);
-    ok("rejection clears the hold and stores no approval", rej.body.onHold === false && rej.body.approvedAt === null);
-    ok("rejection comment saved and technician notified", hasNotif(await notifs(mech), "rejected your fix"));
-    is("review blocked until the fix is approved", await post(mech, `${base}/mark-first-line-review`), 400);
-    is("technician resubmits", await post(mech, `${base}/submit-recommendation`, { diagnosis: "Bearing worn", recommendedFix: "Replace bearing + cost 4500", fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 4500 }), 200);
-    is("cannot decide when nothing is waiting (after decision)", await (async () => { await post(mgrMFresh, `${base}/decide-recommendation`, { approve: true }); return post(mgrMFresh, `${base}/decide-recommendation`, { approve: true }); })(), 400);
-    const cur = await get(mgrMFresh, base);
-    ok("recommendation approved and recorded", cur.body.approvedAt && cur.body.approvedBy?.id === id("ravi.menon@soliflex.local") && !cur.body.onHold);
-
-    // costs
     is("production cannot add costs", await post(prod, `${base}/costs`, { description: "x", amount: 5 }), 403);
     is("cost: zero/negative amount -> 400", await post(mech, `${base}/costs`, { description: "x", amount: 0 }), 400);
-    is("cost: missing description -> 400", await post(mech, `${base}/costs`, { description: "", amount: 5 }), 400);
-    is("mechanic adds cost", await post(mech, `${base}/costs`, { description: "Bearing 6205", amount: 1200.5, sparePartUsed: true }), 201);
-    is("manager adds cost", await post(mgrMFresh, `${base}/costs`, { description: "Labour", amount: 800 }), 201);
-    ok("actualCost is the running total", (await get(mgrMFresh, base)).body.actualCost === 2000.5);
+    is("large cost entry needs no approval any more", await post(mech, `${base}/costs`, { description: "Gearbox assembly", amount: 50000, sparePartUsed: true }), 201);
+    is("manager adds a cost too", await post(mgrMFresh, `${base}/costs`, { description: "Labour", amount: 800 }), 201);
+    ok("actualCost is the running total", (await get(mgrMFresh, base)).body.actualCost === 50800);
 
-    // hold / resume rules
-    is("other mechanic cannot hold", await post(mech2.token, `${base}/hold`, { reason: "VENDOR", detail: "x" }), 403);
-    is("hold needs a detail", await post(mech, `${base}/hold`, { reason: "VENDOR", detail: "" }), 400);
-    is("hold: invalid reason -> 400", await post(mech, `${base}/hold`, { reason: "BORED", detail: "x" }), 400);
-    is("resume when not on hold -> 400", await post(mech, `${base}/resume`), 400);
-    is("assignee puts it on hold (vendor)", await post(mech, `${base}/hold`, { reason: "VENDOR", detail: "Bearing arrives Friday" }), 200);
-    is("cannot send for review while on hold", await post(mech, `${base}/mark-first-line-review`), 400);
-    is("other mechanic cannot resume", await post(mech2.token, `${base}/resume`), 403);
-    is("resume", await post(mech, `${base}/resume`), 200);
+    is("hold: notes without a reason -> 400", await post(mech, `${base}/maint-hold`, { delayNotes: "Waiting on something here" }), 400);
+    is("hold: reason without notes -> 400", await post(mech, `${base}/maint-hold`, { delayReason: "WAITING_FOR_SPARES" }), 400);
+    is("hold: notes too short -> 400", await post(mech, `${base}/maint-hold`, { delayReason: "WAITING_FOR_SPARES", delayNotes: "short" }), 400);
+    is("other mechanic cannot hold", await post(mech2.token, `${base}/maint-hold`, {}), 403);
+    const hld = await post(mech, `${base}/maint-hold`, { delayReason: "WAITING_FOR_SPARES", delayNotes: "Bearing ordered, arrives Friday" });
+    is("assignee puts it on hold with a delay reason (optional section)", hld, 200);
+    ok("status is ON_HOLD as a first-class status (not just a flag)", hld.body.status === "ON_HOLD" && hld.body.delayReason === "WAITING_FOR_SPARES");
+    is("cannot send for verification while on hold", await post(mech, `${base}/mark-verification-needed`, { toolsReclaimed: "YES", machineCleaned: "YES", cableRouting: "YES" }), 403);
+    is("hold with no reason at all is fine too (it is optional)", await post(mech, `${base}/maint-resume`), 200);
+    ok("resumed back to IN_PROGRESS", (await get(mgrMFresh, base)).body.status === "IN_PROGRESS");
+    is("hold again then confirm another mechanic cannot resume it", await post(mech, `${base}/maint-hold`, {}), 200);
+    is("other mechanic cannot resume", await post(mech2.token, `${base}/maint-resume`), 403);
+    is("resume for real", await post(mech, `${base}/maint-resume`), 200);
 
-    is("post-fix photo required before review", await post(mech, `${base}/mark-first-line-review`), 400);
-    is("other mechanic cannot send for review", await post(mech2.token, `${base}/mark-first-line-review`), 403);
-    is("upload post-fix photo", await up(mech, "POST_FIX_PHOTO"), 201);
-    const fl = await post(mech, `${base}/mark-first-line-review`);
-    is("assignee sends for 1st line review", fl, 200);
-    ok("status FIRST_LINE_REVIEW and manager notified", fl.body.status === "FIRST_LINE_REVIEW" && hasNotif(await notifs(mgrMFresh), "ready for 1st line review"));
-    is("other mechanic cannot mark job completed", await post(mech2.token, `${base}/mark-job-completed`), 403);
-    is("production cannot mark job completed", await post(prod, `${base}/mark-job-completed`), 403);
-    is("cannot jump to final review from 1st line", await post(mgrMFresh, `${base}/mark-final-review`), 403);
-    is("assignee marks job completed", await post(mech, `${base}/mark-job-completed`), 200);
-    is("mechanic cannot send to final review", await post(mech, `${base}/mark-final-review`), 403);
-    is("manager sends to final review", await post(mgrMFresh, `${base}/mark-final-review`), 200);
+    is("checklist: invalid answer -> 400", await post(mech, `${base}/mark-verification-needed`, { toolsReclaimed: "MAYBE", machineCleaned: "YES", cableRouting: "YES" }), 400);
+    is("checklist: missing field -> 400", await post(mech, `${base}/mark-verification-needed`, { toolsReclaimed: "YES", machineCleaned: "YES" }), 400);
+    is("other mechanic cannot mark verification needed", await post(mech2.token, `${base}/mark-verification-needed`, { toolsReclaimed: "YES", machineCleaned: "YES", cableRouting: "YES" }), 403);
+    const vn = await post(mech, `${base}/mark-verification-needed`, { toolsReclaimed: "YES", machineCleaned: "YES", cableRouting: "NA" });
+    is("assignee marks ready for verification with the 5S checklist", vn, 200);
+    ok("status VERIFICATION_NEEDED, checklist stored", vn.body.status === "VERIFICATION_NEEDED" && vn.body.checklistCableRouting === "NA" && vn.body.checklistToolsReclaimed === "YES");
+    ok("production team notified", hasNotif(await notifs(prod), `${T.ticketNumber} needs your verification`));
 
-    is("mechanic cannot close", await post(mech, `${base}/close`, { confirmEquipmentOperational: true, closingComment: "ok" }), 403);
-    is("close needs the operational confirmation", await post(mgrMFresh, `${base}/close`, { confirmEquipmentOperational: false, closingComment: "done" }), 400);
-    is("close: missing flag -> 400", await post(mgrMFresh, `${base}/close`, { closingComment: "done" }), 400);
-    const closed = await post(mgrMFresh, `${base}/close`, { confirmEquipmentOperational: true, closingComment: "Motor replaced and tested" });
-    is("manager verifies & closes", closed, 200);
-    ok("closed with closer + timestamp", closed.body.status === "CLOSED" && closed.body.closedAt && closed.body.closedById);
-    ok("raiser and assignee notified of closure", hasNotif(await notifs(prod), `${T.ticketNumber} was closed`) && hasNotif(await notifs(mech), "verified and closed"));
-    is("cannot add costs to a closed ticket", await post(mech, `${base}/costs`, { description: "late", amount: 5 }), 400);
-    is("cannot change priority on a closed ticket", await patch(mgrMFresh, `${base}/priority`, { priority: "LOW" }), 400);
-    is("cannot edit assignment on a closed ticket", await patch(mgrMFresh, `${base}/assignment`, { effortEstimateHours: 3 }), 400);
-    is("cannot hold a closed ticket", await post(mgrMFresh, `${base}/hold`, { reason: "VENDOR", detail: "x" }), 403);
+    is("mechanic cannot verify", await post(mech, `${base}/verify-and-close`, { qualityRating: "GOOD", certify: true }), 403);
+    is("reject needs a reason", await post(prod, `${base}/reject-verification`, {}), 400);
+    const rj = await post(prod, `${base}/reject-verification`, { reason: "Still vibrating, not fixed" });
+    is("production rejects the fix", rj, 200);
+    ok("looped back to IN_PROGRESS (maintenance has no reopen - this is how rework happens)", rj.body.status === "IN_PROGRESS");
+    ok("5S checklist reset so it must be redone after the rework", rj.body.checklistToolsReclaimed === null && rj.body.checklistMachineCleaned === null);
+    ok("mechanic notified of the rejection with the reason", hasNotif(await notifs(mech), "Still vibrating, not fixed"));
+    const afterReject = (await get(mgrMFresh, base)).body;
+    ok("rejection recorded as its own phase in the history", afterReject.statusHistory.some((h: any) => h.toStatus === "REJECTED"));
+    ok("rejection reason also saved as a comment", afterReject.comments.some((cm: any) => cm.body.includes("Still vibrating")));
 
-    // reopen
-    is("mechanic cannot reopen", await post(mech, `${base}/reopen`, { reason: "again" }), 403);
-    is("reopen needs a reason", await post(mgrMFresh, `${base}/reopen`, { reason: "" }), 400);
-    const ro = await post(mgrMFresh, `${base}/reopen`, { reason: "Noise is back after two days" });
-    is("manager reopens a closed ticket", ro, 200);
-    ok("reopened to IN_PROGRESS with closure cleared", ro.body.status === "IN_PROGRESS" && ro.body.closedAt === null && ro.body.closedById === null);
+    is("redo the checklist", await post(mech, `${base}/mark-verification-needed`, { toolsReclaimed: "YES", machineCleaned: "YES", cableRouting: "YES" }), 200);
+    is("verify needs certification", await post(prod, `${base}/verify-and-close`, { qualityRating: "GOOD" }), 400);
+    is("verify needs a quality rating", await post(prod, `${base}/verify-and-close`, { certify: true }), 400);
+    const vc = await post(prod, `${base}/verify-and-close`, { qualityRating: "EXCELLENT", qualityFeedback: "Clean job, no issues", certify: true });
+    is("production verifies, certifies and closes in one action", vc, 200);
+    ok("CLOSED, certified with who/when, closedBy recorded", vc.body.status === "CLOSED" && vc.body.productionCertified === true && !!vc.body.productionCertifiedAt && vc.body.closedById === id("vikram.singh@soliflex.local"));
+    ok("quality feedback stored", vc.body.qualityRating === "EXCELLENT" && vc.body.qualityFeedback === "Clean job, no issues");
     const full = (await get(mgrMFresh, base)).body;
-    ok("reopen reason stored as a comment and in the history", full.comments.some((c: any) => c.body.includes("Noise is back")) && full.statusHistory.some((h: any) => h.toStatus === "IN_PROGRESS" && h.fromStatus === "CLOSED"));
-    ok("assignee notified of the reopen", hasNotif(await notifs(mech), "was reopened"));
-    ok("complete status history captured end-to-end", ["OPEN", "ASSIGNED", "IN_PROGRESS", "FIRST_LINE_REVIEW", "JOB_COMPLETED", "FINAL_REVIEW", "CLOSED"].every((s) => full.statusHistory.some((h: any) => h.toStatus === s)));
+    ok("VERIFIED is captured as its own phase for reporting, even though it leads straight to CLOSED", full.statusHistory.some((h: any) => h.toStatus === "VERIFIED"));
+    ok("complete status history captured end-to-end", ["OPEN", "ACKNOWLEDGED", "IN_PROGRESS", "ON_HOLD", "VERIFICATION_NEEDED", "REJECTED", "VERIFIED", "CLOSED"].every((st) => full.statusHistory.some((h: any) => h.toStatus === st)));
+    ok("mechanic and manager notified of closure", hasNotif(await notifs(mech), "verified and closed"));
+    is("cannot verify-and-close again once closed", await post(prod, `${base}/verify-and-close`, { qualityRating: "GOOD", certify: true }), 403);
+    is("cannot add costs to a closed ticket", await post(mech, `${base}/costs`, { description: "late", amount: 5 }), 400);
+    is("no reopening for maintenance tickets (IT keeps it)", await post(mgrMFresh, `${base}/reopen`, { reason: "again" }), 403);
+    ok("no target completion date is ever collected for maintenance", full.targetCompletionDate === null);
+    ok("maintenance tickets never carry an SLA breach flag", full.slaBreached === false);
 
-    // edit assignment / priority
-    is("edit assignment: reassign to another mechanic", await patch(mgrMFresh, `${base}/assignment`, { assignedToId: mech2.id, effortEstimateHours: 4, targetCompletionDate: "2031-03-01" }), 200);
-    ok("reassigned technician notified", hasNotif(await notifs(mech2.token), `assigned ticket ${T.ticketNumber}`));
-    is("edit assignment: can clear the target date", await patch(mgrMFresh, `${base}/assignment`, { targetCompletionDate: null }), 200);
-    ok("target date cleared", (await get(mgrMFresh, base)).body.targetCompletionDate === null);
-    is("edit assignment: mechanic denied", await patch(mech, `${base}/assignment`, { effortEstimateHours: 1 }), 403);
-    is("priority: manager can change", await patch(mgrMFresh, `${base}/priority`, { priority: "CRITICAL" }), 200);
-    is("priority: invalid value -> 400", await patch(mgrMFresh, `${base}/priority`, { priority: "URGENT" }), 400);
-    is("priority: mechanic denied", await patch(mech, `${base}/priority`, { priority: "LOW" }), 403);
-
-    // comments
-    is("add comment", await post(prod, `${base}/comments`, { body: "Operator confirms the noise" }), 201);
+    is("priority: manager can change", await patch(mgrMFresh, `${base}/priority`, { priority: "LOW" }), 400);
+    is("add comment: still refused once closed is irrelevant, comments stay open", await post(prod, `${base}/comments`, { body: "Confirmed fixed on the floor" }), 201);
     is("empty comment -> 400", await post(prod, `${base}/comments`, { body: "" }), 400);
     is("employee cannot comment on board tickets", await post(emp, `${base}/comments`, { body: "hi" }), 403);
-    ok("assignee and manager notified of the comment", hasNotif(await notifs(mgrMFresh), `New comment on ${T.ticketNumber}`));
   }
 
   section("TICKETS: IT workstream, lists and filters");
@@ -534,113 +543,8 @@ async function main() {
     ok("assignee filter", (await get(mgrMFresh, `/tickets?assignedToId=${id("neha.verma@soliflex.local")}`)).body.every((t: any) => t.assignedToId === id("neha.verma@soliflex.local")));
     ok("date preset 'today' includes tickets created now", (await get(mgrIT, "/tickets?range=today")).body.some((t: any) => t.id === itT.id));
     ok("custom range in the past excludes them", (await get(mgrMFresh, "/tickets?range=custom&from=2019-01-01&to=2019-01-31")).body.length === 0);
-    ok("onHold filter", (await get(mgrMFresh, "/tickets?onHold=true")).body.every((t: any) => t.onHold));
     const hist = await get(admin, `/audit?entityType=Ticket&entityId=${T.id}`);
-    ok("audit trail recorded the key ticket events", ["CREATE", "CLOSE", "REOPEN", "HOLD", "RESUME", "RECOMMENDATION_SUBMITTED", "RECOMMENDATION_APPROVED", "RECOMMENDATION_REJECTED"].every((a) => hist.body.entries.some((e: any) => e.action === a)));
-  }
-
-
-  const THRESHOLD = 2500;
-  section("TICKETS: repair type and cost-based approval (maintenance)");
-  {
-    const mechId = id("suresh.patil@soliflex.local");
-    const upload = (token: string, tid: string, type: string) => {
-      const f = file();
-      f.append("type", type);
-      return call("POST", `/api/tickets/${tid}/attachments`, { token, form: f });
-    };
-    // raise -> assign -> start work, optionally with the pre-fix photo
-    const inProgress = async (title: string, withPhoto = true) => {
-      const t = (await post(prod, "/tickets", { workstream: "MAINTENANCE", category: "PRODUCTION_MACHINE", title, description: "needs attention" })).body;
-      await post(mgrMFresh, `/tickets/${t.id}/assign`, { assignedToId: mechId, priority: "MEDIUM" });
-      await post(mech, `/tickets/${t.id}/start-progress`);
-      if (withPhoto) await upload(mech, t.id, "PRE_FIX_PHOTO");
-      return t;
-    };
-    const sr = (tid: string, o: Record<string, unknown>) => post(mech, `/tickets/${tid}/submit-recommendation`, { diagnosis: "Checked on site", recommendedFix: "Fix applied", ...o });
-    const close = (token: string, tid: string, o: Record<string, unknown> = {}) => post(token, `/tickets/${tid}/close-direct`, { confirmEquipmentOperational: true, closingComment: "Done and tested", ...o });
-
-    const seen = await get(mgrMFresh, `/tickets/${(await inProgress("Threshold probe")).id}`);
-    ok("ticket detail exposes the approval threshold", seen.body.approvalThreshold === THRESHOLD, String(seen.body.approvalThreshold));
-
-    // A. minor adjustment: no approval, engineer closes with a photo
-    const a = await inProgress("Loose drive belt");
-    is("close before any diagnosis is refused", await close(mech, a.id), 400);
-    is("diagnosis needs a repair type", await sr(a.id, {}), 400);
-    is("spare part needs an estimated cost", await sr(a.id, { fixType: "SPARE_PART_REPLACEMENT" }), 400);
-    is("estimated cost must be positive", await sr(a.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 0 }), 400);
-    is("invalid repair type -> 400", await sr(a.id, { fixType: "MAGIC" }), 400);
-    const ra = await sr(a.id, { fixType: "MINOR_ADJUSTMENT", recommendedFix: "Re-tension belt" });
-    is("engineer logs a minor adjustment", ra, 200);
-    ok("no approval hold and approval not required", ra.body.onHold === false && ra.body.approvalRequired === false && ra.body.fixType === "MINOR_ADJUSTMENT", JSON.stringify(ra.body).slice(0, 200));
-    ok("manager is told it needs no approval", hasNotif(await notifs(mgrMFresh), `diagnosed ${a.ticketNumber}`));
-    is("close needs a post-fix photo", await close(mech, a.id), 400);
-    is("upload post-fix photo", await upload(mech, a.id, "POST_FIX_PHOTO"), 201);
-    is("close needs the operational confirmation", await close(mech, a.id, { confirmEquipmentOperational: false }), 400);
-    is("another mechanic cannot close it", await close(mech2.token, a.id), 403);
-    is("production cannot close it", await close(prod, a.id), 403);
-    is("spare part cost cannot be added to a minor adjustment", await post(mech, `/tickets/${a.id}/costs`, { description: "washer", amount: 10, sparePartUsed: true }), 400);
-    const ca = await close(mech, a.id);
-    is("engineer closes the ticket directly", ca, 200);
-    ok("closed by the engineer, no review chain", ca.body.status === "CLOSED" && ca.body.closedById === mechId);
-    const fa = (await get(mgrMFresh, `/tickets/${a.id}`)).body;
-    ok("history records the direct close", fa.statusHistory.some((h: any) => h.toStatus === "CLOSED" && /minor adjustment/.test(h.comment ?? "")));
-    ok("raiser and manager notified", hasNotif(await notifs(prod), `${a.ticketNumber} was closed by`) && hasNotif(await notifs(mgrMFresh), `${a.ticketNumber} was closed by`));
-    is("cannot close twice", await close(mech, a.id), 403);
-
-    // B. spare part below the threshold: no approval
-    const b = await inProgress("Worn limit switch");
-    const rb = await sr(b.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: THRESHOLD - 1 });
-    is("spare part under the threshold", rb, 200);
-    ok("no approval hold; estimate kept", rb.body.onHold === false && rb.body.approvalRequired === false && rb.body.estimatedCost === THRESHOLD - 1);
-    is("record part cost", await post(mech, `/tickets/${b.id}/costs`, { description: "Limit switch", amount: 1000, sparePartUsed: true }), 201);
-    is("cost that would reach the threshold is refused", await post(mech, `/tickets/${b.id}/costs`, { description: "More", amount: 1500 }), 400);
-    is("cost under the threshold is fine", await post(mech, `/tickets/${b.id}/costs`, { description: "Labour", amount: 1400 }), 201);
-    await upload(mech, b.id, "POST_FIX_PHOTO");
-    is("engineer closes a sub-threshold spare part job", await close(mech, b.id), 200);
-
-    // C. at/above the threshold: approval, then the review chain; no shortcut
-    const c = await inProgress("Gearbox failure");
-    const rc = await sr(c.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: THRESHOLD });
-    is("spare part exactly at the threshold", rc, 200);
-    ok("held for manager approval", rc.body.onHold === true && rc.body.onHoldReason === "APPROVAL" && rc.body.approvalRequired === true);
-    ok("manager asked for approval with the cost", hasNotif(await notifs(mgrMFresh), `awaiting your approval (est.`));
-    is("cannot close while approval is pending", await close(mech, c.id), 400);
-    is("manager approves", await post(mgrMFresh, `/tickets/${c.id}/decide-recommendation`, { approve: true }), 200);
-    await upload(mech, c.id, "POST_FIX_PHOTO");
-    const direct = await close(mech, c.id);
-    is("approved high-cost job cannot take the shortcut", direct, 400);
-    ok("message explains approval is needed", /approval/i.test(direct.body.error ?? ""));
-    is("approved job follows the review chain", await post(mech, `/tickets/${c.id}/mark-first-line-review`), 200);
-    is("review chain: job completed", await post(mech, `/tickets/${c.id}/mark-job-completed`), 200);
-    is("review chain: final review", await post(mgrMFresh, `/tickets/${c.id}/mark-final-review`), 200);
-    is("review chain: manager closes", await post(mgrMFresh, `/tickets/${c.id}/close`, { confirmEquipmentOperational: true, closingComment: "Verified" }), 200);
-
-    // D. no approval-needed job can still be sent to review if the engineer prefers
-    const d = await inProgress("Sensor drift");
-    await sr(d.id, { fixType: "MINOR_ADJUSTMENT" });
-    await upload(mech, d.id, "POST_FIX_PHOTO");
-    is("no-approval job may still go to 1st line review", await post(mech, `/tickets/${d.id}/mark-first-line-review`), 200);
-    is("direct close is refused once the ticket is in the review stage", await close(mgrMFresh, d.id), 400);
-
-    // E. no approval path cannot be gamed through costs: escalate by resubmitting
-    const e = await inProgress("Hydraulic hose");
-    await sr(e.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 900 });
-    is("big cost on a cleared job is refused", await post(mech, `/tickets/${e.id}/costs`, { description: "Hose + fittings", amount: 5200, sparePartUsed: true }), 400);
-    const re = await sr(e.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 5200 });
-    is("engineer resubmits with the real cost", re, 200);
-    ok("now requires approval", re.body.onHold === true && re.body.approvalRequired === true && re.body.approvedAt === null);
-
-    // F. costs recorded before the diagnosis count towards the threshold
-    const f = await inProgress("Pump seal");
-    is("cost before diagnosis is allowed", await post(mech, `/tickets/${f.id}/costs`, { description: "Seal kit", amount: 3000, sparePartUsed: true }), 201);
-    const rf = await sr(f.id, { fixType: "SPARE_PART_REPLACEMENT", estimatedCost: 500 });
-    ok("understated estimate cannot hide recorded cost", rf.body.onHold === true && rf.body.approvalRequired === true, JSON.stringify(rf.body).slice(0, 160));
-    const g = await inProgress("Panel tweak");
-    await post(mech, `/tickets/${g.id}/costs`, { description: "Part", amount: 100, sparePartUsed: true });
-    is("minor adjustment refused when spare parts are already recorded", await sr(g.id, { fixType: "MINOR_ADJUSTMENT" }), 400);
-
-    ok("audit trail shows the cost outcome", (await get(admin, `/audit?entityType=Ticket&entityId=${b.id}`)).body.entries.some((x: any) => x.action === "RECOMMENDATION_SUBMITTED" && /no approval needed/.test(x.newValue ?? "")));
+    ok("audit trail recorded the new maintenance-workflow events", ["CREATE", "COST_ENTRY_ADDED", "VERIFICATION_REJECTED", "VERIFIED_AND_CLOSED"].every((a) => hist.body.entries.some((e: any) => e.action === a)));
   }
 
   section("TICKETS: IT workflow is separate from Maintenance, and each team sees only its own");
@@ -649,8 +553,8 @@ async function main() {
     const itT = (await post(itTech, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Printer driver missing", description: "Cannot print from the laptop" })).body;
     await post(mgrIT, `/tickets/${itT.id}/assign`, { assignedToId: netha, priority: "LOW" });
     is("IT engineer starts work", await post(itTech, `/tickets/${itT.id}/start-progress`), 200);
-    is("IT: the maintenance diagnosis/approval step is not used", await post(itTech, `/tickets/${itT.id}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b", fixType: "MINOR_ADJUSTMENT" }), 400);
-    is("IT: there is no 1st line review", await post(itTech, `/tickets/${itT.id}/mark-first-line-review`), 400);
+    is("IT: the old maintenance diagnosis/approval route no longer exists at all", await post(itTech, `/tickets/${itT.id}/submit-recommendation`, { diagnosis: "a", recommendedFix: "b" }), 404);
+    is("IT: the old 1st-line-review route no longer exists at all", await post(itTech, `/tickets/${itT.id}/mark-first-line-review`), 404);
     is("IT: closing needs a resolution note", await post(itTech, `/tickets/${itT.id}/close-direct`, { confirmEquipmentOperational: true }), 400);
     is("IT: closing needs the resolved confirmation", await post(itTech, `/tickets/${itT.id}/close-direct`, { confirmEquipmentOperational: false, closingComment: "Installed" }), 400);
     is("IT: another technician cannot close it", await post(itTech2.token, `/tickets/${itT.id}/close-direct`, { confirmEquipmentOperational: true, closingComment: "x" }), 403);
@@ -820,16 +724,16 @@ async function main() {
     ok("job produced new lead notifications", (await notifs(lead)).length > before);
   }
 
-  section("SLA job for board tickets");
+  section("SLA job for board tickets (IT only - maintenance dropped target-date/overdue tracking)");
   {
-    const t = (await post(prod, "/tickets", { workstream: "MAINTENANCE", category: "PRODUCTION_MACHINE", title: "Conveyor belt slipping", description: "Slips under load" })).body;
-    await post(mgrMFresh, `/tickets/${t.id}/assign`, { assignedToId: id("suresh.patil@soliflex.local"), priority: "LOW", targetCompletionDate: "2031-01-01" });
+    const t = (await post(itTech, "/tickets", { workstream: "IT", category: "SERVER", title: "Backup job failing", description: "Nightly backup keeps failing" })).body;
+    await post(mgrIT, `/tickets/${t.id}/assign`, { assignedToId: id("neha.verma@soliflex.local"), priority: "LOW", targetCompletionDate: "2031-01-01" });
     await prisma.ticket.update({ where: { id: t.id }, data: { targetCompletionDate: new Date(Date.now() - 7_200_000), slaBreached: false } });
-    ok("board list shows SLA breached immediately", (await get(mgrMFresh, `/tickets/${t.id}`)).body.slaBreached === true);
+    ok("board list shows SLA breached immediately", (await get(mgrIT, `/tickets/${t.id}`)).body.slaBreached === true);
     startSlaCheckJob();
     await new Promise((r) => setTimeout(r, 6500));
     ok("SLA job sets the flag", (await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).slaBreached === true);
-    ok("SLA job notifies manager and assignee", hasNotif(await notifs(mgrMFresh), `SLA breached for ${t.ticketNumber}`) && hasNotif(await notifs(mech), `SLA breached for ${t.ticketNumber}`));
+    ok("SLA job notifies manager and assignee", hasNotif(await notifs(mgrIT), `SLA breached for ${t.ticketNumber}`) && hasNotif(await notifs(itTech), `SLA breached for ${t.ticketNumber}`));
   }
 
   // ===================================================== ASSETS
@@ -921,9 +825,10 @@ async function main() {
     const bi2 = await call("POST", "/api/assets/it/bulk-import", { token: itTech, form: f2 });
     ok("IT bulk import works", bi2.status === 200 && bi2.body.imported === 1, JSON.stringify(bi2.body));
 
-    // linking assets to tickets
-    const lt = await post(prod, "/tickets", { workstream: "MAINTENANCE", category: "PRODUCTION_MACHINE", title: "Slitter jam", description: "Jams at speed", maintenanceAssetId: aId });
-    ok("ticket can be linked to an asset", lt.status === 201 && lt.body.maintenanceAssetId === aId);
+    // "Linked Asset (Optional)" was removed from maintenance ticket creation (Oct 2026) -
+    // sending maintenanceAssetId is simply ignored, not an error.
+    const lt = await post(prod, "/tickets", mtBody({ maintenanceAssetId: aId }));
+    ok("maintenanceAssetId is no longer accepted on create - ticket is raised unlinked", lt.status === 201 && lt.body.maintenanceAssetId === null);
 
     // asset alert job
     await prisma.maintenanceAsset.update({ where: { id: aId }, data: { warrantyEndDate: new Date(Date.now() + 10 * 86_400_000), expiryAlertedAt: null, statusSince: new Date(Date.now() - 100 * 3_600_000), downtimeAlertedAt: null } });

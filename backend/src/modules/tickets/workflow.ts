@@ -1,37 +1,40 @@
-import { Role, TicketStatus } from "@prisma/client";
+import { Role, TicketStatus, Workstream } from "@prisma/client";
 
 /**
- * Core status flow (spec §4):
- * OPEN -> ASSIGNED -> IN_PROGRESS -> FIRST_LINE_REVIEW -> JOB_COMPLETED -> FINAL_REVIEW -> CLOSED
+ * Two independent status machines share the Ticket table (Oct 2026 redesign):
  *
- * On-hold (Waiting for Vendor / Material / Approval) is modeled as an
- * orthogonal flag on top of `status` rather than a distinct status value, so
- * resuming restores the ticket to whatever status it was in before the hold.
+ * IT:          OPEN -> ASSIGNED -> IN_PROGRESS -> CLOSED (+ REOPEN, HOLD/RESUME)
+ * Maintenance: OPEN -> ACKNOWLEDGED -> IN_PROGRESS -> (ON_HOLD <-> IN_PROGRESS)
+ *              -> VERIFICATION_NEEDED -> CLOSED (via VERIFIED), or back to
+ *              IN_PROGRESS (via REJECTED). No approval step, no reopening.
+ *
+ * FIRST_LINE_REVIEW / JOB_COMPLETED / FINAL_REVIEW / the old CLOSE+approval
+ * actions only exist for tickets raised before this redesign; no transition
+ * below produces them, but they remain valid `from` history for display.
  */
 
 export type TicketAction =
+  // IT only
   | "ASSIGN"
   | "START_PROGRESS"
-  | "SUBMIT_RECOMMENDATION"
-  | "APPROVE_RECOMMENDATION"
-  | "REJECT_RECOMMENDATION"
-  | "MARK_FIRST_LINE_REVIEW"
-  | "MARK_JOB_COMPLETED"
-  | "MARK_FINAL_REVIEW"
-  | "CLOSE"
   | "DIRECT_CLOSE"
   | "HOLD"
   | "RESUME"
-  | "REOPEN";
+  | "REOPEN"
+  // Maintenance only
+  | "ACKNOWLEDGE"
+  | "MAINT_HOLD"
+  | "MAINT_RESUME"
+  | "MARK_VERIFICATION_NEEDED"
+  | "VERIFY_AND_CLOSE"
+  | "REJECT_VERIFICATION";
 
 interface TransitionRule {
   from: TicketStatus[];
-  to: TicketStatus | null; // null = no status change (e.g. submitting a recommendation)
+  to: TicketStatus | null;
   roles: Role[];
-  /** actor must also be the ticket's assignee (in addition to having the role) */
+  /** actor must also be the ticket's assignee (managers/admins bypass) */
   requireAssignee?: boolean;
-  /** actor must also be the ticket's manager */
-  requireManager?: boolean;
 }
 
 export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
@@ -41,87 +44,92 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
     roles: [Role.MANAGER, Role.ADMIN],
   },
   START_PROGRESS: {
-    from: [TicketStatus.ASSIGNED],
+    from: [TicketStatus.ASSIGNED, TicketStatus.ACKNOWLEDGED],
     to: TicketStatus.IN_PROGRESS,
     roles: [Role.MECHANIC, Role.IT_TEAM],
     requireAssignee: true,
-  },
-  SUBMIT_RECOMMENDATION: {
-    // diagnosis + recommended fix logged, ticket goes on-hold awaiting manager approval
-    from: [TicketStatus.IN_PROGRESS],
-    to: null,
-    roles: [Role.MECHANIC, Role.IT_TEAM],
-    requireAssignee: true,
-  },
-  APPROVE_RECOMMENDATION: {
-    from: [TicketStatus.IN_PROGRESS],
-    to: TicketStatus.IN_PROGRESS,
-    roles: [Role.MANAGER, Role.ADMIN],
-  },
-  REJECT_RECOMMENDATION: {
-    from: [TicketStatus.IN_PROGRESS],
-    to: TicketStatus.IN_PROGRESS,
-    roles: [Role.MANAGER, Role.ADMIN],
-  },
-  MARK_FIRST_LINE_REVIEW: {
-    // fix executed + post-fix photos uploaded
-    from: [TicketStatus.IN_PROGRESS],
-    to: TicketStatus.FIRST_LINE_REVIEW,
-    roles: [Role.MECHANIC, Role.IT_TEAM],
-    requireAssignee: true,
-  },
-  MARK_JOB_COMPLETED: {
-    from: [TicketStatus.FIRST_LINE_REVIEW],
-    to: TicketStatus.JOB_COMPLETED,
-    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
-    requireAssignee: true,
-  },
-  MARK_FINAL_REVIEW: {
-    from: [TicketStatus.JOB_COMPLETED],
-    to: TicketStatus.FINAL_REVIEW,
-    roles: [Role.MANAGER, Role.ADMIN],
-  },
-  CLOSE: {
-    from: [TicketStatus.FINAL_REVIEW],
-    to: TicketStatus.CLOSED,
-    roles: [Role.MANAGER, Role.ADMIN],
   },
   DIRECT_CLOSE: {
-    // Fast path: the engineer (or a manager) closes the job without the review
-    // chain. Maintenance: only when no approval is needed (minor adjustment, or a
-    // spare part below the cost threshold). IT: always. Extra rules in the service.
-    from: [TicketStatus.IN_PROGRESS, TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW],
+    from: [TicketStatus.IN_PROGRESS],
     to: TicketStatus.CLOSED,
-    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
+    roles: [Role.MANAGER, Role.ADMIN, Role.IT_TEAM],
     requireAssignee: true,
   },
   HOLD: {
-    from: [TicketStatus.OPEN, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW],
+    from: [TicketStatus.OPEN, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
     to: null,
-    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
+    roles: [Role.MANAGER, Role.ADMIN, Role.IT_TEAM],
     requireAssignee: true,
   },
   RESUME: {
-    from: [TicketStatus.OPEN, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW],
+    from: [TicketStatus.OPEN, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
     to: null,
-    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.IT_TEAM],
+    roles: [Role.MANAGER, Role.ADMIN, Role.IT_TEAM],
     requireAssignee: true,
   },
   REOPEN: {
-    // Includes CLOSED so a ticket can be reopened if the fix turns out not to
-    // have actually resolved the problem — previously this rule stopped short
-    // of CLOSED and no service function/route implemented it at all.
-    from: [TicketStatus.FIRST_LINE_REVIEW, TicketStatus.JOB_COMPLETED, TicketStatus.FINAL_REVIEW, TicketStatus.CLOSED],
+    from: [TicketStatus.CLOSED],
     to: TicketStatus.IN_PROGRESS,
     roles: [Role.MANAGER, Role.ADMIN],
   },
+
+  ACKNOWLEDGE: {
+    // Self-assign (Mechanic) or manager-assign; sets the assignee and status together.
+    from: [TicketStatus.OPEN],
+    to: TicketStatus.ACKNOWLEDGED,
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC],
+  },
+  MAINT_HOLD: {
+    from: [TicketStatus.IN_PROGRESS],
+    to: TicketStatus.ON_HOLD,
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC],
+    requireAssignee: true,
+  },
+  MAINT_RESUME: {
+    from: [TicketStatus.ON_HOLD],
+    to: TicketStatus.IN_PROGRESS,
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC],
+    requireAssignee: true,
+  },
+  MARK_VERIFICATION_NEEDED: {
+    from: [TicketStatus.IN_PROGRESS],
+    to: TicketStatus.VERIFICATION_NEEDED,
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC],
+    requireAssignee: true,
+  },
+  VERIFY_AND_CLOSE: {
+    from: [TicketStatus.VERIFICATION_NEEDED],
+    to: TicketStatus.CLOSED,
+    roles: [Role.MANAGER, Role.ADMIN, Role.PRODUCTION],
+  },
+  REJECT_VERIFICATION: {
+    from: [TicketStatus.VERIFICATION_NEEDED],
+    to: TicketStatus.IN_PROGRESS,
+    roles: [Role.MANAGER, Role.ADMIN, Role.PRODUCTION],
+  },
 };
+
+const MAINTENANCE_ONLY: Set<TicketAction> = new Set([
+  "ACKNOWLEDGE",
+  "MAINT_HOLD",
+  "MAINT_RESUME",
+  "MARK_VERIFICATION_NEEDED",
+  "VERIFY_AND_CLOSE",
+  "REJECT_VERIFICATION",
+]);
+const IT_ONLY: Set<TicketAction> = new Set(["ASSIGN", "DIRECT_CLOSE", "HOLD", "RESUME", "REOPEN"]);
 
 export function canPerform(
   action: TicketAction,
-  ticket: { status: TicketStatus; assignedToId: string | null; managerId: string | null },
+  ticket: { status: TicketStatus; workstream: Workstream; assignedToId: string | null; managerId: string | null },
   actor: { id: string; role: Role }
 ): { allowed: boolean; reason?: string } {
+  if (MAINTENANCE_ONLY.has(action) && ticket.workstream !== Workstream.MAINTENANCE) {
+    return { allowed: false, reason: "This action is only available for maintenance tickets" };
+  }
+  if (IT_ONLY.has(action) && ticket.workstream !== Workstream.IT) {
+    return { allowed: false, reason: "This action is only available for IT tickets" };
+  }
   const rule = TRANSITIONS[action];
   if (!rule.from.includes(ticket.status)) {
     return { allowed: false, reason: `Ticket must be in one of [${rule.from.join(", ")}] for this action` };
@@ -131,9 +139,6 @@ export function canPerform(
   }
   if (rule.requireAssignee && ticket.assignedToId !== actor.id && actor.role !== Role.MANAGER && actor.role !== Role.ADMIN) {
     return { allowed: false, reason: "Only the assigned technician can perform this action" };
-  }
-  if (rule.requireManager && ticket.managerId !== actor.id) {
-    return { allowed: false, reason: "Only the owning manager can perform this action" };
   }
   return { allowed: true };
 }
