@@ -39,10 +39,12 @@ export function canClose(ticket: HelpdeskTicket, user: User | null): boolean {
   return ticket.status === "RESOLVED" && isLead(user?.role);
 }
 
+// Reopening un-resolves/un-closes a ticket - Admin has full powers everywhere
+// else, but not this one; only a Team Lead (or the raiser, for their own ticket).
 export function canReopen(ticket: HelpdeskTicket, user: User | null): boolean {
   if (!["RESOLVED", "CLOSED"].includes(ticket.status)) return false;
   if (!user) return false;
-  return isLead(user.role) || ticket.raisedById === user.id;
+  return user.role === "IT_TEAM_LEAD" || ticket.raisedById === user.id;
 }
 
 export const STATUS_ORDER: HelpdeskTicket["status"][] = [

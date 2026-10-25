@@ -543,7 +543,7 @@ export default function MaintenanceTicketDetailPage() {
               </button>
             )}
 
-            {ticket.status === "ACKNOWLEDGED" && isAssignee && (
+            {ticket.status === "ACKNOWLEDGED" && (isAssignee || isManager) && (
               <button
                 onClick={() => id && handleAction(() => mutations.startProgress.mutateAsync(id))}
                 className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-200"

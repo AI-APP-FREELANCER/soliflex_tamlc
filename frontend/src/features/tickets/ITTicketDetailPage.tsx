@@ -244,7 +244,7 @@ export default function ITTicketDetailPage() {
               </button>
             )}
 
-            {isAssignee && ticket.status === "ASSIGNED" && (
+            {(isAssignee || isManager) && ticket.status === "ASSIGNED" && (
               <button
                 onClick={() => id && handleAction(() => mutations.startProgress.mutateAsync(id))}
                 className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-200"
@@ -259,7 +259,8 @@ export default function ITTicketDetailPage() {
               </button>
             )}
 
-            {isManager && ticket.status === "CLOSED" && (
+            {/* Reopening un-closes a ticket - Admin has full powers everywhere else, but not this one. */}
+            {user?.role === "MANAGER" && ticket.status === "CLOSED" && (
               <div className="space-y-1.5">
                 <input
                   value={reopenReason}

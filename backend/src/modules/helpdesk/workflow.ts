@@ -59,9 +59,13 @@ export const TRANSITIONS: Record<HelpdeskAction, TransitionRule> = {
     requireAssignee: true,
   },
   REOPEN: {
+    // Reopening un-resolves/un-closes a ticket - the one action that reverses
+    // status rather than moving it forward. Admin has full powers everywhere
+    // else, but not this one; only a Team Lead (or the raiser, for their own
+    // ticket) can reopen.
     from: [HelpdeskStatus.RESOLVED, HelpdeskStatus.CLOSED],
     to: HelpdeskStatus.REOPENED,
-    roles: [Role.IT_TEAM_LEAD, Role.ADMIN],
+    roles: [Role.IT_TEAM_LEAD],
     allowRaiser: true,
   },
   CLOSE: {

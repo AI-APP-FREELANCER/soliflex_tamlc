@@ -68,15 +68,17 @@ export function canEditAssignment(ticket: Ticket, user: User | null): boolean {
 }
 
 export function canStartProgress(ticket: Ticket, user: User | null): boolean {
-  return isAssignee(ticket, user) && (ticket.status === "ASSIGNED" || ticket.status === "ACKNOWLEDGED");
+  // Manager/Admin can start work on an engineer's behalf, same as every other technician action.
+  return (isAssignee(ticket, user) || isManager(user?.role)) && (ticket.status === "ASSIGNED" || ticket.status === "ACKNOWLEDGED");
 }
 
 export function canDirectClose(ticket: Ticket, user: User | null): boolean {
   return ticket.status === "IN_PROGRESS" && !ticket.onHold && ticket.workstream === "IT" && (isManager(user?.role) || isAssignee(ticket, user));
 }
 
+// Reopening un-closes a ticket - Admin has full powers everywhere else, but not this one.
 export function canReopen(ticket: Ticket, user: User | null): boolean {
-  return isManager(user?.role) && ticket.workstream === "IT" && ticket.status === "CLOSED";
+  return user?.role === "MANAGER" && ticket.workstream === "IT" && ticket.status === "CLOSED";
 }
 
 export function canHold(ticket: Ticket, user: User | null): boolean {

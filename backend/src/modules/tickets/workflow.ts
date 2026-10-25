@@ -46,7 +46,9 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
   START_PROGRESS: {
     from: [TicketStatus.ASSIGNED, TicketStatus.ACKNOWLEDGED],
     to: TicketStatus.IN_PROGRESS,
-    roles: [Role.MECHANIC, Role.IT_TEAM],
+    // Manager/Admin can start work on an engineer's behalf (requireAssignee
+    // below is bypassed for them, same as every other technician action).
+    roles: [Role.MECHANIC, Role.IT_TEAM, Role.MANAGER, Role.ADMIN],
     requireAssignee: true,
   },
   DIRECT_CLOSE: {
@@ -70,7 +72,10 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
   REOPEN: {
     from: [TicketStatus.CLOSED],
     to: TicketStatus.IN_PROGRESS,
-    roles: [Role.MANAGER, Role.ADMIN],
+    // Reopening un-closes a ticket - the one action that reverses status
+    // rather than moving it forward. Admin has full powers everywhere else,
+    // but not this one; only a Manager can reopen.
+    roles: [Role.MANAGER],
   },
 
   ACKNOWLEDGE: {

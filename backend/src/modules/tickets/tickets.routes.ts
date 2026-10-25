@@ -107,7 +107,8 @@ router.post("/:id/close-direct", async (req, res) => {
 });
 
 const reopenSchema = z.object({ reason: z.string().min(1) });
-router.post("/:id/reopen", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
+// Reopening un-closes a ticket - Admin has full powers everywhere else, but not this one.
+router.post("/:id/reopen", requireRole(Role.MANAGER), async (req, res) => {
   const data = reopenSchema.parse(req.body);
   res.json(await tickets.reopenTicket(actorFromReq(req), req.params.id, data.reason));
 });

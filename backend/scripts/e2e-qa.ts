@@ -462,9 +462,8 @@ async function main() {
     is("cannot acknowledge again once acknowledged", await post(mech, `${base}/acknowledge`, {}), 403);
 
     is("different mechanic cannot start", await post(mech2.token, `${base}/start-progress`), 403);
-    is("manager cannot start (technician action)", await post(mgrMFresh, `${base}/start-progress`), 403);
-    is("assignee starts work", await post(mech, `${base}/start-progress`), 200);
-    is("cannot start twice", await post(mech, `${base}/start-progress`), 403);
+    is("manager can start progress on an engineer's behalf (Admin/Manager have full operational powers)", await post(mgrMFresh, `${base}/start-progress`), 200);
+    is("cannot start twice (manager already started it)", await post(mech, `${base}/start-progress`), 403);
 
     is("production cannot add costs", await post(prod, `${base}/costs`, { description: "x", amount: 5 }), 403);
     is("cost: zero/negative amount -> 400", await post(mech, `${base}/costs`, { description: "x", amount: 0 }), 400);
@@ -561,6 +560,7 @@ async function main() {
     const closedIT = await post(itTech, `/tickets/${itT.id}/close-direct`, { confirmEquipmentOperational: true, closingComment: "Installed the driver and printed a test page" });
     is("IT engineer resolves and closes (no photo needed)", closedIT, 200);
     ok("IT ticket is CLOSED without a review chain", closedIT.body.status === "CLOSED");
+    is("admin cannot reopen an IT ticket (the one power Admin doesn't have - only a Manager can)", await post(admin, `/tickets/${itT.id}/reopen`, { reason: "nope" }), 403);
     is("IT manager can reopen it", await post(mgrIT, `/tickets/${itT.id}/reopen`, { reason: "Printing fails again" }), 200);
 
     // isolation
@@ -672,6 +672,7 @@ async function main() {
     ok("CLOSED with closer", cl.body.status === "CLOSED" && cl.body.closedById);
     ok("all parties notified of closure", hasNotif(await notifs(emp), "was closed"));
     is("cannot close twice", await post(lead, `${base}/close`), 403);
+    is("admin cannot reopen (the one power Admin doesn't have - only Team Lead or the raiser can)", await post(admin, `${base}/reopen`, { reason: "nope" }), 403);
     is("raiser can reopen a CLOSED ticket", await post(emp, `${base}/reopen`, { reason: "It happened again" }), 200);
     const detail = (await get(lead, base)).body;
     ok("history has every transition and comments are in order", ["OPEN", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "REOPENED", "CLOSED"].every((s) => detail.statusHistory.some((h: any) => h.toStatus === s)) && detail.comments.length >= 3);
