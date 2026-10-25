@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format, formatDistanceToNow } from "date-fns";
-import toast from "react-hot-toast";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Paperclip, IndianRupee, PlayCircle, PauseCircle, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 import { useTicket, useTicketMutations } from "./hooks";
@@ -10,7 +9,7 @@ import { Spinner } from "../../components/Spinner";
 import { Modal } from "../../components/Modal";
 import { StatusBadge, PriorityBadge, MachineStatusBadge, QualityRatingBadge, PROBLEM_TYPE_LABELS, DELAY_REASON_LABELS, CHECKLIST_ANSWER_LABELS } from "../../components/badges";
 import { Avatar } from "../../components/Avatar";
-import { API_BASE_URL, apiErrorMessage } from "../../lib/api";
+import { API_BASE_URL } from "../../lib/api";
 import { fetchUsers } from "../users/api";
 import type { AttachmentType, ChecklistAnswer, DelayReason, QualityRating } from "../../lib/types";
 
@@ -288,10 +287,13 @@ export default function MaintenanceTicketDetailPage() {
   const isAssignee = ticket.assignedToId === user?.id;
 
   async function handleAction(fn: () => Promise<any>) {
+    // The mutation itself already toasts on error (see useTicketMutations'
+    // wrap()) - this catch exists only to swallow the rejection so it
+    // doesn't surface as an unhandled promise rejection.
     try {
       await fn();
-    } catch (err) {
-      toast.error(apiErrorMessage(err));
+    } catch {
+      // handled by the mutation's own onError
     }
   }
 

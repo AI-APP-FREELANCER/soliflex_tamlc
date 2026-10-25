@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format, formatDistanceToNow } from "date-fns";
-import toast from "react-hot-toast";
 import { ArrowLeft, Paperclip, IndianRupee, PlayCircle, PauseCircle, Send } from "lucide-react";
 import { useTicket, useTicketMutations } from "./hooks";
 import { useAuthStore } from "../../store/auth.store";
@@ -11,7 +10,7 @@ import { Avatar } from "../../components/Avatar";
 import { AssignModal } from "./AssignModal";
 import { CloseModal } from "./CloseModal";
 import { HoldModal } from "./HoldModal";
-import { API_BASE_URL, apiErrorMessage } from "../../lib/api";
+import { API_BASE_URL } from "../../lib/api";
 import type { AttachmentType } from "../../lib/types";
 
 // IT work has no before/after photos - just supporting files.
@@ -43,10 +42,13 @@ export default function ITTicketDetailPage() {
   const canDirectClose = ticket.status === "IN_PROGRESS" && !ticket.onHold && (isAssignee || isManager);
 
   async function handleAction(fn: () => Promise<any>) {
+    // The mutation itself already toasts on error (see useTicketMutations'
+    // wrap()) - this catch exists only to swallow the rejection so it
+    // doesn't surface as an unhandled promise rejection.
     try {
       await fn();
-    } catch (err) {
-      toast.error(apiErrorMessage(err));
+    } catch {
+      // handled by the mutation's own onError
     }
   }
 
