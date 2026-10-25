@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
-import { View } from "react-native";
+import { useQuery } from "@tanstack/react-query";
+import { Text, View } from "react-native";
 import { Modal } from "@/components/Modal";
 import { TextField } from "@/components/TextField";
 import { SelectField } from "@/components/SelectField";
 import { AssetPicker } from "@/components/AssetPicker";
 import { Button } from "@/components/Button";
+import { ISTClock } from "@/components/ISTClock";
 import { useAuthStore } from "@/store/auth.store";
-import { TICKET_CATEGORY_LABELS } from "@/features/tickets/badges";
+import { MACHINE_STATUS_LABELS, PROBLEM_TYPE_LABELS, TICKET_CATEGORY_LABELS } from "@/features/tickets/badges";
 import { allowedCategoriesForCreate, allowedWorkstreamsForCreate } from "@/features/tickets/permissions";
 import { useTicketMutations } from "@/features/tickets/hooks";
-import type { TicketCategory, Workstream } from "@/lib/types";
+import { fetchPlants } from "@/api/plants";
+import { fetchDepartments } from "@/api/departments";
+import type { MachineStatus, ProblemType, TicketCategory, Workstream } from "@/lib/types";
 
 interface CreateTicketModalProps {
   visible: boolean;
@@ -17,15 +21,22 @@ interface CreateTicketModalProps {
   onCreated?: (ticketId: string) => void;
 }
 
+const PROBLEM_TYPES: ProblemType[] = ["ELECTRICAL", "MECHANICAL", "PNEUMATIC", "HYDRAULIC", "OTHERS"];
+const MACHINE_STATUSES: MachineStatus[] = ["RUNNING", "STOPPED"];
+
 export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketModalProps) {
   const user = useAuthStore((s) => s.user);
   const workstreamOptions = useMemo(() => allowedWorkstreamsForCreate(user?.role, user?.workstream), [user?.role, user?.workstream]);
 
   const [workstream, setWorkstream] = useState<Workstream | undefined>(workstreamOptions[0]);
+  const isMaintenance = workstream === "MAINTENANCE";
   const [category, setCategory] = useState<TicketCategory | undefined>(undefined);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [plantLocation, setPlantLocation] = useState("");
+  const [plantId, setPlantId] = useState<string | undefined>();
+  const [departmentId, setDepartmentId] = useState<string | undefined>();
+  const [problemType, setProblemType] = useState<ProblemType | undefined>();
+  const [machineStatus, setMachineStatus] = useState<MachineStatus>("RUNNING");
   const [assetId, setAssetId] = useState<string | undefined>();
   const [assetLabel, setAssetLabel] = useState<string | undefined>();
   const { create } = useTicketMutations();
@@ -34,13 +45,35 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     () => (workstream ? allowedCategoriesForCreate(user?.role, workstream).map((v) => ({ value: v, label: TICKET_CATEGORY_LABELS[v] })) : []),
     [user?.role, workstream]
   );
+  const { data: plants = [] } = useQuery({ queryKey: ["plants"], queryFn: fetchPlants, enabled: visible && isMaintenance });
+  const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible && isMaintenance });
+
+  // Reset the form fields each time the modal opens. Adjusted during render
+  // (React's documented pattern for "state that depends on a prop change")
+  // rather than in an effect, which would set state synchronously after a
+  // render and trigger an extra cascading render.
+  const [prevVisible, setPrevVisible] = useState(visible);
+  if (visible !== prevVisible) {
+    setPrevVisible(visible);
+    if (visible) {
+      setWorkstream(workstreamOptions[0]);
+      setCategory(undefined);
+      setProblemType(undefined);
+      setMachineStatus("RUNNING");
+      setPlantId(undefined);
+      setDepartmentId(undefined);
+    }
+  }
 
   function reset() {
     setWorkstream(workstreamOptions[0]);
     setCategory(undefined);
     setTitle("");
     setDescription("");
-    setPlantLocation("");
+    setPlantId(undefined);
+    setDepartmentId(undefined);
+    setProblemType(undefined);
+    setMachineStatus("RUNNING");
     setAssetId(undefined);
     setAssetLabel(undefined);
   }
@@ -48,15 +81,9 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   function handleSubmit() {
     if (!workstream || !category) return;
     create.mutate(
-      {
-        workstream,
-        category,
-        title: title.trim(),
-        description: description.trim(),
-        plantLocation: plantLocation.trim() || undefined,
-        maintenanceAssetId: workstream === "MAINTENANCE" ? assetId : undefined,
-        itAssetId: workstream === "IT" ? assetId : undefined,
-      },
+      isMaintenance
+        ? { workstream, category, description: description.trim(), plantId, departmentId, problemType, machineStatus }
+        : { workstream, category, title: title.trim(), description: description.trim(), itAssetId: assetId },
       {
         onSuccess: (ticket) => {
           reset();
@@ -67,7 +94,9 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     );
   }
 
-  const canSubmit = !!workstream && !!category && title.trim().length >= 3 && description.trim().length >= 3;
+  const canSubmit = isMaintenance
+    ? !!category && description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType
+    : !!workstream && !!category && title.trim().length >= 3 && description.trim().length >= 3;
 
   if (workstreamOptions.length === 0) {
     return (
@@ -82,6 +111,10 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   return (
     <Modal visible={visible} title="Raise a ticket" onClose={onClose}>
       <View className="gap-4 pb-4">
+        <View className="flex-row justify-end">
+          <ISTClock />
+        </View>
+
         {workstreamOptions.length > 1 && (
           <SelectField
             label="Workstream"
@@ -96,9 +129,47 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
           />
         )}
         <SelectField label="Category" value={category} options={categoryOptions} onChange={setCategory} />
-        <TextField label="Title" placeholder="Short summary (at least 3 characters)" value={title} onChangeText={setTitle} />
+
+        {isMaintenance ? (
+          <>
+            <SelectField
+              label="Plant Location"
+              value={plantId}
+              options={plants.map((p) => ({ value: p.id, label: p.name }))}
+              onChange={setPlantId}
+            />
+            <SelectField
+              label="Department / Product Category"
+              value={departmentId}
+              options={departments.map((d) => ({ value: d.id, label: d.name }))}
+              onChange={setDepartmentId}
+            />
+            <SelectField
+              label="Type of Problem"
+              value={problemType}
+              options={PROBLEM_TYPES.map((pt) => ({ value: pt, label: PROBLEM_TYPE_LABELS[pt] }))}
+              onChange={setProblemType}
+            />
+            <View>
+              <Text className="mb-1 text-sm font-medium text-soliflex-gray-700">Machine Status</Text>
+              <View className="flex-row gap-2">
+                {MACHINE_STATUSES.map((ms) => {
+                  const active = machineStatus === ms;
+                  return (
+                    <View key={ms} className="flex-1">
+                      <Button title={MACHINE_STATUS_LABELS[ms]} variant={active ? "primary" : "outline"} onPress={() => setMachineStatus(ms)} />
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </>
+        ) : (
+          <TextField label="Title" placeholder="Short summary (at least 3 characters)" value={title} onChangeText={setTitle} />
+        )}
+
         <TextField
-          label="Description"
+          label={isMaintenance ? "Problem Description" : "Description"}
           placeholder="What's the issue? (at least 3 characters)"
           value={description}
           onChangeText={setDescription}
@@ -107,10 +178,10 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
           textAlignVertical="top"
           style={{ minHeight: 96 }}
         />
-        <TextField label="Plant / location (optional)" placeholder="e.g. Line 3, Shop Floor" value={plantLocation} onChangeText={setPlantLocation} />
-        {workstream && (
+
+        {!isMaintenance && workstream && (
           <AssetPicker
-            type={workstream === "MAINTENANCE" ? "maintenance" : "it"}
+            type="it"
             selectedLabel={assetLabel}
             onSelect={(id, l) => {
               setAssetId(id);

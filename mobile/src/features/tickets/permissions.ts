@@ -1,6 +1,5 @@
-// UI-only gating, ported from frontend/src/features/tickets/TicketDetailPage.tsx's
-// inline role checks and backend/src/modules/tickets/workflow.ts. Server is the
-// real enforcement boundary.
+// UI-only gating, ported from backend/src/modules/tickets/workflow.ts. Server
+// is the real enforcement boundary.
 import type { Role, Ticket, TicketCategory, User, Workstream } from "@/lib/types";
 
 /**
@@ -24,6 +23,14 @@ export function workstreamScopeFor(role: Role | undefined, workstream?: Workstre
 
 function isManager(role: Role | undefined): boolean {
   return role === "MANAGER" || role === "ADMIN";
+}
+
+function isMechanic(role: Role | undefined): boolean {
+  return role === "MECHANIC";
+}
+
+function isProduction(role: Role | undefined): boolean {
+  return role === "PRODUCTION" || isManager(role);
 }
 
 function isAssignee(ticket: Ticket, user: User | null): boolean {
@@ -50,6 +57,8 @@ export function allowedCategoriesForCreate(role: Role | undefined, workstream: W
   return [];
 }
 
+// --------------------------------------------------------------- IT only ---
+
 export function canAssign(ticket: Ticket, user: User | null): boolean {
   return isManager(user?.role) && ticket.status === "OPEN";
 }
@@ -59,62 +68,56 @@ export function canEditAssignment(ticket: Ticket, user: User | null): boolean {
 }
 
 export function canStartProgress(ticket: Ticket, user: User | null): boolean {
-  return isAssignee(ticket, user) && ticket.status === "ASSIGNED";
+  return isAssignee(ticket, user) && (ticket.status === "ASSIGNED" || ticket.status === "ACKNOWLEDGED");
 }
 
-// IT has no diagnosis/approval step: the engineer resolves and closes.
-export function canSubmitRecommendation(ticket: Ticket, user: User | null): boolean {
-  return isAssignee(ticket, user) && ticket.workstream === "MAINTENANCE" && ticket.status === "IN_PROGRESS" && !ticket.onHold;
-}
-
-/**
- * Fast close by the engineer or a manager, skipping the review chain: always for IT;
- * for Maintenance once the diagnosis shows no approval is needed (minor adjustment,
- * or a spare part below the cost threshold).
- */
 export function canDirectClose(ticket: Ticket, user: User | null): boolean {
-  if (ticket.status !== "IN_PROGRESS" || ticket.onHold) return false;
-  if (!(isManager(user?.role) || isAssignee(ticket, user))) return false;
-  return ticket.workstream === "IT" || (ticket.fixType !== null && !ticket.approvalRequired);
-}
-
-export function canDecideRecommendation(ticket: Ticket, user: User | null): boolean {
-  return isManager(user?.role) && ticket.status === "IN_PROGRESS" && ticket.onHold && ticket.onHoldReason === "APPROVAL";
-}
-
-export function canMarkFirstLineReview(ticket: Ticket, user: User | null): boolean {
-  const reviewReady = ticket.fixType !== null && (!ticket.approvalRequired || !!ticket.approvedAt);
-  return isAssignee(ticket, user) && ticket.workstream === "MAINTENANCE" && ticket.status === "IN_PROGRESS" && !ticket.onHold && reviewReady;
-}
-
-export function canMarkJobCompleted(ticket: Ticket, user: User | null): boolean {
-  return (isManager(user?.role) || isAssignee(ticket, user)) && ticket.status === "FIRST_LINE_REVIEW";
-}
-
-export function canMarkFinalReview(ticket: Ticket, user: User | null): boolean {
-  return isManager(user?.role) && ticket.status === "JOB_COMPLETED";
-}
-
-export function canClose(ticket: Ticket, user: User | null): boolean {
-  return isManager(user?.role) && ticket.status === "FINAL_REVIEW";
+  return ticket.status === "IN_PROGRESS" && !ticket.onHold && ticket.workstream === "IT" && (isManager(user?.role) || isAssignee(ticket, user));
 }
 
 export function canReopen(ticket: Ticket, user: User | null): boolean {
-  return isManager(user?.role) && ["FIRST_LINE_REVIEW", "JOB_COMPLETED", "FINAL_REVIEW", "CLOSED"].includes(ticket.status);
+  return isManager(user?.role) && ticket.workstream === "IT" && ticket.status === "CLOSED";
 }
 
 export function canHold(ticket: Ticket, user: User | null): boolean {
-  return (isManager(user?.role) || isAssignee(ticket, user)) && ticket.status !== "CLOSED" && !ticket.onHold;
+  return ticket.workstream === "IT" && (isManager(user?.role) || isAssignee(ticket, user)) && ticket.status !== "CLOSED" && !ticket.onHold;
 }
 
 export function canResume(ticket: Ticket, user: User | null): boolean {
-  return (isManager(user?.role) || isAssignee(ticket, user)) && ticket.onHold && ticket.onHoldReason !== "APPROVAL";
+  return ticket.workstream === "IT" && (isManager(user?.role) || isAssignee(ticket, user)) && ticket.onHold;
+}
+
+// --------------------------------------------------------- Maintenance only ---
+
+export function canAcknowledge(ticket: Ticket, user: User | null): boolean {
+  return ticket.workstream === "MAINTENANCE" && ticket.status === "OPEN" && (isMechanic(user?.role) || isManager(user?.role));
+}
+
+export function canMaintHold(ticket: Ticket, user: User | null): boolean {
+  return ticket.workstream === "MAINTENANCE" && ticket.status === "IN_PROGRESS" && (isManager(user?.role) || isAssignee(ticket, user));
+}
+
+export function canMaintResume(ticket: Ticket, user: User | null): boolean {
+  return ticket.workstream === "MAINTENANCE" && ticket.status === "ON_HOLD" && (isManager(user?.role) || isAssignee(ticket, user));
+}
+
+export function canMarkVerificationNeeded(ticket: Ticket, user: User | null): boolean {
+  return ticket.workstream === "MAINTENANCE" && ticket.status === "IN_PROGRESS" && (isManager(user?.role) || isAssignee(ticket, user));
+}
+
+export function canVerifyOrReject(ticket: Ticket, user: User | null): boolean {
+  return ticket.workstream === "MAINTENANCE" && ticket.status === "VERIFICATION_NEEDED" && isProduction(user?.role);
 }
 
 export const STATUS_ORDER: Ticket["status"][] = [
   "OPEN",
   "ASSIGNED",
+  "ACKNOWLEDGED",
   "IN_PROGRESS",
+  "ON_HOLD",
+  "VERIFICATION_NEEDED",
+  "VERIFIED",
+  "REJECTED",
   "FIRST_LINE_REVIEW",
   "JOB_COMPLETED",
   "FINAL_REVIEW",

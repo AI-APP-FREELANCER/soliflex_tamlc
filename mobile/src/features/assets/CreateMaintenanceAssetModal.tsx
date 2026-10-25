@@ -24,6 +24,7 @@ export function CreateMaintenanceAssetModal({ visible, onClose, onCreated }: Cre
   const [model, setModel] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [plantLocation, setPlantLocation] = useState("");
+  const [powerCapacity, setPowerCapacity] = useState("");
   const [specifications, setSpecifications] = useState("");
   const [purchaseDate, setPurchaseDate] = useState<Date | undefined>();
   const [warrantyStartDate, setWarrantyStartDate] = useState<Date | undefined>();
@@ -35,6 +36,7 @@ export function CreateMaintenanceAssetModal({ visible, onClose, onCreated }: Cre
     setModel("");
     setManufacturer("");
     setPlantLocation("");
+    setPowerCapacity("");
     setSpecifications("");
     setPurchaseDate(undefined);
     setWarrantyStartDate(undefined);
@@ -49,6 +51,7 @@ export function CreateMaintenanceAssetModal({ visible, onClose, onCreated }: Cre
         model: model.trim() || undefined,
         manufacturer: manufacturer.trim() || undefined,
         plantLocation: plantLocation.trim() || undefined,
+        powerCapacity: powerCapacity.trim() || undefined,
         specifications: specifications.trim() || undefined,
         purchaseDate: purchaseDate?.toISOString(),
         warrantyStartDate: warrantyStartDate?.toISOString(),
@@ -72,6 +75,7 @@ export function CreateMaintenanceAssetModal({ visible, onClose, onCreated }: Cre
         <TextField label="Model (optional)" value={model} onChangeText={setModel} />
         <TextField label="Manufacturer (optional)" value={manufacturer} onChangeText={setManufacturer} />
         <TextField label="Plant location (optional)" value={plantLocation} onChangeText={setPlantLocation} />
+        <TextField label="Power capacity (optional)" value={powerCapacity} onChangeText={setPowerCapacity} placeholder="e.g. 15 kW" />
         <TextField
           label="Specifications (optional)"
           value={specifications}

@@ -19,7 +19,7 @@ export function TicketRow({ ticket, onPress }: TicketRowProps) {
         <View className="flex-1">
           <Text className="text-xs font-semibold text-soliflex-gray-500">{ticket.ticketNumber}</Text>
           <Text className="mt-0.5 text-sm font-semibold text-soliflex-ink" numberOfLines={2}>
-            {ticket.title}
+            {ticket.displayTitle}
           </Text>
         </View>
         <Badge label={TICKET_STATUS_LABELS[ticket.status]} bg={statusColor.bg} text={statusColor.text} />

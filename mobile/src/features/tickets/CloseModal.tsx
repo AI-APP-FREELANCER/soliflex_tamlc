@@ -11,39 +11,27 @@ interface CloseModalProps {
   visible: boolean;
   ticket: Ticket;
   onClose: () => void;
-  /** Engineer/manager fast close (no review chain) instead of the manager's final verify & close. */
-  direct?: boolean;
 }
 
-export function CloseModal({ visible, ticket, onClose, direct = false }: CloseModalProps) {
+/** Closes an IT ticket (the only workstream that still uses this simple close). */
+export function CloseModal({ visible, ticket, onClose }: CloseModalProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [closingComment, setClosingComment] = useState("");
-  const { close, closeDirect } = useTicketMutations(ticket.id);
-  const mutation = direct ? closeDirect : close;
-  const isIT = ticket.workstream === "IT";
-
-  const hasPostFixPhoto = !!ticket.attachments?.some((a) => a.type === "POST_FIX_PHOTO");
+  const { closeDirect } = useTicketMutations(ticket.id);
 
   function handleSubmit() {
-    mutation.mutate(
+    closeDirect.mutate(
       { id: ticket.id, confirmEquipmentOperational: confirmed, closingComment: closingComment.trim() || undefined },
       { onSuccess: onClose }
     );
   }
 
   return (
-    <Modal visible={visible} title={direct ? (isIT ? "Resolve & close" : "Close ticket") : "Verify & close ticket"} onClose={onClose}>
+    <Modal visible={visible} title="Resolve & close" onClose={onClose}>
       <View className="gap-4 pb-4">
-        {!isIT && !hasPostFixPhoto && (
-          <View className="rounded-lg bg-amber-50 p-3">
-            <Text className="text-xs text-amber-800">
-              No post-fix photo has been uploaded yet. Upload one from the ticket before closing.
-            </Text>
-          </View>
-        )}
         <TextField
-          label={isIT ? "Resolution note" : "Closing comment"}
-          placeholder={isIT ? "What was the problem and what did you do?" : "Summary of the fix (required if there are no comments yet)"}
+          label="Resolution note"
+          placeholder="What was the problem and what did you do?"
           value={closingComment}
           onChangeText={setClosingComment}
           multiline
@@ -59,11 +47,9 @@ export function CloseModal({ visible, ticket, onClose, direct = false }: CloseMo
           >
             {confirmed && <Check color="#fff" size={14} />}
           </View>
-          <Text className="flex-1 text-sm text-soliflex-ink">
-            {isIT ? "I confirm the issue is resolved" : "I confirm the equipment is operational"}
-          </Text>
+          <Text className="flex-1 text-sm text-soliflex-ink">I confirm the issue is resolved</Text>
         </Pressable>
-        <Button title={direct ? "Close ticket" : "Verify & close"} onPress={handleSubmit} disabled={!confirmed} loading={mutation.isPending} />
+        <Button title="Close ticket" onPress={handleSubmit} disabled={!confirmed} loading={closeDirect.isPending} />
       </View>
     </Modal>
   );

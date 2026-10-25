@@ -3,29 +3,29 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiErrorMessage } from "@/lib/api-client";
 import type { AttachmentType, Priority, TicketFilter } from "@/lib/types";
 import {
+  acknowledgeTicket,
   addTicketComment,
   addTicketCost,
   assignTicket,
-  closeTicket,
   closeTicketDirect,
   createTicket,
-  decideRecommendation,
   fetchTicket,
   fetchTickets,
+  holdMaintenanceTicket,
   holdTicket,
-  markFinalReview,
-  markFirstLineReview,
-  markJobCompleted,
+  markVerificationNeeded,
+  rejectVerification,
   reopenTicket,
+  resumeMaintenanceTicket,
   resumeTicket,
   startTicketProgress,
-  submitRecommendation,
   updateTicketAssignment,
   updateTicketPriority,
   uploadTicketAttachment,
+  verifyAndClose,
   type AssignTicketInput,
+  type ChecklistInput,
   type CreateTicketInput,
-  type RecommendationInput,
   type UpdateAssignmentInput,
 } from "@/api/tickets";
 
@@ -48,11 +48,13 @@ export function useTicketMutations(ticketId?: string) {
     qc.invalidateQueries({ queryKey: ["tickets"] });
     qc.invalidateQueries({ queryKey: ["reports-dashboard"] });
     qc.invalidateQueries({ queryKey: ["reports-overdue"] });
+    qc.invalidateQueries({ queryKey: ["maintenance-analytics"] });
     if (ticketId) qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
   }
 
   const create = useMutation({ mutationFn: (input: CreateTicketInput) => createTicket(input), onError: onErr });
 
+  // IT only
   const assign = useMutation({
     mutationFn: ({ id, input }: { id: string; input: AssignTicketInput }) => assignTicket(id, input),
     onSuccess: invalidate,
@@ -61,56 +63,6 @@ export function useTicketMutations(ticketId?: string) {
 
   const updateAssignment = useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateAssignmentInput }) => updateTicketAssignment(id, input),
-    onSuccess: invalidate,
-    onError: onErr,
-  });
-
-  const updatePriority = useMutation({
-    mutationFn: ({ id, priority }: { id: string; priority: Priority }) => updateTicketPriority(id, priority),
-    onSuccess: invalidate,
-    onError: onErr,
-  });
-
-  const startProgress = useMutation({
-    mutationFn: (id: string) => startTicketProgress(id),
-    onSuccess: invalidate,
-    onError: onErr,
-  });
-
-  const submitRecommendationM = useMutation({
-    mutationFn: ({ id, ...input }: { id: string } & RecommendationInput) => submitRecommendation(id, input),
-    onSuccess: invalidate,
-    onError: onErr,
-  });
-
-  const decideRecommendationM = useMutation({
-    mutationFn: ({ id, approve, comment }: { id: string; approve: boolean; comment?: string }) =>
-      decideRecommendation(id, approve, comment),
-    onSuccess: invalidate,
-    onError: onErr,
-  });
-
-  const markFirstLineReviewM = useMutation({
-    mutationFn: (id: string) => markFirstLineReview(id),
-    onSuccess: invalidate,
-    onError: onErr,
-  });
-
-  const markJobCompletedM = useMutation({
-    mutationFn: (id: string) => markJobCompleted(id),
-    onSuccess: invalidate,
-    onError: onErr,
-  });
-
-  const markFinalReviewM = useMutation({
-    mutationFn: (id: string) => markFinalReview(id),
-    onSuccess: invalidate,
-    onError: onErr,
-  });
-
-  const close = useMutation({
-    mutationFn: ({ id, confirmEquipmentOperational, closingComment }: { id: string; confirmEquipmentOperational: boolean; closingComment?: string }) =>
-      closeTicket(id, confirmEquipmentOperational, closingComment),
     onSuccess: invalidate,
     onError: onErr,
   });
@@ -129,13 +81,63 @@ export function useTicketMutations(ticketId?: string) {
   });
 
   const hold = useMutation({
-    mutationFn: ({ id, reason, detail }: { id: string; reason: string; detail: string }) => holdTicket(id, reason, detail),
+    mutationFn: ({ id, detail }: { id: string; detail: string }) => holdTicket(id, detail),
     onSuccess: invalidate,
     onError: onErr,
   });
 
   const resume = useMutation({
     mutationFn: (id: string) => resumeTicket(id),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  // maintenance only
+  const acknowledge = useMutation({
+    mutationFn: ({ id, assigneeId }: { id: string; assigneeId?: string }) => acknowledgeTicket(id, assigneeId),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  const maintHold = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof holdMaintenanceTicket>[1] }) => holdMaintenanceTicket(id, data),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  const maintResume = useMutation({
+    mutationFn: (id: string) => resumeMaintenanceTicket(id),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  const markVerificationNeededM = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ChecklistInput }) => markVerificationNeeded(id, data),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  const verifyAndCloseM = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof verifyAndClose>[1] }) => verifyAndClose(id, data),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  const rejectVerificationM = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof rejectVerification>[1] }) => rejectVerification(id, data),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  // shared
+  const startProgress = useMutation({
+    mutationFn: (id: string) => startTicketProgress(id),
+    onSuccess: invalidate,
+    onError: onErr,
+  });
+
+  const updatePriority = useMutation({
+    mutationFn: ({ id, priority }: { id: string; priority: Priority }) => updateTicketPriority(id, priority),
     onSuccess: invalidate,
     onError: onErr,
   });
@@ -164,18 +166,18 @@ export function useTicketMutations(ticketId?: string) {
     create,
     assign,
     updateAssignment,
-    updatePriority,
-    startProgress,
-    submitRecommendation: submitRecommendationM,
-    decideRecommendation: decideRecommendationM,
-    markFirstLineReview: markFirstLineReviewM,
-    markJobCompleted: markJobCompletedM,
-    markFinalReview: markFinalReviewM,
-    close,
     closeDirect,
     reopen,
     hold,
     resume,
+    acknowledge,
+    maintHold,
+    maintResume,
+    markVerificationNeeded: markVerificationNeededM,
+    verifyAndClose: verifyAndCloseM,
+    rejectVerification: rejectVerificationM,
+    startProgress,
+    updatePriority,
     addComment,
     uploadAttachment,
     addCost,

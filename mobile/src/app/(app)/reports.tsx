@@ -137,8 +137,12 @@ export default function ReportsScreen() {
             </View>
             <View className="mt-3 flex-row gap-3">
               <StatCard label="On hold" value={stats.onHold} tone="warn" />
-              <StatCard label="Deadline breached" value={stats.slaBreached} tone="danger" />
-              <StatCard label="Overdue now" value={stats.overdue} tone="danger" />
+              {workstream === "IT" && (
+                <>
+                  <StatCard label="Deadline breached" value={stats.slaBreached} tone="danger" />
+                  <StatCard label="Overdue now" value={stats.overdue} tone="danger" />
+                </>
+              )}
             </View>
             <View className="mt-3 flex-row gap-3">
               <StatCard label="Avg resolution" value={`${stats.avgResolutionHours.toFixed(1)}h`} />
@@ -169,6 +173,7 @@ export default function ReportsScreen() {
               ))}
             </View>
 
+            {workstream === "IT" && (
             <View className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
               <Text className="mb-2 text-sm font-semibold text-soliflex-ink">Past target completion</Text>
               {overdue?.length ? (
@@ -196,6 +201,7 @@ export default function ReportsScreen() {
                 <Text className="text-sm text-soliflex-gray-500">Nothing overdue.</Text>
               )}
             </View>
+            )}
 
             <View className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
               <Text className="mb-2 text-sm font-semibold text-soliflex-ink">Warranty / license expiring within 60 days</Text>

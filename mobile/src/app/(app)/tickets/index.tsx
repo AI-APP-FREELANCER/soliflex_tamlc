@@ -19,11 +19,9 @@ import { PRIORITY_LABELS } from "@/features/helpdesk/badges";
 import type { Priority, TicketFilter, TicketStatus, Workstream } from "@/lib/types";
 
 const IT_STATUSES: TicketStatus[] = ["OPEN", "ASSIGNED", "IN_PROGRESS", "CLOSED"];
+const MAINTENANCE_STATUSES: TicketStatus[] = ["OPEN", "ACKNOWLEDGED", "IN_PROGRESS", "ON_HOLD", "VERIFICATION_NEEDED", "VERIFIED", "REJECTED", "CLOSED"];
 const statusOptionsFor = (workstream: Workstream) =>
-  (Object.keys(TICKET_STATUS_LABELS) as TicketStatus[])
-    // IT has no review chain, so those stages are not offered as filters.
-    .filter((value) => workstream === "MAINTENANCE" || IT_STATUSES.includes(value))
-    .map((value) => ({ value, label: TICKET_STATUS_LABELS[value] }));
+  (workstream === "MAINTENANCE" ? MAINTENANCE_STATUSES : IT_STATUSES).map((value) => ({ value, label: TICKET_STATUS_LABELS[value] }));
 const PRIORITY_OPTIONS = (Object.keys(PRIORITY_LABELS) as Priority[]).map((value) => ({ value, label: PRIORITY_LABELS[value] }));
 
 

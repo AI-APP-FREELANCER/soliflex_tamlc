@@ -119,6 +119,7 @@ export default function AssetDetailScreen() {
               <Field label="Model" value={m.model} />
               <Field label="Manufacturer" value={m.manufacturer} />
               <Field label="Plant location" value={m.plantLocation} />
+              <Field label="Power capacity" value={m.powerCapacity} />
               <Field label="Warranty end" value={m.warrantyEndDate ? formatIST(m.warrantyEndDate, "dd MMM yyyy") : null} />
             </>
           ) : (
