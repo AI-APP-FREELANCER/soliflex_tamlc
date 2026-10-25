@@ -20,6 +20,7 @@ export function CreateMaintenanceAssetModal({ onClose }: { onClose: () => void }
     model: "",
     manufacturer: "",
     plantLocation: "",
+    powerCapacity: "",
     specifications: "",
     purchaseDate: "",
     warrantyStartDate: "",
@@ -72,7 +73,10 @@ export function CreateMaintenanceAssetModal({ onClose }: { onClose: () => void }
           <input placeholder="Model" value={form.model} onChange={(e) => set("model", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
           <input placeholder="Manufacturer" value={form.manufacturer} onChange={(e) => set("manufacturer", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         </div>
-        <input placeholder="Plant location" value={form.plantLocation} onChange={(e) => set("plantLocation", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        <div className="grid grid-cols-2 gap-3">
+          <input placeholder="Plant location" value={form.plantLocation} onChange={(e) => set("plantLocation", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+          <input placeholder="Power capacity (e.g. 15 kW)" value={form.powerCapacity} onChange={(e) => set("powerCapacity", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+        </div>
         <textarea placeholder="Specifications" value={form.specifications} onChange={(e) => set("specifications", e.target.value)} rows={2} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -120,7 +124,19 @@ export function CreateMaintenanceAssetModal({ onClose }: { onClose: () => void }
         </div>
 
         <button
-          onClick={() => mutation.mutate({ ...form, model: form.model || undefined, manufacturer: form.manufacturer || undefined, plantLocation: form.plantLocation || undefined, specifications: form.specifications || undefined, purchaseDate: form.purchaseDate || undefined, warrantyStartDate: form.warrantyStartDate || undefined, warrantyEndDate: form.warrantyEndDate || undefined })}
+          onClick={() =>
+            mutation.mutate({
+              ...form,
+              model: form.model || undefined,
+              manufacturer: form.manufacturer || undefined,
+              plantLocation: form.plantLocation || undefined,
+              powerCapacity: form.powerCapacity || undefined,
+              specifications: form.specifications || undefined,
+              purchaseDate: form.purchaseDate || undefined,
+              warrantyStartDate: form.warrantyStartDate || undefined,
+              warrantyEndDate: form.warrantyEndDate || undefined,
+            })
+          }
           disabled={!form.name || mutation.isPending}
           className="w-full rounded-lg bg-soliflex-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-soliflex-orange-600 disabled:opacity-50"
         >

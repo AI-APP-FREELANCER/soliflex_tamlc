@@ -1,5 +1,17 @@
 import { api } from "../../lib/api";
-import type { AttachmentType, FixType, OnHoldReason, Priority, Ticket, TicketCategory, TicketStatus, Workstream } from "../../lib/types";
+import type {
+  AttachmentType,
+  ChecklistAnswer,
+  DelayReason,
+  MachineStatus,
+  Priority,
+  ProblemType,
+  QualityRating,
+  Ticket,
+  TicketCategory,
+  TicketStatus,
+  Workstream,
+} from "../../lib/types";
 import type { DateRangeValue } from "../../components/DateRangeFilter";
 
 export interface TicketFilter extends DateRangeValue {
@@ -24,10 +36,13 @@ export async function fetchTicket(id: string): Promise<Ticket> {
 export interface CreateTicketInput {
   workstream: Workstream;
   category: TicketCategory;
-  title: string;
+  /** IT only; maintenance no longer collects a title. */
+  title?: string;
   description: string;
-  plantLocation?: string;
-  maintenanceAssetId?: string;
+  plantId?: string;
+  departmentId?: string;
+  problemType?: ProblemType;
+  machineStatus?: MachineStatus;
   itAssetId?: string;
 }
 
@@ -35,6 +50,8 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
   const res = await api.post("/tickets", input);
   return res.data;
 }
+
+// --------------------------------------------------------------- IT only ---
 
 export async function assignTicket(id: string, data: { assignedToId: string; priority: Priority; targetCompletionDate?: string; effortEstimateHours?: number }) {
   const res = await api.post(`/tickets/${id}/assign`, data);
@@ -46,50 +63,7 @@ export async function updateAssignment(id: string, data: { assignedToId?: string
   return res.data;
 }
 
-export async function updatePriority(id: string, priority: Priority) {
-  const res = await api.patch(`/tickets/${id}/priority`, { priority });
-  return res.data;
-}
-
-export async function startProgress(id: string) {
-  const res = await api.post(`/tickets/${id}/start-progress`);
-  return res.data;
-}
-
-export async function submitRecommendation(
-  id: string,
-  data: { diagnosis: string; recommendedFix: string; fixType: FixType; estimatedCost?: number }
-) {
-  const res = await api.post(`/tickets/${id}/submit-recommendation`, data);
-  return res.data;
-}
-
-export async function decideRecommendation(id: string, data: { approve: boolean; comment?: string }) {
-  const res = await api.post(`/tickets/${id}/decide-recommendation`, data);
-  return res.data;
-}
-
-export async function markFirstLineReview(id: string) {
-  const res = await api.post(`/tickets/${id}/mark-first-line-review`);
-  return res.data;
-}
-
-export async function markJobCompleted(id: string) {
-  const res = await api.post(`/tickets/${id}/mark-job-completed`);
-  return res.data;
-}
-
-export async function markFinalReview(id: string) {
-  const res = await api.post(`/tickets/${id}/mark-final-review`);
-  return res.data;
-}
-
-export async function closeTicket(id: string, data: { confirmEquipmentOperational: boolean; closingComment?: string }) {
-  const res = await api.post(`/tickets/${id}/close`, data);
-  return res.data;
-}
-
-/** Engineer / manager fast close: no review chain (see the approval rules on the ticket). */
+/** Engineer / manager fast close (IT only - maintenance uses verifyAndClose). */
 export async function closeTicketDirect(id: string, data: { confirmEquipmentOperational: boolean; closingComment?: string }) {
   const res = await api.post(`/tickets/${id}/close-direct`, data);
   return res.data;
@@ -100,13 +74,64 @@ export async function reopenTicket(id: string, reason: string) {
   return res.data;
 }
 
-export async function holdTicket(id: string, data: { reason: OnHoldReason; detail: string }) {
-  const res = await api.post(`/tickets/${id}/hold`, data);
+export async function holdTicket(id: string, detail: string) {
+  const res = await api.post(`/tickets/${id}/hold`, { detail });
   return res.data;
 }
 
 export async function resumeTicket(id: string) {
   const res = await api.post(`/tickets/${id}/resume`);
+  return res.data;
+}
+
+// --------------------------------------------------------- Maintenance only ---
+
+/** Self-assign (Mechanic) or manager-assign; always sets the assignee and ACKNOWLEDGED together. */
+export async function acknowledgeTicket(id: string, assigneeId?: string) {
+  const res = await api.post(`/tickets/${id}/acknowledge`, { assigneeId });
+  return res.data;
+}
+
+export async function holdMaintenanceTicket(id: string, data: { delayReason?: DelayReason; delayNotes?: string }) {
+  const res = await api.post(`/tickets/${id}/maint-hold`, data);
+  return res.data;
+}
+
+export async function resumeMaintenanceTicket(id: string) {
+  const res = await api.post(`/tickets/${id}/maint-resume`);
+  return res.data;
+}
+
+export interface ChecklistInput {
+  toolsReclaimed: ChecklistAnswer;
+  machineCleaned: ChecklistAnswer;
+  cableRouting: ChecklistAnswer;
+}
+
+export async function markVerificationNeeded(id: string, data: ChecklistInput) {
+  const res = await api.post(`/tickets/${id}/mark-verification-needed`, data);
+  return res.data;
+}
+
+export async function verifyAndClose(id: string, data: { qualityRating: QualityRating; qualityFeedback?: string; certify: true }) {
+  const res = await api.post(`/tickets/${id}/verify-and-close`, data);
+  return res.data;
+}
+
+export async function rejectVerification(id: string, data: { reason: string; qualityRating?: QualityRating; qualityFeedback?: string }) {
+  const res = await api.post(`/tickets/${id}/reject-verification`, data);
+  return res.data;
+}
+
+// -------------------------------------------------------------- shared ---
+
+export async function startProgress(id: string) {
+  const res = await api.post(`/tickets/${id}/start-progress`);
+  return res.data;
+}
+
+export async function updatePriority(id: string, priority: Priority) {
+  const res = await api.patch(`/tickets/${id}/priority`, { priority });
   return res.data;
 }
 

@@ -22,6 +22,7 @@ export interface CreateMaintenanceAssetInput {
   model?: string;
   manufacturer?: string;
   plantLocation?: string;
+  powerCapacity?: string;
   specifications?: string;
   purchaseDate?: string;
   warrantyStartDate?: string;

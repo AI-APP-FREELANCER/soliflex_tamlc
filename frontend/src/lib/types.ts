@@ -19,13 +19,23 @@ export type TicketCategory =
   | "SOFTWARE";
 export type TicketStatus =
   | "OPEN"
-  | "ASSIGNED"
+  | "ASSIGNED" // IT only
   | "IN_PROGRESS"
-  | "FIRST_LINE_REVIEW"
-  | "JOB_COMPLETED"
-  | "FINAL_REVIEW"
+  | "FIRST_LINE_REVIEW" // legacy maintenance workflow - historical tickets only
+  | "JOB_COMPLETED" // legacy maintenance workflow - historical tickets only
+  | "FINAL_REVIEW" // legacy maintenance workflow - historical tickets only
+  | "ACKNOWLEDGED" // maintenance only
+  | "ON_HOLD" // maintenance only
+  | "VERIFICATION_NEEDED" // maintenance only
+  | "VERIFIED" // maintenance only
+  | "REJECTED" // maintenance only
   | "CLOSED";
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type ProblemType = "ELECTRICAL" | "MECHANICAL" | "PNEUMATIC" | "HYDRAULIC" | "OTHERS";
+export type MachineStatus = "RUNNING" | "STOPPED";
+export type DelayReason = "TECHNICIAN_NOT_AVAILABLE" | "WAITING_FOR_SPARES" | "WAITING_FOR_EXTERNAL_SERVICE" | "NEED_TECHNICAL_SUPPORT" | "OTHERS";
+export type ChecklistAnswer = "YES" | "NO" | "NA";
+export type QualityRating = "EXCELLENT" | "GOOD" | "FAIR" | "POOR";
 export type OnHoldReason = "VENDOR" | "MATERIAL" | "APPROVAL";
 export type AttachmentType = "PRE_FIX_PHOTO" | "POST_FIX_PHOTO" | "INVOICE" | "OTHER";
 export type AssetStatus = "ACTIVE" | "DOWN" | "RETIRED";
@@ -52,7 +62,9 @@ export type NotificationType =
   | "HELPDESK_TICKET_RESOLVED"
   | "HELPDESK_TICKET_CLOSED"
   | "HELPDESK_DEADLINE_BREACHED"
-  | "HELPDESK_DEADLINE_MISSING";
+  | "HELPDESK_DEADLINE_MISSING"
+  | "VERIFICATION_NEEDED"
+  | "VERIFICATION_REJECTED";
 
 export type HelpdeskCategory = "LAPTOP_DESKTOP" | "PRINTER" | "NETWORK" | "SOFTWARE" | "ACCESS_REQUEST" | "EMAIL" | "OTHER";
 export type HelpdeskStatus = "OPEN" | "ASSIGNED" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "REOPENED";
@@ -118,12 +130,20 @@ export interface TicketStatusHistoryEntry {
   createdAt: string;
 }
 
+export interface NamedRef {
+  id: string;
+  name: string;
+}
+
 export interface Ticket {
   id: string;
   ticketNumber: string;
   workstream: Workstream;
   category: TicketCategory;
-  title: string;
+  /** Removed from the maintenance ticket form (Oct 2026) - null for every new maintenance ticket. IT still collects it. */
+  title: string | null;
+  /** displayTitle: computed server-side fallback (title, or a composed label) - always safe to render. */
+  displayTitle: string;
   description: string;
   plantLocation: string | null;
   maintenanceAssetId: string | null;
@@ -144,14 +164,12 @@ export interface Ticket {
   recommendedFix: string | null;
   fixType: FixType | null;
   estimatedCost: number | null;
-  /** false once a diagnosis shows the job is under the approval cost threshold */
   approvalRequired: boolean;
-  /** INR amount at/above which a spare part replacement needs manager approval (detail view only) */
-  approvalThreshold?: number;
   approvedById: string | null;
   approvedBy: UserSummary | null;
   approvedAt: string | null;
   effortEstimateHours: number | null;
+  /** IT only - maintenance no longer tracks a target date or overdue/SLA breach. */
   targetCompletionDate: string | null;
   slaBreached: boolean;
   actualCost: number | null;
@@ -160,10 +178,60 @@ export interface Ticket {
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
+
+  // --- Maintenance-only fields (Oct 2026 redesign) ---
+  plantId: string | null;
+  plant: NamedRef | null;
+  departmentId: string | null;
+  department: NamedRef | null;
+  problemType: ProblemType | null;
+  machineStatus: MachineStatus | null;
+  delayReason: DelayReason | null;
+  delayNotes: string | null;
+  checklistToolsReclaimed: ChecklistAnswer | null;
+  checklistMachineCleaned: ChecklistAnswer | null;
+  checklistCableRouting: ChecklistAnswer | null;
+  qualityRating: QualityRating | null;
+  qualityFeedback: string | null;
+  productionCertified: boolean;
+  productionCertifiedAt: string | null;
+  productionCertifiedBy: UserSummary | null;
+
   comments: TicketComment[];
   attachments: TicketAttachment[];
   costEntries: TicketCostEntry[];
   statusHistory: TicketStatusHistoryEntry[];
+}
+
+export interface Plant {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Department {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MaintenanceAnalytics {
+  ticketCount: number;
+  avgHoursByStatus: { status: string; avgHours: number; count: number }[];
+  avgTotalResolutionHours: number;
+  avgDowntimeHours: number;
+  byProblemType: { problemType: string; count: number }[];
+  byPlant: { plant: string; count: number }[];
+  byDepartment: { department: string; count: number }[];
+  byMachineStatus: { machineStatus: string; count: number }[];
+  byDelayReason: { delayReason: string; count: number }[];
+  checklistCompliance: { field: string; yes: number; no: number; na: number }[];
+  qualityRatings: { rating: string; count: number }[];
+  rejectedCount: number;
 }
 
 export interface MaintenanceAssetPhoto {
@@ -189,6 +257,7 @@ export interface MaintenanceAsset {
   model: string | null;
   manufacturer: string | null;
   plantLocation: string | null;
+  powerCapacity: string | null;
   specifications: string | null;
   purchaseDate: string | null;
   warrantyStartDate: string | null;

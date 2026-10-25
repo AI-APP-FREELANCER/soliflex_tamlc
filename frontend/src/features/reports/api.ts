@@ -1,5 +1,5 @@
 import { api, API_BASE_URL } from "../../lib/api";
-import type { DashboardStats, ITAsset, MaintenanceAsset, Priority, Workstream } from "../../lib/types";
+import type { DashboardStats, ITAsset, MaintenanceAnalytics, MaintenanceAsset, Priority, Workstream } from "../../lib/types";
 import type { DateRangeValue } from "../../components/DateRangeFilter";
 
 export async function fetchDashboard(workstream?: Workstream, dateRange?: DateRangeValue): Promise<DashboardStats> {
@@ -26,6 +26,11 @@ export async function fetchOverdueTickets(workstream?: Workstream, dateRange?: D
 
 export async function fetchExpiringAssets(days = 60): Promise<{ maintenance: MaintenanceAsset[]; it: ITAsset[] }> {
   const res = await api.get("/reports/expiring-assets", { params: { days } });
+  return res.data;
+}
+
+export async function fetchMaintenanceAnalytics(dateRange?: DateRangeValue): Promise<MaintenanceAnalytics> {
+  const res = await api.get("/reports/maintenance-analytics", { params: dateRange });
   return res.data;
 }
 

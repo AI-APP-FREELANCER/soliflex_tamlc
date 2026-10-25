@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import clsx from "clsx";
-import { LayoutGrid, List, Boxes, BarChart3, Users, Wrench, Laptop, ScrollText, X, LifeBuoy, Gauge } from "lucide-react";
+import { LayoutGrid, List, Boxes, BarChart3, Users, Wrench, Laptop, ScrollText, X, LifeBuoy, Gauge, MapPin, Building2 } from "lucide-react";
 import { useAuthStore } from "../store/auth.store";
 import { useWorkstreamStore } from "../store/workstream.store";
 import { useUIStore } from "../store/ui.store";
@@ -98,6 +98,16 @@ export function Sidebar() {
           <NavLink to="/users" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
             <Users className="h-4 w-4" /> Users
           </NavLink>
+        )}
+        {isAdmin && (
+          <>
+            <NavLink to="/plants" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <MapPin className="h-4 w-4" /> Plants
+            </NavLink>
+            <NavLink to="/departments" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <Building2 className="h-4 w-4" /> Departments
+            </NavLink>
+          </>
         )}
         {(user?.role === "MANAGER" || user?.role === "ADMIN") && (
           <NavLink to="/audit" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>

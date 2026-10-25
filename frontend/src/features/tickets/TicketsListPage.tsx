@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkstreamStore } from "../../store/workstream.store";
 import { useTickets } from "./hooks";
-import { StatusBadge, PriorityBadge, OnHoldBadge, SlaBreachBadge } from "../../components/badges";
+import { StatusBadge, STATUS_LABELS, PriorityBadge, OnHoldBadge, SlaBreachBadge } from "../../components/badges";
 import { Avatar } from "../../components/Avatar";
 import { Spinner, EmptyState } from "../../components/Spinner";
 import { DateRangeFilter, DateRangeValue } from "../../components/DateRangeFilter";
@@ -39,9 +39,12 @@ export default function TicketsListPage() {
         />
         <select value={status} onChange={(e) => setStatus(e.target.value as TicketStatus)} className="rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm">
           <option value="">All statuses</option>
-          {(["OPEN", "ASSIGNED", "IN_PROGRESS", "FIRST_LINE_REVIEW", "JOB_COMPLETED", "FINAL_REVIEW", "CLOSED"] as TicketStatus[]).map((s) => (
+          {(workstream === "MAINTENANCE"
+            ? (["OPEN", "ACKNOWLEDGED", "IN_PROGRESS", "ON_HOLD", "VERIFICATION_NEEDED", "VERIFIED", "REJECTED", "CLOSED"] as TicketStatus[])
+            : (["OPEN", "ASSIGNED", "IN_PROGRESS", "CLOSED"] as TicketStatus[])
+          ).map((s) => (
             <option key={s} value={s}>
-              {s}
+              {STATUS_LABELS[s]}
             </option>
           ))}
         </select>
@@ -78,7 +81,7 @@ export default function TicketsListPage() {
                 <tr key={t.id} onClick={() => navigate(`/tickets/${t.id}`)} className="cursor-pointer border-t border-soliflex-gray-50 hover:bg-soliflex-gray-50">
                   <td className="px-4 py-3">
                     <p className="font-medium text-soliflex-ink">{t.ticketNumber}</p>
-                    <p className="text-xs text-soliflex-gray-400">{t.title}</p>
+                    <p className="text-xs text-soliflex-gray-400">{t.displayTitle}</p>
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={t.status} />

@@ -10,6 +10,8 @@ import TicketDetailPage from "./features/tickets/TicketDetailPage";
 import AssetsPage from "./features/assets/AssetsPage";
 import AssetDetailPage from "./features/assets/AssetDetailPage";
 import UsersPage from "./features/users/UsersPage";
+import PlantsPage from "./features/plants/PlantsPage";
+import DepartmentsPage from "./features/departments/DepartmentsPage";
 import DashboardPage from "./features/reports/DashboardPage";
 import AuditLogPage from "./features/audit/AuditLogPage";
 import HelpdeskListPage from "./features/helpdesk/HelpdeskListPage";
@@ -53,6 +55,10 @@ export default function App() {
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route element={<ProtectedRoute roles={["MANAGER", "ADMIN"]} />}>
             <Route path="/users" element={<UsersPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={["ADMIN"]} />}>
+            <Route path="/plants" element={<PlantsPage />} />
+            <Route path="/departments" element={<DepartmentsPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={["MANAGER", "ADMIN"]} />}>
             <Route path="/audit" element={<AuditLogPage />} />

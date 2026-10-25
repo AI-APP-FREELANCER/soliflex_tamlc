@@ -81,6 +81,7 @@ export default function AssetDetailPage() {
               <Field label="Model" value={(asset as any).model} />
               <Field label="Manufacturer" value={(asset as any).manufacturer} />
               <Field label="Plant location" value={(asset as any).plantLocation} />
+              <Field label="Power capacity" value={(asset as any).powerCapacity} />
               <Field label="Warranty end" value={(asset as any).warrantyEndDate && format(new Date((asset as any).warrantyEndDate), "dd MMM yyyy")} />
             </>
           ) : (

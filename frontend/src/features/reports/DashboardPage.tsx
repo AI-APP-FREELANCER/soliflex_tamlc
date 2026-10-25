@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Download, RefreshCw } from "lucide-react";
 import { useWorkstreamStore } from "../../store/workstream.store";
-import { fetchDashboard, fetchExpiringAssets, fetchOverdueTickets } from "./api";
+import { fetchDashboard, fetchExpiringAssets, fetchMaintenanceAnalytics, fetchOverdueTickets } from "./api";
+import { PROBLEM_TYPE_LABELS, DELAY_REASON_LABELS, MACHINE_STATUS_LABELS, QUALITY_RATING_LABELS } from "../../components/badges";
 import { Spinner, EmptyState } from "../../components/Spinner";
 import { statusLabel, StatusBadge, PriorityBadge } from "../../components/badges";
 import { StatCard } from "../../components/StatCard";
@@ -44,6 +45,7 @@ function PriorityBreakdown({ data }: { data: { name: string; value: number }[] }
 
 export default function DashboardPage() {
   const workstream = useWorkstreamStore((s) => s.workstream);
+  const isMaintenance = workstream === "MAINTENANCE";
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<DateRangeValue>({});
   // Reports are live: refetch every minute and whenever the tab regains focus, so breach/overdue
@@ -52,12 +54,23 @@ export default function DashboardPage() {
   const { data: stats, isLoading, dataUpdatedAt, refetch, isFetching } = useQuery({
     queryKey: ["dashboard", workstream, dateRange],
     queryFn: () => fetchDashboard(workstream, dateRange),
+    // Keep showing the previous numbers while a new filter's query is in flight,
+    // rather than flipping isLoading (which would unmount the whole page below,
+    // including the date-range control itself, mid-pick).
+    placeholderData: (prev) => prev,
     ...live,
   });
   const { data: expiring } = useQuery({ queryKey: ["expiring-assets"], queryFn: () => fetchExpiringAssets(60), ...live });
   const { data: overdueTickets, refetch: refetchOverdue } = useQuery({
     queryKey: ["overdue-tickets", workstream, dateRange],
     queryFn: () => fetchOverdueTickets(workstream, dateRange),
+    enabled: !isMaintenance,
+    ...live,
+  });
+  const { data: maintAnalytics } = useQuery({
+    queryKey: ["maintenance-analytics", dateRange],
+    queryFn: () => fetchMaintenanceAnalytics(dateRange),
+    enabled: isMaintenance,
     ...live,
   });
 
@@ -114,9 +127,14 @@ export default function DashboardPage() {
         <StatCard label="Open" value={stats.open} />
         <StatCard label="Closed" value={stats.closed} />
         <StatCard label="On hold" value={stats.onHold} tone="warn" />
-        <StatCard label="Deadline breached" value={stats.slaBreached} tone="danger" />
-        <StatCard label="Overdue now" value={stats.overdue} tone="danger" />
-        <StatCard label="Avg resolution (hrs)" value={stats.avgResolutionHours} />
+        {!isMaintenance && (
+          <>
+            <StatCard label="Deadline breached" value={stats.slaBreached} tone="danger" />
+            <StatCard label="Overdue now" value={stats.overdue} tone="danger" />
+          </>
+        )}
+        <StatCard label="Avg resolution (hrs)" value={isMaintenance ? (maintAnalytics?.avgTotalResolutionHours ?? 0) : stats.avgResolutionHours} />
+        {isMaintenance && <StatCard label="Avg downtime (hrs)" value={maintAnalytics?.avgDowntimeHours ?? 0} tone="warn" />}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -141,6 +159,112 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {isMaintenance && maintAnalytics && (
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
+              <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Average hours by status phase</h2>
+              {maintAnalytics.avgHoursByStatus.length === 0 ? (
+                <EmptyState title="No data yet" />
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {maintAnalytics.avgHoursByStatus.map((s) => (
+                    <li key={s.status} className="flex items-center justify-between">
+                      <span className="text-soliflex-gray-600">{statusLabel(s.status)}</span>
+                      <span className="font-medium text-soliflex-ink">
+                        {s.avgHours}h <span className="text-xs text-soliflex-gray-400">({s.count})</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
+              <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Post-maintenance 5S checklist compliance</h2>
+              <ul className="space-y-2 text-sm">
+                {maintAnalytics.checklistCompliance.map((c) => (
+                  <li key={c.field}>
+                    <p className="mb-1 text-soliflex-gray-600">{c.field}</p>
+                    <div className="flex h-2 overflow-hidden rounded-full bg-soliflex-gray-100">
+                      {c.yes + c.no + c.na > 0 && (
+                        <>
+                          <div className="bg-green-500" style={{ width: `${(c.yes / (c.yes + c.no + c.na)) * 100}%` }} />
+                          <div className="bg-red-500" style={{ width: `${(c.no / (c.yes + c.no + c.na)) * 100}%` }} />
+                          <div className="bg-soliflex-gray-300" style={{ width: `${(c.na / (c.yes + c.no + c.na)) * 100}%` }} />
+                        </>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-soliflex-gray-400">
+                      {c.yes} yes · {c.no} no · {c.na} n/a
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { title: "By problem type", rows: maintAnalytics.byProblemType.map((r) => ({ label: PROBLEM_TYPE_LABELS[r.problemType as keyof typeof PROBLEM_TYPE_LABELS] ?? r.problemType, count: r.count })) },
+              { title: "By plant", rows: maintAnalytics.byPlant.map((r) => ({ label: r.plant, count: r.count })) },
+              { title: "By department", rows: maintAnalytics.byDepartment.map((r) => ({ label: r.department, count: r.count })) },
+              { title: "By machine status", rows: maintAnalytics.byMachineStatus.map((r) => ({ label: MACHINE_STATUS_LABELS[r.machineStatus as keyof typeof MACHINE_STATUS_LABELS] ?? r.machineStatus, count: r.count })) },
+            ].map((block) => (
+              <div key={block.title} className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-soliflex-gray-500">{block.title}</h3>
+                {block.rows.length === 0 ? (
+                  <p className="text-xs text-soliflex-gray-400">No data</p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {block.rows.map((r) => (
+                      <li key={r.label} className="flex items-center justify-between">
+                        <span className="text-soliflex-gray-600">{r.label}</span>
+                        <span className="font-medium text-soliflex-ink">{r.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-soliflex-gray-500">Reasons for delay (optional field)</h3>
+              {maintAnalytics.byDelayReason.length === 0 ? (
+                <p className="text-xs text-soliflex-gray-400">No delays recorded</p>
+              ) : (
+                <ul className="space-y-1 text-sm">
+                  {maintAnalytics.byDelayReason.map((r) => (
+                    <li key={r.delayReason} className="flex items-center justify-between">
+                      <span className="text-soliflex-gray-600">{DELAY_REASON_LABELS[r.delayReason as keyof typeof DELAY_REASON_LABELS] ?? r.delayReason}</span>
+                      <span className="font-medium text-soliflex-ink">{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-soliflex-gray-500">Production quality feedback</h3>
+              <p className="mb-2 text-xs text-soliflex-gray-400">{maintAnalytics.rejectedCount} fix(es) rejected and reworked</p>
+              {maintAnalytics.qualityRatings.length === 0 ? (
+                <p className="text-xs text-soliflex-gray-400">No ratings yet</p>
+              ) : (
+                <ul className="space-y-1 text-sm">
+                  {maintAnalytics.qualityRatings.map((r) => (
+                    <li key={r.rating} className="flex items-center justify-between">
+                      <span className="text-soliflex-gray-600">{QUALITY_RATING_LABELS[r.rating as keyof typeof QUALITY_RATING_LABELS] ?? r.rating}</span>
+                      <span className="font-medium text-soliflex-ink">{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isMaintenance && (
       <div className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
         <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Tickets past their target completion date</h2>
         {overdueTickets && overdueTickets.length > 0 ? (
@@ -178,6 +302,7 @@ export default function DashboardPage() {
           <p className="text-sm text-soliflex-gray-400">Nothing overdue right now.</p>
         )}
       </div>
+      )}
 
       <div className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
         <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Warranty / license expiring within 60 days</h2>
