@@ -438,13 +438,16 @@ async function main() {
     is("employee cannot create a board ticket", await post(emp, "/tickets", mtBody()), 403);
     is("mechanic cannot raise tickets", await post(mech, "/tickets", mtBody()), 403);
     is("production cannot raise IT tickets", await post(prod, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Laptop dead", description: "no power" }), 403);
-    is("production cannot raise facility tickets (admin team only)", await post(prod, "/tickets", mtBody({ category: "FACTORY_FACILITY" })), 403);
-    is("production cannot raise 'other machine' tickets (admin team only)", await post(prod, "/tickets", mtBody({ category: "OTHER_MACHINE" })), 403);
-    is("admin team (ADMIN) can raise facility tickets", await post(admin, "/tickets", mtBody({ category: "FACTORY_FACILITY" })), 201);
+    // Category was removed from the maintenance form (Oct 2026) - Machine Name/Department/Problem Type
+    // cover that now, so any category the client sends for a maintenance ticket is ignored.
+    const catIgnored = await post(prod, "/tickets", mtBody({ category: "FACTORY_FACILITY" }));
+    is("category sent for a maintenance ticket is accepted (no longer validated against role)", catIgnored, 201);
+    ok("...but ignored - every maintenance ticket is categorized PRODUCTION_MACHINE server-side", catIgnored.body.category === "PRODUCTION_MACHINE");
+    is("admin team (ADMIN) can raise maintenance tickets same as production", await post(admin, "/tickets", mtBody()), 201);
     is("IT tech cannot raise maintenance tickets", await post(itTech, "/tickets", mtBody()), 403);
     is("IT tech cannot use a maintenance category in IT workstream", await post(itTech, "/tickets", { workstream: "IT", category: "PRODUCTION_MACHINE", title: "x", description: "wrong category here" }), 400);
     is("description too short -> 400", await post(prod, "/tickets", mtBody({ description: "x" })), 400);
-    is("invalid category -> 400", await post(prod, "/tickets", mtBody({ category: "NOPE" })), 400);
+    is("invalid category -> 400 (zod still rejects an unknown enum value, even though the field is now optional)", await post(prod, "/tickets", mtBody({ category: "NOPE" })), 400);
     is("missing plant -> 400", await post(prod, "/tickets", mtBody({ plantId: undefined })), 400);
     is("missing department -> 400", await post(prod, "/tickets", mtBody({ departmentId: undefined })), 400);
     is("missing problem type -> 400", await post(prod, "/tickets", mtBody({ problemType: undefined })), 400);
@@ -609,7 +612,9 @@ async function main() {
     is("maintenance manager cannot raise an IT ticket", await post(mgrMFresh, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Laptop dead", description: "no power" }), 403);
     is("IT manager cannot raise a maintenance ticket", await post(mgrIT, "/tickets", { workstream: "MAINTENANCE", category: "OTHER_MACHINE", title: "Press jammed", description: "stuck" }), 403);
     is("admin cannot pair an IT workstream with a maintenance category", await post(admin, "/tickets", { workstream: "IT", category: "PRODUCTION_MACHINE", title: "Mixed up", description: "wrong category" }), 400);
-    is("admin cannot pair a maintenance workstream with an IT category", await post(admin, "/tickets", { workstream: "MAINTENANCE", category: "LAPTOP", title: "Mixed up", description: "wrong category" }), 400);
+    const mixedUp = await post(admin, "/tickets", mtBody({ category: "LAPTOP" }));
+    is("an IT category on a maintenance ticket is simply ignored, not a 400 (category isn't collected there any more)", mixedUp, 201);
+    ok("the ticket is categorized PRODUCTION_MACHINE regardless", mixedUp.body.category === "PRODUCTION_MACHINE");
   }
 
   // ===================================================== HELPDESK

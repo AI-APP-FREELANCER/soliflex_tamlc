@@ -83,10 +83,11 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   }
 
   function handleSubmit() {
-    if (!workstream || !category) return;
+    if (!workstream) return;
+    if (!isMaintenance && !category) return;
     create.mutate(
       isMaintenance
-        ? { workstream, category, description: description.trim(), plantId, departmentId, problemType, machineStatus, maintenanceAssetId: machine?.id }
+        ? { workstream, description: description.trim(), plantId, departmentId, problemType, machineStatus, maintenanceAssetId: machine?.id }
         : { workstream, category, title: title.trim(), description: description.trim(), itAssetId: assetId },
       {
         onSuccess: (ticket) => {
@@ -99,7 +100,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   }
 
   const canSubmit = isMaintenance
-    ? !!category && description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType && !!machine
+    ? description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType && !!machine
     : !!workstream && !!category && title.trim().length >= 3 && description.trim().length >= 3;
 
   if (workstreamOptions.length === 0) {
@@ -132,7 +133,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
             }}
           />
         )}
-        <SelectField label="Category" value={category} options={categoryOptions} onChange={setCategory} />
+        {!isMaintenance && <SelectField label="Category" value={category} options={categoryOptions} onChange={setCategory} />}
 
         {isMaintenance ? (
           <>

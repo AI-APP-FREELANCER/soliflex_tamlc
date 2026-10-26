@@ -13,7 +13,6 @@ import {
   DELAY_REASON_LABELS,
   PROBLEM_TYPE_LABELS,
   QUALITY_RATING_LABELS,
-  TICKET_CATEGORY_LABELS,
   TICKET_STATUS_COLORS,
   TICKET_STATUS_LABELS,
 } from "@/features/tickets/badges";
@@ -335,7 +334,6 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
         </View>
 
         <View className="mt-3 flex-row flex-wrap rounded-xl border border-soliflex-gray-100 bg-white p-4">
-          <InfoRow label="Category" value={TICKET_CATEGORY_LABELS[ticket.category]} />
           <InfoRow label="Machine" value={ticket.machine ? `${ticket.machine.name} (${ticket.machine.itemCode})` : "—"} />
           <InfoRow label="Reported by" value={ticket.reportedBy?.name ?? "—"} />
           <InfoRow label="Assigned to" value={ticket.assignedTo?.name ?? "Unassigned"} />

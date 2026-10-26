@@ -35,7 +35,8 @@ export async function fetchTicket(id: string): Promise<Ticket> {
 
 export interface CreateTicketInput {
   workstream: Workstream;
-  category: TicketCategory;
+  /** IT only; maintenance no longer collects a category - every maintenance ticket is categorized server-side. */
+  category?: TicketCategory;
   /** IT only; maintenance no longer collects a title. */
   title?: string;
   description: string;

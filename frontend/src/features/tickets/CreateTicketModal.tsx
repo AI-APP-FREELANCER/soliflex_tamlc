@@ -86,16 +86,16 @@ export function CreateTicketModal() {
   }
 
   const canSubmit = isMaintenance
-    ? !!category && description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType && !!machine
+    ? description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType && !!machine
     : !!category && title.trim().length >= 3 && description.trim().length >= 3;
 
   async function handleSubmit() {
-    if (!canSubmit || !category) return;
+    if (!canSubmit) return;
+    if (!isMaintenance && !category) return;
     const ticket = await create.mutateAsync(
       isMaintenance
         ? {
             workstream,
-            category: category as TicketCategory,
             description,
             plantId,
             departmentId,
@@ -147,25 +147,27 @@ export function CreateTicketModal() {
             </div>
           )}
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Category</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as TicketCategory)}
-              className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm outline-none focus:border-soliflex-orange-500"
-            >
-              <option value="" disabled>
-                Select category
-              </option>
-              {categoriesFor(workstream)
-                .filter((c) => allowedCategories.includes(c.value))
-                .map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-            </select>
-          </div>
+          {!isMaintenance && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as TicketCategory)}
+                className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm outline-none focus:border-soliflex-orange-500"
+              >
+                <option value="" disabled>
+                  Select category
+                </option>
+                {categoriesFor(workstream)
+                  .filter((c) => allowedCategories.includes(c.value))
+                  .map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           {isMaintenance ? (
             <>

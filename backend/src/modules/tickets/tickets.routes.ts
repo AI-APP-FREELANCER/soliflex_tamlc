@@ -59,7 +59,9 @@ router.get("/:id", async (req, res) => {
 
 const createSchema = z.object({
   workstream: z.nativeEnum(Workstream),
-  category: z.nativeEnum(TicketCategory),
+  // IT only; validated server-side as required for IT. Maintenance no longer
+  // collects a category - every maintenance ticket is PRODUCTION_MACHINE.
+  category: z.nativeEnum(TicketCategory).optional(),
   // IT only; validated server-side as required for IT, unused for Maintenance.
   title: z.string().optional(),
   description: z.string().min(3),

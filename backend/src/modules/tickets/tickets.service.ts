@@ -36,7 +36,8 @@ export interface Actor {
 
 export interface CreateTicketInput {
   workstream: Workstream;
-  category: TicketCategory;
+  /** IT: required. Maintenance: no longer collected - every maintenance ticket is categorized PRODUCTION_MACHINE server-side. */
+  category?: TicketCategory;
   /** IT: required. Maintenance: no longer collected (kept for API back-compat only). */
   title?: string;
   description: string;
@@ -128,18 +129,25 @@ async function findActiveProductionUsers() {
 }
 
 export async function createTicket(actor: Actor, input: CreateTicketInput) {
-  if (!categoriesForWorkstream(input.workstream).includes(input.category)) {
-    throw new ApiError(400, `That category belongs to the ${input.workstream === Workstream.IT ? "Maintenance" : "IT"} workstream, not ${input.workstream === Workstream.IT ? "IT" : "Maintenance"}`);
+  const isMaintenance = input.workstream === Workstream.MAINTENANCE;
+  // Category is no longer collected on the maintenance form - Machine Name,
+  // Department and Type of Problem cover that categorization now. Every
+  // maintenance ticket gets the same category value; IT still picks one.
+  const category = isMaintenance ? TicketCategory.PRODUCTION_MACHINE : input.category;
+  if (!category) {
+    throw new ApiError(400, "Select a category");
+  }
+  if (!isMaintenance && !categoriesForWorkstream(input.workstream).includes(category)) {
+    throw new ApiError(400, `That category belongs to the Maintenance workstream, not IT`);
   }
   const scope = workstreamScope(actor);
   if (scope && scope !== input.workstream) {
     throw new ApiError(403, `Your account works on ${scope === Workstream.IT ? "IT" : "Maintenance"} tickets only`);
   }
-  if (!canCreateTicket(actor.role, input.workstream, input.category)) {
+  if (!canCreateTicket(actor.role, input.workstream, category)) {
     throw new ApiError(403, "Your role cannot raise tickets in this workstream/category");
   }
 
-  const isMaintenance = input.workstream === Workstream.MAINTENANCE;
   let plant = null;
   let department = null;
 
@@ -167,7 +175,7 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
       data: {
         ticketNumber,
         workstream: input.workstream,
-        category: input.category,
+        category,
         title: isMaintenance ? null : input.title!.trim(),
         description: input.description,
         itAssetId: isMaintenance ? undefined : input.itAssetId,

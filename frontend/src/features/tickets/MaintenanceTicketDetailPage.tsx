@@ -610,10 +610,6 @@ export default function MaintenanceTicketDetailPage() {
               <span>{ticket.assignedTo ? ticket.assignedTo.name : "Unassigned"}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-soliflex-gray-400">Category</span>
-              <span>{ticket.category.replace("_", " ")}</span>
-            </div>
-            <div className="flex items-center justify-between">
               <span className="text-soliflex-gray-400">Machine</span>
               <span className="text-right">{ticket.machine ? `${ticket.machine.name} (${ticket.machine.itemCode})` : "—"}</span>
             </div>
