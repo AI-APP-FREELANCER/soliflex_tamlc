@@ -1,5 +1,5 @@
 import { api } from "@/lib/api-client";
-import type { AssetFilter, AssetType, ITAsset, MaintenanceAsset } from "@/lib/types";
+import type { AssetFilter, AssetType, ITAsset, MachineSummary, MaintenanceAsset } from "@/lib/types";
 
 function basePath(type: AssetType): string {
   return type === "maintenance" ? "/assets/maintenance" : "/assets/it";
@@ -11,6 +11,17 @@ function basePath(type: AssetType): string {
  * correctly when `type` comes from a runtime AssetType variable. */
 export async function fetchAssets(type: AssetType, filter: AssetFilter): Promise<(MaintenanceAsset | ITAsset)[]> {
   const res = await api.get(basePath(type), { params: filter });
+  return res.data;
+}
+
+export interface MachinePickerPage {
+  items: MachineSummary[];
+  nextCursor: string | null;
+}
+
+/** Paginated, lightweight machine listing for the "Machine Name" picker on the new-ticket form. */
+export async function fetchMachinePicker(params: { search?: string; cursor?: string | null }): Promise<MachinePickerPage> {
+  const res = await api.get("/assets/maintenance/picker", { params: { limit: 20, search: params.search || undefined, cursor: params.cursor || undefined } });
   return res.data;
 }
 

@@ -368,6 +368,7 @@ export default function MaintenanceTicketDetailPage() {
             </div>
             <h1 className="text-lg font-bold text-soliflex-ink">{ticket.displayTitle}</h1>
             <div className="mt-2 flex flex-wrap gap-3 text-xs text-soliflex-gray-500">
+              {ticket.machine && <span>Machine: {ticket.machine.name} ({ticket.machine.itemCode})</span>}
               {ticket.plant && <span>Plant: {ticket.plant.name}</span>}
               {ticket.department && <span>Dept: {ticket.department.name}</span>}
               {ticket.problemType && <span>Problem: {PROBLEM_TYPE_LABELS[ticket.problemType]}</span>}
@@ -612,6 +613,17 @@ export default function MaintenanceTicketDetailPage() {
               <span className="text-soliflex-gray-400">Category</span>
               <span>{ticket.category.replace("_", " ")}</span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-soliflex-gray-400">Machine</span>
+              <span className="text-right">{ticket.machine ? `${ticket.machine.name} (${ticket.machine.itemCode})` : "—"}</span>
+            </div>
+            {ticket.machine && (ticket.machine.model || ticket.machine.manufacturer || ticket.machine.powerCapacity) && (
+              <div className="rounded-lg bg-soliflex-gray-50 px-3 py-2 text-xs text-soliflex-gray-500">
+                {ticket.machine.model && <div>Model: {ticket.machine.model}</div>}
+                {ticket.machine.manufacturer && <div>Manufacturer: {ticket.machine.manufacturer}</div>}
+                {ticket.machine.powerCapacity && <div>Power capacity: {ticket.machine.powerCapacity}</div>}
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-soliflex-gray-400">Plant</span>
               <span>{ticket.plant?.name ?? "—"}</span>

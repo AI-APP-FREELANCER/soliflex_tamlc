@@ -147,6 +147,8 @@ export interface Ticket {
   description: string;
   plantLocation: string | null;
   maintenanceAssetId: string | null;
+  /** The machine (maintenance asset) linked via maintenanceAssetId, joined server-side for display. */
+  machine: MachineSummary | null;
   itAssetId: string | null;
   status: TicketStatus;
   priority: Priority | null;
@@ -247,6 +249,19 @@ export interface MaintenanceAssetInvoice {
   invoiceNumber: string | null;
   amount: number | null;
   uploadedAt: string;
+}
+
+/** Lightweight machine shape used by the ticket Machine Name picker and the ticket's own `machine` field. */
+export interface MachineSummary {
+  id: string;
+  itemCode: string;
+  name: string;
+  category: MaintenanceAssetCategory;
+  model: string | null;
+  manufacturer: string | null;
+  plantLocation: string | null;
+  powerCapacity: string | null;
+  status: AssetStatus;
 }
 
 export interface MaintenanceAsset {

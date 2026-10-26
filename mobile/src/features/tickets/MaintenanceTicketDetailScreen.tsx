@@ -284,6 +284,11 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
           </View>
           <Text className="mt-2 text-base font-bold text-soliflex-ink">{ticket.displayTitle}</Text>
           <View className="mt-1 flex-row flex-wrap gap-x-3">
+            {ticket.machine && (
+              <Text className="text-xs text-soliflex-gray-500">
+                Machine: {ticket.machine.name} ({ticket.machine.itemCode})
+              </Text>
+            )}
             {ticket.plant && <Text className="text-xs text-soliflex-gray-500">Plant: {ticket.plant.name}</Text>}
             {ticket.department && <Text className="text-xs text-soliflex-gray-500">Dept: {ticket.department.name}</Text>}
             {ticket.problemType && <Text className="text-xs text-soliflex-gray-500">Problem: {PROBLEM_TYPE_LABELS[ticket.problemType]}</Text>}
@@ -331,6 +336,7 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
 
         <View className="mt-3 flex-row flex-wrap rounded-xl border border-soliflex-gray-100 bg-white p-4">
           <InfoRow label="Category" value={TICKET_CATEGORY_LABELS[ticket.category]} />
+          <InfoRow label="Machine" value={ticket.machine ? `${ticket.machine.name} (${ticket.machine.itemCode})` : "—"} />
           <InfoRow label="Reported by" value={ticket.reportedBy?.name ?? "—"} />
           <InfoRow label="Assigned to" value={ticket.assignedTo?.name ?? "Unassigned"} />
           <InfoRow label="Raised on" value={formatIST(ticket.createdAt, "dd MMM yyyy, HH:mm")} />

@@ -368,6 +368,8 @@ async function main() {
     inactivePlant = p1.body;
     is("duplicate plant name rejected", await post(admin, "/plants", { name: "Unit_9" }), 409);
     is("admin renames a plant", await patch(admin, `/plants/${inactivePlant.id}`, { name: "Unit_9_North" }), 200);
+    const seedMachineForPlantTest = await post(prod, "/assets/maintenance", { name: "Plant-test Machine", category: "Plant Equipment" });
+    const seedMachineForPlantTestId = seedMachineForPlantTest.body.id;
     const used = await post(prod, "/tickets", {
       workstream: "MAINTENANCE",
       category: "PRODUCTION_MACHINE",
@@ -376,13 +378,27 @@ async function main() {
       departmentId: deptFabric.id,
       problemType: "MECHANICAL",
       machineStatus: "RUNNING",
+      maintenanceAssetId: seedMachineForPlantTestId,
     });
     is("ticket raised against the new plant", used, 201);
     is("deleting a plant in use is refused", await call("DELETE", `/api/plants/${inactivePlant.id}`, { token: admin }), 409);
     is("deactivating it instead works", await patch(admin, `/plants/${inactivePlant.id}`, { active: false }), 200);
     ok("inactive plants are hidden from the default (active-only) listing", !(await get(mech, "/plants")).body.some((x: any) => x.id === inactivePlant.id));
     ok("…but still show up with ?all=true", (await get(admin, "/plants?all=true")).body.some((x: any) => x.id === inactivePlant.id));
-    is("creating a ticket against an inactive plant is refused", await post(prod, "/tickets", { workstream: "MAINTENANCE", category: "PRODUCTION_MACHINE", description: "x".repeat(10), plantId: inactivePlant.id, departmentId: deptFabric.id, problemType: "MECHANICAL", machineStatus: "RUNNING" }), 400);
+    is(
+      "creating a ticket against an inactive plant is refused",
+      await post(prod, "/tickets", {
+        workstream: "MAINTENANCE",
+        category: "PRODUCTION_MACHINE",
+        description: "x".repeat(10),
+        plantId: inactivePlant.id,
+        departmentId: deptFabric.id,
+        problemType: "MECHANICAL",
+        machineStatus: "RUNNING",
+        maintenanceAssetId: seedMachineForPlantTestId,
+      }),
+      400
+    );
 
     is("mechanic cannot create a department", await post(mech, "/departments", { name: "Packing" }), 403);
     is("department name too short is rejected", await post(admin, "/departments", { name: "X" }), 400);
@@ -395,7 +411,12 @@ async function main() {
     ok("the 7 seeded departments are present", ["Fabric", "Cutting", "Finishing", "Utility", "Container liner", "RP", "General"].every((n) => seeded.body.some((x: any) => x.name === n)));
   }
 
-  /** Maintenance ticket-creation body: Plant/Department/Problem type/Machine status replace the old free-text plant field and Title. */
+  // A machine (maintenance asset) is now mandatory on every maintenance ticket - create one upfront for mtBody() to default to.
+  const defaultMachine = await post(prod, "/assets/maintenance", { name: "Main Drive Motor", category: "Plant Equipment", model: "MD-100", manufacturer: "ACME", powerCapacity: "15kW" });
+  is("seed machine for maintenance tickets", defaultMachine, 201);
+  const defaultMachineId = defaultMachine.body.id;
+
+  /** Maintenance ticket-creation body: Plant/Department/Problem type/Machine status/Machine name replace the old free-text plant field and Title. */
   const mtBody = (o: Record<string, unknown> = {}) => ({
     workstream: "MAINTENANCE",
     category: "PRODUCTION_MACHINE",
@@ -404,6 +425,7 @@ async function main() {
     departmentId: deptFabric.id,
     problemType: "MECHANICAL",
     machineStatus: "RUNNING",
+    maintenanceAssetId: defaultMachineId,
     ...o,
   });
 
@@ -427,6 +449,8 @@ async function main() {
     is("missing department -> 400", await post(prod, "/tickets", mtBody({ departmentId: undefined })), 400);
     is("missing problem type -> 400", await post(prod, "/tickets", mtBody({ problemType: undefined })), 400);
     is("missing machine status -> 400", await post(prod, "/tickets", mtBody({ machineStatus: undefined })), 400);
+    is("missing machine -> 400", await post(prod, "/tickets", mtBody({ maintenanceAssetId: undefined })), 400);
+    is("unknown machine -> 400", await post(prod, "/tickets", mtBody({ maintenanceAssetId: "nope" })), 400);
     is("unknown plant -> 400", await post(prod, "/tickets", mtBody({ plantId: "nope" })), 400);
     is("IT ticket without a title -> 400 (title still required for IT)", await post(itTech, "/tickets", { workstream: "IT", category: "LAPTOP", description: "no power at all" }), 400);
     is("unknown ticket -> 404", await get(mgrMFresh, "/tickets/does-not-exist"), 404);
@@ -441,6 +465,13 @@ async function main() {
     T = c.body;
     ok("ticket gets MAIN- number and OPEN status", /^MAIN-\d+$/.test(T.ticketNumber) && T.status === "OPEN");
     ok("no title is stored any more - displayTitle falls back to a composed label", T.title === null && /Mechanical/.test(T.displayTitle));
+    ok("the selected machine's details are joined onto the ticket", T.maintenanceAssetId === defaultMachineId && T.machine?.name === "Main Drive Motor" && T.machine?.powerCapacity === "15kW");
+
+    const pick1 = await get(prod, "/assets/maintenance/picker?limit=1");
+    is("machine picker: paginated (1 item, cursor for more)", pick1, 200);
+    ok("machine picker: returns at most the requested page size plus a cursor", pick1.body.items.length === 1 && typeof pick1.body.nextCursor === "string");
+    const pickSearch = await get(prod, `/assets/maintenance/picker?search=${encodeURIComponent("Main Drive")}`);
+    ok("machine picker: search matches by name", pickSearch.body.items.some((m: any) => m.id === defaultMachineId));
     ok("raiser recorded and history started", T.reportedBy?.id === id("vikram.singh@soliflex.local") && T.statusHistory.length === 1);
     ok("maintenance manager notified of the new ticket", hasNotif(await notifs(mgrMFresh), T.ticketNumber));
     ok("raiser is not notified of their own ticket", !hasNotif(await notifs(prod), `New MAINTENANCE ticket ${T.ticketNumber}`));
@@ -762,7 +793,10 @@ async function main() {
     const b = await post(mgrMFresh, "/assets/maintenance", { name: "Second Asset", category: "PLANT_EQUIPMENT" });
     ok("item codes are sequential", Number(b.body.itemCode.split("-")[2]) === Number(a.body.itemCode.split("-")[2]) + 1);
     ok("categories endpoint lists distinct categories", (await get(mech, "/assets/maintenance/categories")).body.filter((c: string) => c === "PLANT_EQUIPMENT").length === 1);
-    ok("category filter is case/format tolerant", (await get(mech, "/assets/maintenance?category=plant equipment")).body.length === 2);
+    ok(
+      "category filter is case/format tolerant",
+      (await get(mech, "/assets/maintenance?category=plant equipment")).body.length === 4 // the default machine + the plant-deletion-test machine (both "Plant Equipment"), plus a and b below
+    );
     ok("search by name and code", (await get(mech, "/assets/maintenance?search=slitter")).body.length === 1 && (await get(mech, `/assets/maintenance?search=${b.body.itemCode}`)).body.length === 1);
     is("asset detail", await get(mech, `/assets/maintenance/${a.body.id}`), 200);
     is("unknown asset -> 404", await get(mech, "/assets/maintenance/nope"), 404);
@@ -826,10 +860,10 @@ async function main() {
     const bi2 = await call("POST", "/api/assets/it/bulk-import", { token: itTech, form: f2 });
     ok("IT bulk import works", bi2.status === 200 && bi2.body.imported === 1, JSON.stringify(bi2.body));
 
-    // "Linked Asset (Optional)" was removed from maintenance ticket creation (Oct 2026) -
-    // sending maintenanceAssetId is simply ignored, not an error.
+    // "Machine Name" (maintenanceAssetId) was brought back as a mandatory picker (Oct 2026) -
+    // the ticket is linked to the chosen machine, and its details are joined onto the ticket.
     const lt = await post(prod, "/tickets", mtBody({ maintenanceAssetId: aId }));
-    ok("maintenanceAssetId is no longer accepted on create - ticket is raised unlinked", lt.status === 201 && lt.body.maintenanceAssetId === null);
+    ok("maintenanceAssetId links the ticket to that machine, details included", lt.status === 201 && lt.body.maintenanceAssetId === aId && lt.body.machine?.name === "Slitter Rewinder");
 
     // asset alert job
     await prisma.maintenanceAsset.update({ where: { id: aId }, data: { warrantyEndDate: new Date(Date.now() + 10 * 86_400_000), expiryAlertedAt: null, statusSince: new Date(Date.now() - 100 * 3_600_000), downtimeAlertedAt: null } });

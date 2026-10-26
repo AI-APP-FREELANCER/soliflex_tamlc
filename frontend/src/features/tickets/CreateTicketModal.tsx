@@ -5,13 +5,14 @@ import { useNavigate } from "react-router-dom";
 import { Modal } from "../../components/Modal";
 import { QrScannerModal } from "../../components/QrScannerModal";
 import { ISTClock } from "../../components/ISTClock";
+import { MachinePicker } from "../../components/MachinePicker";
 import { MACHINE_STATUS_LABELS, PROBLEM_TYPE_LABELS } from "../../components/badges";
 import { useAuthStore } from "../../store/auth.store";
 import { useUIStore } from "../../store/ui.store";
 import { useWorkstreamStore } from "../../store/workstream.store";
 import { allowedCategoriesForCreate, allowedWorkstreamsForCreate, categoriesFor } from "./permissions";
 import { useTicketMutations } from "./hooks";
-import type { MachineStatus, ProblemType, TicketCategory, Workstream } from "../../lib/types";
+import type { MachineStatus, MachineSummary, ProblemType, TicketCategory, Workstream } from "../../lib/types";
 import { fetchITAssets } from "../assets/api";
 import { fetchPlants } from "../plants/api";
 import { fetchDepartments } from "../departments/api";
@@ -34,6 +35,7 @@ export function CreateTicketModal() {
   const [departmentId, setDepartmentId] = useState("");
   const [problemType, setProblemType] = useState<ProblemType | "">("");
   const [machineStatus, setMachineStatus] = useState<MachineStatus>("RUNNING");
+  const [machine, setMachine] = useState<MachineSummary | null>(null);
   const [assetId, setAssetId] = useState<string | null>(null);
   const [assetSearch, setAssetSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -55,6 +57,7 @@ export function CreateTicketModal() {
     setAssetSearch("");
     setProblemType("");
     setMachineStatus("RUNNING");
+    setMachine(null);
     setPlantId("");
     setDepartmentId("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,12 +80,13 @@ export function CreateTicketModal() {
     setDepartmentId("");
     setProblemType("");
     setMachineStatus("RUNNING");
+    setMachine(null);
     setAssetId(null);
     setAssetSearch("");
   }
 
   const canSubmit = isMaintenance
-    ? !!category && description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType
+    ? !!category && description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType && !!machine
     : !!category && title.trim().length >= 3 && description.trim().length >= 3;
 
   async function handleSubmit() {
@@ -97,6 +101,7 @@ export function CreateTicketModal() {
             departmentId,
             problemType: problemType as ProblemType,
             machineStatus,
+            maintenanceAssetId: machine!.id,
           }
         : {
             workstream,
@@ -164,6 +169,8 @@ export function CreateTicketModal() {
 
           {isMaintenance ? (
             <>
+              <MachinePicker value={machine} onChange={setMachine} />
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Plant Location</label>

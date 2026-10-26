@@ -45,6 +45,7 @@ export interface CreateTicketInput {
   departmentId?: string;
   problemType?: ProblemType;
   machineStatus?: MachineStatus;
+  maintenanceAssetId?: string;
   itAssetId?: string;
 }
 
@@ -80,6 +81,20 @@ function displayTitle<T extends { title: string | null; problemType: ProblemType
 
 function decorate<T extends { title: string | null; problemType: ProblemType | null; plant?: { name: string } | null; department?: { name: string } | null; ticketNumber: string }>(t: T) {
   return { ...t, displayTitle: displayTitle(t) };
+}
+
+const MACHINE_SELECT = { id: true, itemCode: true, name: true, category: true, model: true, manufacturer: true, plantLocation: true, powerCapacity: true, status: true } satisfies Prisma.MaintenanceAssetSelect;
+
+/**
+ * maintenanceAssetId is a plain cross-schema id (no Prisma relation - see the
+ * schema comment on Ticket), so the linked machine's details are joined here
+ * at the app layer, batched to avoid an N+1 per ticket in list views.
+ */
+async function attachMachines<T extends { maintenanceAssetId: string | null }>(items: T[]): Promise<(T & { machine: Prisma.MaintenanceAssetGetPayload<{ select: typeof MACHINE_SELECT }> | null })[]> {
+  const ids = [...new Set(items.map((t) => t.maintenanceAssetId).filter((v): v is string => !!v))];
+  const machines = ids.length ? await prisma.maintenanceAsset.findMany({ where: { id: { in: ids } }, select: MACHINE_SELECT }) : [];
+  const byId = new Map(machines.map((m) => [m.id, m]));
+  return items.map((t) => ({ ...t, machine: t.maintenanceAssetId ? (byId.get(t.maintenanceAssetId) ?? null) : null }));
 }
 
 /** On hold only applies to the legacy IT boolean-overlay flow; maintenance uses the ON_HOLD status directly. */
@@ -133,10 +148,13 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
     if (!input.departmentId) throw new ApiError(400, "Select a department / product category");
     if (!input.problemType) throw new ApiError(400, "Select the type of problem");
     if (!input.machineStatus) throw new ApiError(400, "Select whether the machine is running or stopped");
+    if (!input.maintenanceAssetId) throw new ApiError(400, "Select the machine");
     plant = await prisma.plant.findUnique({ where: { id: input.plantId } });
     if (!plant || !plant.active) throw new ApiError(400, "Selected plant is not available");
     department = await prisma.department.findUnique({ where: { id: input.departmentId } });
     if (!department || !department.active) throw new ApiError(400, "Selected department is not available");
+    const machine = await prisma.maintenanceAsset.findUnique({ where: { id: input.maintenanceAssetId } });
+    if (!machine) throw new ApiError(400, "Selected machine is not available");
   } else if (!input.title || input.title.trim().length < 3) {
     throw new ApiError(400, "Title must be at least 3 characters");
   }
@@ -157,6 +175,7 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
         departmentId: isMaintenance ? input.departmentId : undefined,
         problemType: isMaintenance ? input.problemType : undefined,
         machineStatus: isMaintenance ? input.machineStatus : undefined,
+        maintenanceAssetId: isMaintenance ? input.maintenanceAssetId : undefined,
         reportedById: actor.id,
         status: TicketStatus.OPEN,
       },
@@ -225,7 +244,8 @@ export async function listTickets(filter: TicketFilter) {
 export async function getTicket(id: string) {
   const ticket = await prisma.ticket.findUnique({ where: { id }, include: TICKET_INCLUDE });
   if (!ticket) throw new ApiError(404, "Ticket not found");
-  return decorate(withLiveSlaBreach(ticket));
+  const [withMachine] = await attachMachines([decorate(withLiveSlaBreach(ticket))]);
+  return withMachine;
 }
 
 function assertAction(ticket: Ticket, actor: Actor, action: TicketAction) {

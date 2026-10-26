@@ -5,6 +5,7 @@ import { Modal } from "@/components/Modal";
 import { TextField } from "@/components/TextField";
 import { SelectField } from "@/components/SelectField";
 import { AssetPicker } from "@/components/AssetPicker";
+import { MachinePicker } from "@/components/MachinePicker";
 import { Button } from "@/components/Button";
 import { ISTClock } from "@/components/ISTClock";
 import { useAuthStore } from "@/store/auth.store";
@@ -13,7 +14,7 @@ import { allowedCategoriesForCreate, allowedWorkstreamsForCreate } from "@/featu
 import { useTicketMutations } from "@/features/tickets/hooks";
 import { fetchPlants } from "@/api/plants";
 import { fetchDepartments } from "@/api/departments";
-import type { MachineStatus, ProblemType, TicketCategory, Workstream } from "@/lib/types";
+import type { MachineStatus, MachineSummary, ProblemType, TicketCategory, Workstream } from "@/lib/types";
 
 interface CreateTicketModalProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   const [departmentId, setDepartmentId] = useState<string | undefined>();
   const [problemType, setProblemType] = useState<ProblemType | undefined>();
   const [machineStatus, setMachineStatus] = useState<MachineStatus>("RUNNING");
+  const [machine, setMachine] = useState<MachineSummary | null>(null);
   const [assetId, setAssetId] = useState<string | undefined>();
   const [assetLabel, setAssetLabel] = useState<string | undefined>();
   const { create } = useTicketMutations();
@@ -60,6 +62,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
       setCategory(undefined);
       setProblemType(undefined);
       setMachineStatus("RUNNING");
+      setMachine(null);
       setPlantId(undefined);
       setDepartmentId(undefined);
     }
@@ -74,6 +77,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     setDepartmentId(undefined);
     setProblemType(undefined);
     setMachineStatus("RUNNING");
+    setMachine(null);
     setAssetId(undefined);
     setAssetLabel(undefined);
   }
@@ -82,7 +86,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     if (!workstream || !category) return;
     create.mutate(
       isMaintenance
-        ? { workstream, category, description: description.trim(), plantId, departmentId, problemType, machineStatus }
+        ? { workstream, category, description: description.trim(), plantId, departmentId, problemType, machineStatus, maintenanceAssetId: machine?.id }
         : { workstream, category, title: title.trim(), description: description.trim(), itAssetId: assetId },
       {
         onSuccess: (ticket) => {
@@ -95,7 +99,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   }
 
   const canSubmit = isMaintenance
-    ? !!category && description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType
+    ? !!category && description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType && !!machine
     : !!workstream && !!category && title.trim().length >= 3 && description.trim().length >= 3;
 
   if (workstreamOptions.length === 0) {
@@ -132,6 +136,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
 
         {isMaintenance ? (
           <>
+            <MachinePicker value={machine} onChange={setMachine} />
             <SelectField
               label="Plant Location"
               value={plantId}

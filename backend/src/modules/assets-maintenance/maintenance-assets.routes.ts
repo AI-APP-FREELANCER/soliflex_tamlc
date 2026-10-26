@@ -44,6 +44,29 @@ router.get("/categories", async (_req, res) => {
   res.json(rows.map((r) => r.category));
 });
 
+// Lightweight, paginated listing for the "Machine Name" picker on the new-ticket
+// form - loads a page at a time as the user scrolls/searches rather than the
+// full (photo/invoice-laden) list the Assets page uses.
+router.get("/picker", async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
+  const cursor = req.query.cursor ? String(req.query.cursor) : undefined;
+  const search = req.query.search ? String(req.query.search) : undefined;
+
+  const rows = await prisma.maintenanceAsset.findMany({
+    where: search
+      ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { itemCode: { contains: search, mode: "insensitive" } }] }
+      : undefined,
+    select: { id: true, itemCode: true, name: true, category: true, model: true, manufacturer: true, plantLocation: true, powerCapacity: true, status: true },
+    orderBy: { name: "asc" },
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  });
+
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  res.json({ items, nextCursor: hasMore ? items[items.length - 1].id : null });
+});
+
 const BULK_IMPORT_HEADERS = [
   "name",
   "category",

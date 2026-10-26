@@ -1,8 +1,19 @@
 import { api } from "../../lib/api";
-import type { ITAsset, ITAssetCategory, MaintenanceAsset, MaintenanceAssetCategory } from "../../lib/types";
+import type { ITAsset, ITAssetCategory, MachineSummary, MaintenanceAsset, MaintenanceAssetCategory } from "../../lib/types";
 
 export async function fetchMaintenanceAssets(search?: string): Promise<MaintenanceAsset[]> {
   const res = await api.get("/assets/maintenance", { params: search ? { search } : {} });
+  return res.data;
+}
+
+export interface MachinePickerPage {
+  items: MachineSummary[];
+  nextCursor: string | null;
+}
+
+/** Paginated, lightweight machine listing for the "Machine Name" picker on the new-ticket form. */
+export async function fetchMachinePicker(params: { search?: string; cursor?: string | null }): Promise<MachinePickerPage> {
+  const res = await api.get("/assets/maintenance/picker", { params: { limit: 20, search: params.search || undefined, cursor: params.cursor || undefined } });
   return res.data;
 }
 

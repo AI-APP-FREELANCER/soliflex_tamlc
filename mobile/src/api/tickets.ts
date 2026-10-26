@@ -34,6 +34,7 @@ export interface CreateTicketInput {
   departmentId?: string;
   problemType?: ProblemType;
   machineStatus?: MachineStatus;
+  maintenanceAssetId?: string;
   itAssetId?: string;
 }
 
