@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, Text, View } from "react-native";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { TextField } from "@/components/TextField";
 import { fetchMachinePicker } from "@/api/assets";
@@ -27,6 +27,12 @@ export function MachinePicker({ value, onChange }: MachinePickerProps) {
     enabled: open,
   });
   const machines = data?.pages.flatMap((p) => p.items) ?? [];
+
+  function onListScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (isFetchingNextPage || !hasNextPage) return;
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    if (contentSize.height - contentOffset.y - layoutMeasurement.height < 60) fetchNextPage();
+  }
 
   if (value) {
     return (
@@ -64,38 +70,39 @@ export function MachinePicker({ value, onChange }: MachinePickerProps) {
             </View>
           )}
           {!isLoading && machines.length === 0 && <Text className="px-3 py-3 text-xs text-soliflex-gray-400">No machines found</Text>}
-          <FlatList
-            data={machines}
-            keyExtractor={(m) => m.id}
-            nestedScrollEnabled
-            onEndReachedThreshold={0.4}
-            onEndReached={() => hasNextPage && !isFetchingNextPage && fetchNextPage()}
-            ListFooterComponent={
-              isFetchingNextPage ? (
+          {machines.length > 0 && (
+            // A plain ScrollView, not a FlatList - this dropdown sits inside the
+            // create-ticket Modal's own ScrollView, and a VirtualizedList (FlatList)
+            // nested inside another ScrollView breaks tap handling on Android (list
+            // items render but onPress never fires). The list is small and paginated
+            // (20 at a time), so skipping virtualization here is fine.
+            <ScrollView keyboardShouldPersistTaps="handled" onScroll={onListScroll} scrollEventThrottle={100} style={{ maxHeight: 224 }}>
+              {machines.map((item, index) => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    onChange(item);
+                    setSearch("");
+                  }}
+                  className={`px-3 py-2 ${index < machines.length - 1 ? "border-b border-soliflex-gray-50" : ""}`}
+                >
+                  <Text className="text-sm text-soliflex-ink">
+                    {item.name} <Text className="text-xs text-soliflex-gray-400">{item.itemCode}</Text>
+                  </Text>
+                  <Text className="text-xs text-soliflex-gray-400">
+                    {item.category}
+                    {item.plantLocation ? ` · ${item.plantLocation}` : ""}
+                  </Text>
+                </Pressable>
+              ))}
+              {isFetchingNextPage && (
                 <View className="flex-row items-center justify-center gap-2 py-2">
                   <ActivityIndicator size="small" />
                   <Text className="text-xs text-soliflex-gray-400">Loading more…</Text>
                 </View>
-              ) : undefined
-            }
-            renderItem={({ item, index }) => (
-              <Pressable
-                onPress={() => {
-                  onChange(item);
-                  setSearch("");
-                }}
-                className={`px-3 py-2 ${index < machines.length - 1 ? "border-b border-soliflex-gray-50" : ""}`}
-              >
-                <Text className="text-sm text-soliflex-ink">
-                  {item.name} <Text className="text-xs text-soliflex-gray-400">{item.itemCode}</Text>
-                </Text>
-                <Text className="text-xs text-soliflex-gray-400">
-                  {item.category}
-                  {item.plantLocation ? ` · ${item.plantLocation}` : ""}
-                </Text>
-              </Pressable>
-            )}
-          />
+              )}
+            </ScrollView>
+          )}
         </View>
       )}
     </View>

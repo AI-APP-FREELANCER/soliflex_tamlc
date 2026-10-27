@@ -26,7 +26,13 @@ export function TicketRow({ ticket, onPress }: TicketRowProps) {
       </View>
 
       <View className="mt-2 flex-row flex-wrap items-center gap-x-4 gap-y-1">
-        <Text className="text-xs text-soliflex-gray-500">{TICKET_CATEGORY_LABELS[ticket.category]}</Text>
+        {ticket.machine ? (
+          <Text className="text-xs text-soliflex-gray-500">
+            {ticket.machine.name} ({ticket.machine.itemCode})
+          </Text>
+        ) : (
+          <Text className="text-xs text-soliflex-gray-500">{TICKET_CATEGORY_LABELS[ticket.category]}</Text>
+        )}
         <Text className="text-xs text-soliflex-gray-500">{ticket.assignedTo?.name ?? "Unassigned"}</Text>
         <Text className="text-xs text-soliflex-gray-500">{formatIST(ticket.createdAt, "dd MMM yyyy")}</Text>
       </View>

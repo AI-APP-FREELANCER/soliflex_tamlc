@@ -171,8 +171,6 @@ export function CreateTicketModal() {
 
           {isMaintenance ? (
             <>
-              <MachinePicker value={machine} onChange={setMachine} />
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Plant Location</label>
@@ -201,6 +199,8 @@ export function CreateTicketModal() {
                   </select>
                 </div>
               </div>
+
+              <MachinePicker value={machine} onChange={setMachine} />
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Type of Problem</label>

@@ -137,7 +137,6 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
 
         {isMaintenance ? (
           <>
-            <MachinePicker value={machine} onChange={setMachine} />
             <SelectField
               label="Plant Location"
               value={plantId}
@@ -150,6 +149,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
               options={departments.map((d) => ({ value: d.id, label: d.name }))}
               onChange={setDepartmentId}
             />
+            <MachinePicker value={machine} onChange={setMachine} />
             <SelectField
               label="Type of Problem"
               value={problemType}

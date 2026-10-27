@@ -48,6 +48,11 @@ function TicketCard({ ticket, draggable }: { ticket: Ticket; draggable: boolean 
         {ticket.onHold && <OnHoldBadge />}
       </div>
       <p className="text-sm font-medium text-soliflex-ink line-clamp-2">{ticket.displayTitle}</p>
+      {ticket.machine && (
+        <p className="truncate text-xs text-soliflex-gray-500">
+          {ticket.machine.name} ({ticket.machine.itemCode})
+        </p>
+      )}
       <div className="flex items-center justify-between">
         <PriorityBadge priority={ticket.priority} />
         {ticket.assignedTo && <Avatar name={ticket.assignedTo.name} size={22} />}

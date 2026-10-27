@@ -314,51 +314,7 @@ export default function MaintenanceTicketDetailPage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
-          {/* Actions (renamed from Comments, moved to the top) */}
-          <div className="rounded-xl border border-soliflex-gray-100 bg-white p-5">
-            <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Actions</h2>
-            <div className="mb-4 space-y-3">
-              {ticket.comments.map((c) => (
-                <div key={c.id} className="flex gap-2">
-                  <Avatar name={c.author.name} size={26} />
-                  <div>
-                    <p className="text-sm">
-                      <span className="font-semibold text-soliflex-ink">{c.author.name}</span>{" "}
-                      <span className="text-xs text-soliflex-gray-400">{formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}</span>
-                    </p>
-                    <p className="text-sm text-soliflex-gray-600">{c.body}</p>
-                  </div>
-                </div>
-              ))}
-              {ticket.comments.length === 0 && <p className="text-sm text-soliflex-gray-400">No activity yet.</p>}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Add a note"
-                className="flex-1 rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && comment && id) {
-                    mutations.addComment.mutate({ id, body: comment });
-                    setComment("");
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  if (!comment || !id) return;
-                  mutations.addComment.mutate({ id, body: comment });
-                  setComment("");
-                }}
-                className="rounded-lg bg-soliflex-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-
-          {/* Ticket info */}
+          {/* Problem (ticket info) - shown first, per customer's requested flow */}
           <div className="rounded-xl border border-soliflex-gray-100 bg-white p-5">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-soliflex-gray-400">{ticket.ticketNumber}</span>
@@ -416,6 +372,91 @@ export default function MaintenanceTicketDetailPage() {
             )}
           </div>
 
+          {/* Actions (comments) */}
+          <div className="rounded-xl border border-soliflex-gray-100 bg-white p-5">
+            <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Actions</h2>
+            <div className="mb-4 space-y-3">
+              {ticket.comments.map((c) => (
+                <div key={c.id} className="flex gap-2">
+                  <Avatar name={c.author.name} size={26} />
+                  <div>
+                    <p className="text-sm">
+                      <span className="font-semibold text-soliflex-ink">{c.author.name}</span>{" "}
+                      <span className="text-xs text-soliflex-gray-400">{formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}</span>
+                    </p>
+                    <p className="text-sm text-soliflex-gray-600">{c.body}</p>
+                  </div>
+                </div>
+              ))}
+              {ticket.comments.length === 0 && <p className="text-sm text-soliflex-gray-400">No activity yet.</p>}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Add a note"
+                className="flex-1 rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && comment && id) {
+                    mutations.addComment.mutate({ id, body: comment });
+                    setComment("");
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (!comment || !id) return;
+                  mutations.addComment.mutate({ id, body: comment });
+                  setComment("");
+                }}
+                className="rounded-lg bg-soliflex-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Cost entries */}
+          <div className="rounded-xl border border-soliflex-gray-100 bg-white p-5">
+            <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Cost &amp; spare parts</h2>
+            {ticket.costEntries.length > 0 && (
+              <ul className="mb-3 space-y-1 text-sm">
+                {ticket.costEntries.map((c) => (
+                  <li key={c.id} className="flex justify-between text-soliflex-gray-600">
+                    <span>
+                      {c.description} {c.sparePartUsed && <span className="text-xs text-soliflex-gray-400">(spare part)</span>}
+                    </span>
+                    <span className="font-medium">₹{c.amount.toLocaleString()}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {ticket.actualCost !== null && <p className="mb-3 text-sm font-semibold">Total: ₹{ticket.actualCost.toLocaleString()}</p>}
+            {(isMechanic || isManager) && ticket.status !== "CLOSED" && (
+              <div className="flex gap-2">
+                <input value={costDesc} onChange={(e) => setCostDesc(e.target.value)} placeholder="Description" className="flex-1 rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm" />
+                <input value={costAmount} onChange={(e) => setCostAmount(e.target.value)} placeholder="Amount" type="number" className="w-28 rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm" />
+                <label className="flex items-center gap-1 whitespace-nowrap text-xs text-soliflex-gray-600">
+                  <input type="checkbox" checked={costIsPart} onChange={(e) => setCostIsPart(e.target.checked)} /> Spare part
+                </label>
+                <button
+                  onClick={() =>
+                    handleAction(async () => {
+                      if (!id || !costDesc || !costAmount) return;
+                      await mutations.addCostEntry.mutateAsync({ id, data: { description: costDesc, amount: Number(costAmount), sparePartUsed: costIsPart } });
+                      setCostDesc("");
+                      setCostAmount("");
+                      setCostIsPart(false);
+                    })
+                  }
+                  className="flex items-center gap-1 rounded-lg bg-soliflex-gray-100 px-3 py-1.5 text-sm font-medium hover:bg-soliflex-gray-200"
+                >
+                  <IndianRupee className="h-3.5 w-3.5" /> Add
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Attachments */}
           <div className="rounded-xl border border-soliflex-gray-100 bg-white p-5">
             <div className="mb-3 flex items-center justify-between">
@@ -462,47 +503,6 @@ export default function MaintenanceTicketDetailPage() {
                     <p className="truncate text-soliflex-gray-400">{a.fileName}</p>
                   </a>
                 ))}
-              </div>
-            )}
-          </div>
-
-          {/* Cost entries */}
-          <div className="rounded-xl border border-soliflex-gray-100 bg-white p-5">
-            <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Cost &amp; spare parts</h2>
-            {ticket.costEntries.length > 0 && (
-              <ul className="mb-3 space-y-1 text-sm">
-                {ticket.costEntries.map((c) => (
-                  <li key={c.id} className="flex justify-between text-soliflex-gray-600">
-                    <span>
-                      {c.description} {c.sparePartUsed && <span className="text-xs text-soliflex-gray-400">(spare part)</span>}
-                    </span>
-                    <span className="font-medium">₹{c.amount.toLocaleString()}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {ticket.actualCost !== null && <p className="mb-3 text-sm font-semibold">Total: ₹{ticket.actualCost.toLocaleString()}</p>}
-            {(isMechanic || isManager) && ticket.status !== "CLOSED" && (
-              <div className="flex gap-2">
-                <input value={costDesc} onChange={(e) => setCostDesc(e.target.value)} placeholder="Description" className="flex-1 rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm" />
-                <input value={costAmount} onChange={(e) => setCostAmount(e.target.value)} placeholder="Amount" type="number" className="w-28 rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm" />
-                <label className="flex items-center gap-1 whitespace-nowrap text-xs text-soliflex-gray-600">
-                  <input type="checkbox" checked={costIsPart} onChange={(e) => setCostIsPart(e.target.checked)} /> Spare part
-                </label>
-                <button
-                  onClick={() =>
-                    handleAction(async () => {
-                      if (!id || !costDesc || !costAmount) return;
-                      await mutations.addCostEntry.mutateAsync({ id, data: { description: costDesc, amount: Number(costAmount), sparePartUsed: costIsPart } });
-                      setCostDesc("");
-                      setCostAmount("");
-                      setCostIsPart(false);
-                    })
-                  }
-                  className="flex items-center gap-1 rounded-lg bg-soliflex-gray-100 px-3 py-1.5 text-sm font-medium hover:bg-soliflex-gray-200"
-                >
-                  <IndianRupee className="h-3.5 w-3.5" /> Add
-                </button>
               </div>
             )}
           </div>

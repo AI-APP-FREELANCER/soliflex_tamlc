@@ -242,34 +242,8 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
     <SafeAreaView className="flex-1 bg-soliflex-gray-50" edges={["top"]}>
       <Stack.Screen options={{ title: ticket.ticketNumber }} />
       <ScrollView className="flex-1 px-4 py-4" contentContainerStyle={{ paddingBottom: 32 }}>
-        {/* Actions (renamed from Comments, moved to the top) */}
+        {/* Problem (ticket info) - shown first, per customer's requested flow */}
         <View className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
-          <Text className="mb-2 text-sm font-semibold text-soliflex-ink">Actions</Text>
-          {ticket.comments?.length ? (
-            ticket.comments.map((c, idx) => (
-              <View key={c.id} className={`py-2 ${idx < ticket.comments!.length - 1 ? "border-b border-soliflex-gray-50" : ""}`}>
-                <Text className="text-xs font-semibold text-soliflex-ink">{c.author?.name ?? "—"}</Text>
-                <Text className="text-xs text-soliflex-gray-400">{formatIST(c.createdAt)}</Text>
-                <Text className="mt-1 text-sm text-soliflex-gray-700">{c.body}</Text>
-              </View>
-            ))
-          ) : (
-            <Text className="text-sm text-soliflex-gray-500">No activity yet.</Text>
-          )}
-          <View className="mt-3 gap-2">
-            <TextField placeholder="Add a note" value={comment} onChangeText={setComment} />
-            <Button
-              title="Add"
-              variant="secondary"
-              disabled={!comment.trim()}
-              loading={mutations.addComment.isPending}
-              onPress={() => mutations.addComment.mutate({ id: ticket.id, body: comment.trim() }, { onSuccess: () => setComment("") })}
-            />
-          </View>
-        </View>
-
-        {/* Ticket info */}
-        <View className="mt-3 rounded-xl border border-soliflex-gray-100 bg-white p-4">
           <View className="flex-row flex-wrap items-center gap-2">
             <Badge label={TICKET_STATUS_LABELS[ticket.status]} bg={statusColor.bg} text={statusColor.text} />
             {ticket.priority && <Badge label={PRIORITY_LABELS[ticket.priority]} bg={PRIORITY_COLORS[ticket.priority].bg} text={PRIORITY_COLORS[ticket.priority].text} />}
@@ -333,6 +307,32 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
           )}
         </View>
 
+        {/* Actions (comments) */}
+        <View className="mt-3 rounded-xl border border-soliflex-gray-100 bg-white p-4">
+          <Text className="mb-2 text-sm font-semibold text-soliflex-ink">Actions</Text>
+          {ticket.comments?.length ? (
+            ticket.comments.map((c, idx) => (
+              <View key={c.id} className={`py-2 ${idx < ticket.comments!.length - 1 ? "border-b border-soliflex-gray-50" : ""}`}>
+                <Text className="text-xs font-semibold text-soliflex-ink">{c.author?.name ?? "—"}</Text>
+                <Text className="text-xs text-soliflex-gray-400">{formatIST(c.createdAt)}</Text>
+                <Text className="mt-1 text-sm text-soliflex-gray-700">{c.body}</Text>
+              </View>
+            ))
+          ) : (
+            <Text className="text-sm text-soliflex-gray-500">No activity yet.</Text>
+          )}
+          <View className="mt-3 gap-2">
+            <TextField placeholder="Add a note" value={comment} onChangeText={setComment} />
+            <Button
+              title="Add"
+              variant="secondary"
+              disabled={!comment.trim()}
+              loading={mutations.addComment.isPending}
+              onPress={() => mutations.addComment.mutate({ id: ticket.id, body: comment.trim() }, { onSuccess: () => setComment("") })}
+            />
+          </View>
+        </View>
+
         <View className="mt-3 flex-row flex-wrap rounded-xl border border-soliflex-gray-100 bg-white p-4">
           <InfoRow label="Machine" value={ticket.machine ? `${ticket.machine.name} (${ticket.machine.itemCode})` : "—"} />
           <InfoRow label="Reported by" value={ticket.reportedBy?.name ?? "—"} />
@@ -376,11 +376,11 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
         </View>
 
         <View className="mt-3 rounded-xl border border-soliflex-gray-100 bg-white p-4">
-          <AttachmentSection ticket={ticket} />
+          <CostSection ticket={ticket} canEdit={isManager || isTechnician} />
         </View>
 
         <View className="mt-3 rounded-xl border border-soliflex-gray-100 bg-white p-4">
-          <CostSection ticket={ticket} canEdit={isManager || isTechnician} />
+          <AttachmentSection ticket={ticket} />
         </View>
 
         {!!ticket.statusHistory?.length && (

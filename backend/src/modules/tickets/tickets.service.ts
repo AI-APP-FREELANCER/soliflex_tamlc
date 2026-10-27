@@ -246,7 +246,7 @@ export async function listTickets(filter: TicketFilter) {
     orderBy: { createdAt: "desc" },
   });
   const now = new Date();
-  return tickets.map((t) => decorate(withLiveSlaBreach(t, now)));
+  return attachMachines(tickets.map((t) => decorate(withLiveSlaBreach(t, now))));
 }
 
 export async function getTicket(id: string) {

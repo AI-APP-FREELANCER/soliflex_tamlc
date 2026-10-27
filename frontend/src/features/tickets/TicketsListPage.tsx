@@ -82,6 +82,11 @@ export default function TicketsListPage() {
                   <td className="px-4 py-3">
                     <p className="font-medium text-soliflex-ink">{t.ticketNumber}</p>
                     <p className="text-xs text-soliflex-gray-400">{t.displayTitle}</p>
+                    {t.machine && (
+                      <p className="text-xs text-soliflex-gray-400">
+                        {t.machine.name} ({t.machine.itemCode})
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={t.status} />
