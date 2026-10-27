@@ -76,7 +76,7 @@ export function MachinePicker({ value, onChange }: MachinePickerProps) {
                   <ActivityIndicator size="small" />
                   <Text className="text-xs text-soliflex-gray-400">Loading more…</Text>
                 </View>
-              ) : null
+              ) : undefined
             }
             renderItem={({ item, index }) => (
               <Pressable
