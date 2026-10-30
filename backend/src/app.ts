@@ -19,6 +19,7 @@ import auditRoutes from "./modules/audit/audit.routes";
 import helpdeskRoutes from "./modules/helpdesk/helpdesk.routes";
 import plantsRoutes from "./modules/plants/plants.routes";
 import departmentsRoutes from "./modules/departments/departments.routes";
+import designationsRoutes from "./modules/designations/designations.routes";
 
 export function createApp() {
   const app = express();
@@ -48,6 +49,7 @@ export function createApp() {
   app.use("/api/helpdesk", helpdeskRoutes);
   app.use("/api/plants", plantsRoutes);
   app.use("/api/departments", departmentsRoutes);
+  app.use("/api/designations", designationsRoutes);
 
   app.use(errorHandler);
 

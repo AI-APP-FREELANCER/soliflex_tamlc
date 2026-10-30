@@ -243,6 +243,7 @@ model User {
   productionCertifiedTickets Ticket[]              @relation("ProductionCertifiedBy")
   createdPlants              Plant[]
   createdDepartments         Department[]
+  createdDesignations        Designation[]
   comments                   TicketComment[]
   attachments                TicketAttachment[]
   notifications              Notification[]
@@ -339,6 +340,10 @@ model Ticket {
   plant         Plant?         @relation(fields: [plantId], references: [id])
   departmentId  String?
   department    Department?    @relation(fields: [departmentId], references: [id])
+  // Optional - the designation of whoever raised the ticket (e.g. Supervisor,
+  // In Charge, Electrician, Engineer). A label only, carries no permissions.
+  designationId String?
+  designation   Designation?   @relation(fields: [designationId], references: [id])
   problemType   ProblemType?
   machineStatus MachineStatus?
 
@@ -386,6 +391,23 @@ model Plant {
 
 // Admin-managed "Department / Product Category" list for maintenance tickets.
 model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  active      Boolean  @default(true)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@schema("tms")
+}
+
+// Admin-managed "Designation" list for maintenance tickets (e.g. Supervisor,
+// In Charge, Electrician, Engineer) - selected by whoever raises the ticket,
+// purely a categorization label. Not a system Role: carries no permissions.
+model Designation {
   id          String   @id @default(cuid())
   name        String   @unique
   active      Boolean  @default(true)

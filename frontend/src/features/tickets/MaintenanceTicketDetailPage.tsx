@@ -327,6 +327,7 @@ export default function MaintenanceTicketDetailPage() {
               {ticket.machine && <span>Machine: {ticket.machine.name} ({ticket.machine.itemCode})</span>}
               {ticket.plant && <span>Plant: {ticket.plant.name}</span>}
               {ticket.department && <span>Dept: {ticket.department.name}</span>}
+              {ticket.designation && <span>Designation: {ticket.designation.name}</span>}
               {ticket.problemType && <span>Problem: {PROBLEM_TYPE_LABELS[ticket.problemType]}</span>}
             </div>
             <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-soliflex-gray-400">Problem Description</h3>
@@ -628,6 +629,12 @@ export default function MaintenanceTicketDetailPage() {
               <span className="text-soliflex-gray-400">Department</span>
               <span>{ticket.department?.name ?? "—"}</span>
             </div>
+            {ticket.designation && (
+              <div className="flex items-center justify-between">
+                <span className="text-soliflex-gray-400">Designation</span>
+                <span>{ticket.designation.name}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-soliflex-gray-400">Problem type</span>
               <span>{ticket.problemType ? PROBLEM_TYPE_LABELS[ticket.problemType] : "—"}</span>

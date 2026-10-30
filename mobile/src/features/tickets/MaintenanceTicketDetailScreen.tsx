@@ -264,6 +264,7 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
             )}
             {ticket.plant && <Text className="text-xs text-soliflex-gray-500">Plant: {ticket.plant.name}</Text>}
             {ticket.department && <Text className="text-xs text-soliflex-gray-500">Dept: {ticket.department.name}</Text>}
+            {ticket.designation && <Text className="text-xs text-soliflex-gray-500">Designation: {ticket.designation.name}</Text>}
             {ticket.problemType && <Text className="text-xs text-soliflex-gray-500">Problem: {PROBLEM_TYPE_LABELS[ticket.problemType]}</Text>}
           </View>
           <Text className="mt-3 text-xs font-semibold uppercase tracking-wide text-soliflex-gray-400">Problem Description</Text>

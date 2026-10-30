@@ -163,6 +163,12 @@ export interface Department {
   active: boolean;
 }
 
+export interface Designation {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
 export type TicketCategory =
   | "PRODUCTION_MACHINE"
   | "FACTORY_FACILITY"
@@ -264,6 +270,8 @@ export interface Ticket {
   plant?: NamedRef | null;
   departmentId: string | null;
   department?: NamedRef | null;
+  designationId: string | null;
+  designation?: NamedRef | null;
   problemType: ProblemType | null;
   machineStatus: MachineStatus | null;
   delayReason: DelayReason | null;

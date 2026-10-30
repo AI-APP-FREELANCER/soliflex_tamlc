@@ -44,6 +44,8 @@ export interface CreateTicketInput {
   /** Maintenance only, going forward. */
   plantId?: string;
   departmentId?: string;
+  /** Optional - the designation of whoever raised the ticket (Supervisor, In Charge, Electrician, Engineer, ...). A label only, no permissions. */
+  designationId?: string;
   problemType?: ProblemType;
   machineStatus?: MachineStatus;
   maintenanceAssetId?: string;
@@ -59,6 +61,7 @@ const TICKET_INCLUDE = {
   productionCertifiedBy: { select: { id: true, name: true } },
   plant: true,
   department: true,
+  designation: true,
   comments: { include: { author: { select: { id: true, name: true } } }, orderBy: { createdAt: "asc" as const } },
   attachments: { include: { uploadedBy: { select: { id: true, name: true } } }, orderBy: { uploadedAt: "asc" as const } },
   costEntries: { orderBy: { createdAt: "asc" as const } },
@@ -163,6 +166,10 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
     if (!department || !department.active) throw new ApiError(400, "Selected department is not available");
     const machine = await prisma.maintenanceAsset.findUnique({ where: { id: input.maintenanceAssetId } });
     if (!machine) throw new ApiError(400, "Selected machine is not available");
+    if (input.designationId) {
+      const designation = await prisma.designation.findUnique({ where: { id: input.designationId } });
+      if (!designation || !designation.active) throw new ApiError(400, "Selected designation is not available");
+    }
   } else if (!input.title || input.title.trim().length < 3) {
     throw new ApiError(400, "Title must be at least 3 characters");
   }
@@ -181,6 +188,7 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
         itAssetId: isMaintenance ? undefined : input.itAssetId,
         plantId: isMaintenance ? input.plantId : undefined,
         departmentId: isMaintenance ? input.departmentId : undefined,
+        designationId: isMaintenance ? input.designationId : undefined,
         problemType: isMaintenance ? input.problemType : undefined,
         machineStatus: isMaintenance ? input.machineStatus : undefined,
         maintenanceAssetId: isMaintenance ? input.maintenanceAssetId : undefined,
@@ -242,6 +250,7 @@ export async function listTickets(filter: TicketFilter) {
       assignedTo: { select: { id: true, name: true } },
       plant: true,
       department: true,
+      designation: true,
     },
     orderBy: { createdAt: "desc" },
   });

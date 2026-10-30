@@ -186,6 +186,8 @@ export interface Ticket {
   plant: NamedRef | null;
   departmentId: string | null;
   department: NamedRef | null;
+  designationId: string | null;
+  designation: NamedRef | null;
   problemType: ProblemType | null;
   machineStatus: MachineStatus | null;
   delayReason: DelayReason | null;
@@ -206,6 +208,14 @@ export interface Ticket {
 }
 
 export interface Plant {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Designation {
   id: string;
   name: string;
   active: boolean;

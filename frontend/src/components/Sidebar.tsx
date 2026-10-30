@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import clsx from "clsx";
-import { LayoutGrid, List, Boxes, BarChart3, Users, Wrench, Laptop, ScrollText, X, LifeBuoy, Gauge, MapPin, Building2 } from "lucide-react";
+import { LayoutGrid, List, Boxes, BarChart3, Users, Wrench, Laptop, ScrollText, X, LifeBuoy, Gauge, MapPin, Building2, Contact } from "lucide-react";
 import { useAuthStore } from "../store/auth.store";
 import { useWorkstreamStore } from "../store/workstream.store";
 import { useUIStore } from "../store/ui.store";
@@ -106,6 +106,9 @@ export function Sidebar() {
             </NavLink>
             <NavLink to="/departments" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
               <Building2 className="h-4 w-4" /> Departments
+            </NavLink>
+            <NavLink to="/designations" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <Contact className="h-4 w-4" /> Designations
             </NavLink>
           </>
         )}

@@ -176,7 +176,15 @@ async function main() {
       create: { name, createdById: adminUser.id },
     });
   }
-  console.log("Seeded plants and departments.");
+  const designationNames = ["Supervisor", "In Charge", "Electrician", "Engineer"];
+  for (const name of designationNames) {
+    await prisma.designation.upsert({
+      where: { name },
+      update: {},
+      create: { name, createdById: adminUser.id },
+    });
+  }
+  console.log("Seeded plants, departments and designations.");
 
   // --- sample ticket ---
   const existingTicket = await prisma.ticket.findFirst({ where: { description: { startsWith: "Operator reported unusual vibration" } } });

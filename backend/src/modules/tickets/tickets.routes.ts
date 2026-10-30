@@ -67,6 +67,7 @@ const createSchema = z.object({
   description: z.string().min(3),
   plantId: z.string().optional(),
   departmentId: z.string().optional(),
+  designationId: z.string().optional(),
   problemType: z.nativeEnum(ProblemType).optional(),
   machineStatus: z.nativeEnum(MachineStatus).optional(),
   maintenanceAssetId: z.string().optional(),

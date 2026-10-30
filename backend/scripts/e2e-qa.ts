@@ -409,6 +409,16 @@ async function main() {
     is("unused department can be hard-deleted", await call("DELETE", `/api/departments/${d1.body.id}`, { token: admin }), 200);
     const seeded = await get(mech, "/departments");
     ok("the 7 seeded departments are present", ["Fabric", "Cutting", "Finishing", "Utility", "Container liner", "RP", "General"].every((n) => seeded.body.some((x: any) => x.name === n)));
+
+    is("mechanic cannot create a designation", await post(mech, "/designations", { name: "Supervisor 2" }), 403);
+    is("designation name too short is rejected", await post(admin, "/designations", { name: "X" }), 400);
+    const g1 = await post(admin, "/designations", { name: "Shift Lead" });
+    is("admin creates a designation", g1, 201);
+    is("duplicate designation name rejected", await post(admin, "/designations", { name: "Shift Lead" }), 409);
+    is("admin deactivates a designation", await patch(admin, `/designations/${g1.body.id}`, { active: false }), 200);
+    is("unused designation can be hard-deleted", await call("DELETE", `/api/designations/${g1.body.id}`, { token: admin }), 200);
+    const seededDesignations = await get(mech, "/designations");
+    ok("the 4 seeded designations are present", ["Supervisor", "In Charge", "Electrician", "Engineer"].every((n) => seededDesignations.body.some((x: any) => x.name === n)));
   }
 
   // A machine (maintenance asset) is now mandatory on every maintenance ticket - create one upfront for mtBody() to default to.
@@ -469,6 +479,8 @@ async function main() {
     ok("ticket gets MAIN- number and OPEN status", /^MAIN-\d+$/.test(T.ticketNumber) && T.status === "OPEN");
     ok("no title is stored any more - displayTitle falls back to a composed label", T.title === null && /Mechanical/.test(T.displayTitle));
     ok("the selected machine's details are joined onto the ticket", T.maintenanceAssetId === defaultMachineId && T.machine?.name === "Main Drive Motor" && T.machine?.powerCapacity === "15kW");
+    ok("designation is optional - not set when omitted", T.designationId === null && !T.designation);
+    is("unknown designation -> 400", await post(prod, "/tickets", mtBody({ designationId: "nope" })), 400);
 
     const pick1 = await get(prod, "/assets/maintenance/picker?limit=1");
     is("machine picker: paginated (1 item, cursor for more)", pick1, 200);
@@ -481,6 +493,11 @@ async function main() {
     const c2 = await post(mgrMFresh, "/tickets", mtBody());
     ok("ticket numbers are sequential and unique", Number(c2.body.ticketNumber.split("-")[1]) === Number(T.ticketNumber.split("-")[1]) + 1);
     ok("IT tickets use their own IT- sequence and still collect a title", /^IT-\d+$/.test((await post(itTech, "/tickets", { workstream: "IT", category: "LAPTOP", title: "Laptop dead", description: "no power" })).body.ticketNumber));
+
+    const supervisorDesignation = (await get(prod, "/designations")).body.find((d: any) => d.name === "Supervisor");
+    const withDesignation = await post(prod, "/tickets", mtBody({ designationId: supervisorDesignation.id }));
+    is("ticket raised with a designation", withDesignation, 201);
+    ok("the selected designation is joined onto the ticket", withDesignation.body.designationId === supervisorDesignation.id && withDesignation.body.designation?.name === "Supervisor");
 
     const mechId = id("suresh.patil@soliflex.local");
     const base = `/tickets/${T.id}`;
