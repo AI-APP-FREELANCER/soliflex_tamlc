@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert, Text, View } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { Modal } from "@/components/Modal";
 import { TextField } from "@/components/TextField";
 import { SelectField } from "@/components/SelectField";
@@ -7,6 +8,7 @@ import { Button } from "@/components/Button";
 import { useAuthStore } from "@/store/auth.store";
 import { assignableRoles } from "@/features/users/permissions";
 import { useUserMutations } from "@/features/users/hooks";
+import { fetchDepartments } from "@/api/departments";
 import type { Role, Workstream } from "@/lib/types";
 
 const WORKSTREAM_OPTIONS: { value: Workstream; label: string }[] = [
@@ -23,6 +25,8 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
   const actorRole = useAuthStore((s) => s.user?.role);
   const roleOptions = assignableRoles(actorRole).map((r) => ({ value: r, label: r }));
   const { create } = useUserMutations();
+  const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible });
+  const departmentOptions = [{ value: "", label: "No department" }, ...departments.map((d) => ({ value: d.name, label: d.name }))];
 
   const [employeeId, setEmployeeId] = useState("");
   const [name, setName] = useState("");
@@ -76,7 +80,7 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
         <Text className="-mt-2 text-xs text-soliflex-gray-500">At least one is required — the person signs in with whichever you enter.</Text>
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream (optional)" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
-        <TextField label="Department (optional)" value={department} onChangeText={setDepartment} />
+        <SelectField label="Department (optional)" value={department} options={departmentOptions} onChange={setDepartment} />
         <Button title="Create" onPress={handleSubmit} disabled={!canSubmit} loading={create.isPending} />
       </View>
     </Modal>
