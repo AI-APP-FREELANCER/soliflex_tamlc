@@ -8,7 +8,6 @@ import { FileText } from "lucide-react-native";
 import { formatDistanceToNow } from "date-fns";
 import { useAuthStore } from "@/store/auth.store";
 import { useAsset, useAssetMutations } from "@/features/assets/hooks";
-import { canCreateAsset } from "@/features/assets/permissions";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
@@ -41,7 +40,10 @@ export default function AssetDetailScreen() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceAmount, setInvoiceAmount] = useState("");
 
-  const canEdit = canCreateAsset(user?.role, type);
+  // Anyone who can reach this screen (BOARD_ROLES, enforced by the drawer guard) can
+  // attach photos/invoices to an existing asset — matches web's AssetDetailPage, which
+  // has no further role check here (canCreateAsset is only for the "new asset" form).
+  const canEdit = !!user;
 
   if (isLoading || !asset) {
     return (
