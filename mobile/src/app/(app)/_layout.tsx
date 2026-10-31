@@ -1,7 +1,7 @@
 import { Drawer } from "expo-router/drawer";
-import { LayoutGrid, LifeBuoy, Boxes, BarChart3, Users, ScrollText, UserCircle } from "lucide-react-native";
+import { LayoutGrid, LifeBuoy, Boxes, BarChart3, Users, ScrollText, UserCircle, MapPin, Building2, Contact } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
-import { canSeeHelpdesk, canSeeLegacy, canSeeUsersAndAudit } from "@/lib/roles";
+import { canSeeHelpdesk, canSeeLegacy, canSeeUsersAndAudit, isAdmin } from "@/lib/roles";
 import { useRealtimeSync } from "@/lib/useRealtimeSync";
 
 export default function AppLayout() {
@@ -46,6 +46,24 @@ export default function AppLayout() {
           name="users"
           options={{ title: "Users", drawerIcon: ({ color, size }) => <Users color={color} size={size} /> }}
         />
+      </Drawer.Protected>
+
+      <Drawer.Protected guard={isAdmin(role)}>
+        <Drawer.Screen
+          name="plants"
+          options={{ title: "Plants", drawerIcon: ({ color, size }) => <MapPin color={color} size={size} /> }}
+        />
+        <Drawer.Screen
+          name="departments"
+          options={{ title: "Departments", drawerIcon: ({ color, size }) => <Building2 color={color} size={size} /> }}
+        />
+        <Drawer.Screen
+          name="designations"
+          options={{ title: "Designations", drawerIcon: ({ color, size }) => <Contact color={color} size={size} /> }}
+        />
+      </Drawer.Protected>
+
+      <Drawer.Protected guard={canSeeUsersAndAudit(role)}>
         <Drawer.Screen
           name="audit"
           options={{ title: "Audit", drawerIcon: ({ color, size }) => <ScrollText color={color} size={size} /> }}
