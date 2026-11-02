@@ -14,6 +14,7 @@ export interface CreateUserInput {
   role: Role;
   workstream?: Workstream | null;
   department?: string;
+  designation?: string;
   phone?: string;
 }
 

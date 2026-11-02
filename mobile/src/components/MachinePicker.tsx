@@ -8,6 +8,8 @@ import type { MachineSummary } from "@/lib/types";
 interface MachinePickerProps {
   value: MachineSummary | null;
   onChange: (machine: MachineSummary | null) => void;
+  /** When set, only machines onboarded with this Plant Location name are shown. */
+  plantLocation?: string;
 }
 
 /**
@@ -15,13 +17,13 @@ interface MachinePickerProps {
  * loads a page of maintenance assets at a time, fetching more as the
  * list is scrolled rather than pulling the whole asset list at once.
  */
-export function MachinePicker({ value, onChange }: MachinePickerProps) {
+export function MachinePicker({ value, onChange, plantLocation }: MachinePickerProps) {
   const [search, setSearch] = useState("");
   const open = search.length > 0 && !value;
 
   const { data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage } = useInfiniteQuery({
-    queryKey: ["machine-picker", search],
-    queryFn: ({ pageParam }) => fetchMachinePicker({ search, cursor: pageParam }),
+    queryKey: ["machine-picker", search, plantLocation],
+    queryFn: ({ pageParam }) => fetchMachinePicker({ search, cursor: pageParam, plantLocation }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled: open,
@@ -69,7 +71,11 @@ export function MachinePicker({ value, onChange }: MachinePickerProps) {
               <Text className="text-xs text-soliflex-gray-400">Loading machines…</Text>
             </View>
           )}
-          {!isLoading && machines.length === 0 && <Text className="px-3 py-3 text-xs text-soliflex-gray-400">No machines found</Text>}
+          {!isLoading && machines.length === 0 && (
+            <Text className="px-3 py-3 text-xs text-soliflex-gray-400">
+              {plantLocation ? `No machines onboarded for ${plantLocation} yet` : "No machines found"}
+            </Text>
+          )}
           {machines.length > 0 && (
             // A plain ScrollView, not a FlatList - this dropdown sits inside the
             // create-ticket Modal's own ScrollView, and a VirtualizedList (FlatList)

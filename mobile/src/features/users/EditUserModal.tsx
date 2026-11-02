@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { assignableRoles } from "@/features/users/permissions";
 import { useUserMutations } from "@/features/users/hooks";
 import { fetchDepartments } from "@/api/departments";
+import { fetchDesignations } from "@/api/designations";
 import type { Role, User, Workstream } from "@/lib/types";
 
 const WORKSTREAM_OPTIONS: { value: Workstream; label: string }[] = [
@@ -32,11 +33,18 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
     ...(user.department && !departments.some((d) => d.name === user.department) ? [{ value: user.department, label: `${user.department} (not in the admin-managed list)` }] : []),
     ...departments.map((d) => ({ value: d.name, label: d.name })),
   ];
+  const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: fetchDesignations, enabled: visible });
+  const designationOptions = [
+    { value: "", label: "No designation" },
+    ...(user.designation && !designations.some((d) => d.name === user.designation) ? [{ value: user.designation, label: `${user.designation} (not in the admin-managed list)` }] : []),
+    ...designations.map((d) => ({ value: d.name, label: d.name })),
+  ];
 
   const [name, setName] = useState(user.name);
   const [role, setRole] = useState<Role>(user.role);
   const [workstream, setWorkstream] = useState<Workstream | undefined>(user.workstream ?? undefined);
   const [department, setDepartment] = useState(user.department ?? "");
+  const [designation, setDesignation] = useState(user.designation ?? "");
   const [email, setEmail] = useState(user.email ?? "");
   const [phone, setPhone] = useState(user.phone ?? "");
 
@@ -49,6 +57,7 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
           role,
           workstream: workstream ?? null,
           department: department.trim() || undefined,
+          designation: designation.trim() || undefined,
           email: email.trim() || undefined,
           phone: phone.trim() || null,
         },
@@ -78,6 +87,7 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
         <SelectField label="Department" value={department} options={departmentOptions} onChange={setDepartment} />
+        <SelectField label="Designation" value={designation} options={designationOptions} onChange={setDesignation} />
         <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <TextField label="Mobile number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
         <Button title="Save" onPress={handleSubmit} loading={update.isPending} />

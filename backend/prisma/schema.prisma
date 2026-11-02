@@ -228,6 +228,9 @@ model User {
   role              Role
   workstream        Workstream?
   department        String?
+  // Free-text label, same pattern as department — picked from the admin-managed
+  // Designation list but stored as a plain string (no FK), not a Role.
+  designation       String?
   phone             String?     @unique
   active            Boolean     @default(true)
   mustResetPassword Boolean     @default(true)

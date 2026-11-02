@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { View } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { Modal } from "@/components/Modal";
 import { TextField } from "@/components/TextField";
 import { CategoryField } from "@/components/CategoryField";
+import { SelectField } from "@/components/SelectField";
 import { DateField } from "@/components/DateField";
 import { Button } from "@/components/Button";
 import { useAssetCategories, useAssetMutations } from "@/features/assets/hooks";
+import { fetchPlants } from "@/api/plants";
 
 const DEFAULT_SUGGESTIONS = ["PRODUCTION_MACHINE", "PLANT_EQUIPMENT", "PERIPHERAL_ATTACHMENT", "PHYSICAL_TOOL"];
 
@@ -18,6 +21,8 @@ interface CreateMaintenanceAssetModalProps {
 export function CreateMaintenanceAssetModal({ visible, onClose, onCreated }: CreateMaintenanceAssetModalProps) {
   const { data: existingCategories } = useAssetCategories("maintenance");
   const { createMaintenance } = useAssetMutations();
+  const { data: plants = [] } = useQuery({ queryKey: ["plants"], queryFn: fetchPlants, enabled: visible });
+  const plantOptions = [{ value: "", label: "Plant location (optional)" }, ...plants.map((p) => ({ value: p.name, label: p.name }))];
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("PRODUCTION_MACHINE");
@@ -74,7 +79,7 @@ export function CreateMaintenanceAssetModal({ visible, onClose, onCreated }: Cre
         <CategoryField value={category} onChange={setCategory} suggestions={[...DEFAULT_SUGGESTIONS, ...(existingCategories ?? [])]} />
         <TextField label="Model (optional)" value={model} onChangeText={setModel} />
         <TextField label="Manufacturer (optional)" value={manufacturer} onChangeText={setManufacturer} />
-        <TextField label="Plant location (optional)" value={plantLocation} onChangeText={setPlantLocation} />
+        <SelectField label="Plant location (optional)" value={plantLocation} options={plantOptions} onChange={setPlantLocation} />
         <TextField label="Power capacity (optional)" value={powerCapacity} onChangeText={setPowerCapacity} placeholder="e.g. 15 kW" />
         <TextField
           label="Specifications (optional)"

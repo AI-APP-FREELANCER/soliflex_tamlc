@@ -180,9 +180,11 @@ function VerifyModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
   const [certify, setCertify] = useState(false);
   const { verifyAndClose } = useTicketMutations(ticketId);
 
+  const canSubmit = !!qualityRating && !!certify && qualityFeedback.trim().length >= 3;
+
   async function handleSubmit() {
-    if (!qualityRating || !certify) return;
-    await verifyAndClose.mutateAsync({ id: ticketId, data: { qualityRating, qualityFeedback: qualityFeedback.trim() || undefined, certify: true } });
+    if (!canSubmit) return;
+    await verifyAndClose.mutateAsync({ id: ticketId, data: { qualityRating, qualityFeedback: qualityFeedback.trim(), certify: true } });
     onClose();
   }
 
@@ -206,8 +208,14 @@ function VerifyModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Feedback (optional)</label>
-          <textarea value={qualityFeedback} onChange={(e) => setQualityFeedback(e.target.value)} rows={2} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+          <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Resolution note (required)</label>
+          <textarea
+            value={qualityFeedback}
+            onChange={(e) => setQualityFeedback(e.target.value)}
+            rows={2}
+            placeholder="What was done to fix this?"
+            className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+          />
         </div>
         <label className="flex items-start gap-2 rounded-lg bg-soliflex-gray-50 p-3 text-sm text-soliflex-gray-700">
           <input type="checkbox" checked={certify} onChange={(e) => setCertify(e.target.checked)} className="mt-0.5" />
@@ -215,7 +223,7 @@ function VerifyModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
         </label>
         <button
           onClick={handleSubmit}
-          disabled={!qualityRating || !certify || verifyAndClose.isPending}
+          disabled={!canSubmit || verifyAndClose.isPending}
           className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
         >
           Verify & close

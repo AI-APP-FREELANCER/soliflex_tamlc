@@ -72,6 +72,7 @@ export function CreateTicketModal() {
     enabled: open && workstream === "IT",
   });
   const { data: plants = [] } = useQuery({ queryKey: ["plants"], queryFn: () => fetchPlants(), enabled: open && isMaintenance });
+  const selectedPlantName = plants.find((p) => p.id === plantId)?.name;
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: () => fetchDepartments(), enabled: open && isMaintenance });
   const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: () => fetchDesignations(), enabled: open && isMaintenance });
 
@@ -126,7 +127,10 @@ export function CreateTicketModal() {
     <>
       <Modal title="Raise a ticket" onClose={() => setOpen(false)} width="max-w-xl">
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-soliflex-gray-500">
+              Raised by <span className="font-semibold text-soliflex-ink">{user.name}</span>
+            </p>
             <ISTClock />
           </div>
 
@@ -180,7 +184,14 @@ export function CreateTicketModal() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Plant Location</label>
-                  <select value={plantId} onChange={(e) => setPlantId(e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+                  <select
+                    value={plantId}
+                    onChange={(e) => {
+                      setPlantId(e.target.value);
+                      setMachine(null);
+                    }}
+                    className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+                  >
                     <option value="" disabled>
                       Select plant
                     </option>
@@ -218,7 +229,7 @@ export function CreateTicketModal() {
                 </select>
               </div>
 
-              <MachinePicker value={machine} onChange={setMachine} />
+              <MachinePicker value={machine} onChange={setMachine} plantLocation={selectedPlantName} />
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Type of Problem</label>

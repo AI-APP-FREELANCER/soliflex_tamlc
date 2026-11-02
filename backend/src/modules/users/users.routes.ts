@@ -72,6 +72,7 @@ const createUserSchema = z
     role: z.nativeEnum(Role),
     workstream: z.nativeEnum(Workstream).optional().nullable(),
     department: z.string().optional(),
+    designation: z.string().optional(),
     phone: z.string().trim().optional(),
   })
   .refine((v) => !!v.email || !!v.phone, { message: "Provide an email address or a mobile number", path: ["email"] });
@@ -119,11 +120,11 @@ router.post("/", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   res.status(201).json({ user: sanitizeUser(user), tempPassword });
 });
 
-const BULK_IMPORT_HEADERS = ["employeeId", "name", "email", "role", "workstream", "department", "phone"];
+const BULK_IMPORT_HEADERS = ["employeeId", "name", "email", "role", "workstream", "department", "designation", "phone"];
 
 router.get("/template", requireRole(Role.MANAGER, Role.ADMIN), (_req, res) => {
   const csv = buildCsv(BULK_IMPORT_HEADERS, [
-    ["EMP-501", "Jane Doe", "jane.doe@soliflexpackaging.com", "MECHANIC", "MAINTENANCE", "Maintenance", "9876543210"],
+    ["EMP-501", "Jane Doe", "jane.doe@soliflexpackaging.com", "MECHANIC", "MAINTENANCE", "Maintenance", "Engineer", "9876543210"],
   ]);
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", "attachment; filename=users-template.csv");
@@ -155,6 +156,7 @@ router.post("/bulk-import", requireRole(Role.MANAGER, Role.ADMIN), csvUpload.sin
       ...records[i],
       workstream: records[i].workstream || undefined,
       department: records[i].department || undefined,
+      designation: records[i].designation || undefined,
       phone: records[i].phone || undefined,
     });
     if (!parsed.success) {
@@ -178,6 +180,7 @@ const updateUserSchema = z.object({
   role: z.nativeEnum(Role).optional(),
   workstream: z.nativeEnum(Workstream).optional().nullable(),
   department: z.string().optional(),
+  designation: z.string().optional(),
   email: z.string().trim().email().optional(),
   phone: z.string().trim().nullable().optional(),
   active: z.boolean().optional(),

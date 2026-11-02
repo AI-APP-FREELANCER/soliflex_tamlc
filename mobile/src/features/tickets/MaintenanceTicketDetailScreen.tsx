@@ -169,7 +169,16 @@ function VerifyModal({ ticketId, visible, onClose }: { ticketId: string; visible
           options={QUALITY_RATINGS.map((r) => ({ value: r, label: QUALITY_RATING_LABELS[r] }))}
           onChange={setQualityRating}
         />
-        <TextField label="Feedback (optional)" value={qualityFeedback} onChangeText={setQualityFeedback} multiline numberOfLines={2} textAlignVertical="top" style={{ minHeight: 56 }} />
+        <TextField
+          label="Resolution note (required)"
+          placeholder="What was done to fix this?"
+          value={qualityFeedback}
+          onChangeText={setQualityFeedback}
+          multiline
+          numberOfLines={2}
+          textAlignVertical="top"
+          style={{ minHeight: 56 }}
+        />
         <Checkbox checked={certify} onPress={() => setCertify((v) => !v)}>
           {CERTIFY_STATEMENT}
         </Checkbox>
@@ -178,9 +187,10 @@ function VerifyModal({ ticketId, visible, onClose }: { ticketId: string; visible
           onPress={() =>
             qualityRating &&
             certify &&
-            verifyAndClose.mutate({ id: ticketId, data: { qualityRating, qualityFeedback: qualityFeedback.trim() || undefined, certify: true } }, { onSuccess: onClose })
+            qualityFeedback.trim().length >= 3 &&
+            verifyAndClose.mutate({ id: ticketId, data: { qualityRating, qualityFeedback: qualityFeedback.trim(), certify: true } }, { onSuccess: onClose })
           }
-          disabled={!qualityRating || !certify}
+          disabled={!qualityRating || !certify || qualityFeedback.trim().length < 3}
           loading={verifyAndClose.isPending}
         />
       </View>

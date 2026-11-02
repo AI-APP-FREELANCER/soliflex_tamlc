@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { Paperclip, X } from "lucide-react";
 import { Modal } from "../../components/Modal";
 import { createMaintenanceAsset, fetchMaintenanceAssetCategories, uploadMaintenanceAssetPhotos } from "./api";
+import { fetchPlants } from "../plants/api";
 import type { MaintenanceAssetCategory } from "../../lib/types";
 import { apiErrorMessage } from "../../lib/api";
 
@@ -13,6 +14,7 @@ const DEFAULT_CATEGORY_SUGGESTIONS = ["PRODUCTION_MACHINE", "PLANT_EQUIPMENT", "
 export function CreateMaintenanceAssetModal({ onClose }: { onClose: () => void }) {
   const { data: existingCategories = [] } = useQuery({ queryKey: ["maintenance-asset-categories"], queryFn: fetchMaintenanceAssetCategories });
   const categorySuggestions = Array.from(new Set([...existingCategories, ...DEFAULT_CATEGORY_SUGGESTIONS])).sort();
+  const { data: plants = [] } = useQuery({ queryKey: ["plants"], queryFn: () => fetchPlants() });
 
   const [form, setForm] = useState({
     name: "",
@@ -74,9 +76,17 @@ export function CreateMaintenanceAssetModal({ onClose }: { onClose: () => void }
           <input placeholder="Manufacturer" value={form.manufacturer} onChange={(e) => set("manufacturer", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <input placeholder="Plant location" value={form.plantLocation} onChange={(e) => set("plantLocation", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
+          <select value={form.plantLocation} onChange={(e) => set("plantLocation", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+            <option value="">Plant location (optional)</option>
+            {plants.map((p) => (
+              <option key={p.id} value={p.name}>
+                {p.name}
+              </option>
+            ))}
+          </select>
           <input placeholder="Power capacity (e.g. 15 kW)" value={form.powerCapacity} onChange={(e) => set("powerCapacity", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         </div>
+        <p className="-mt-1 text-xs text-soliflex-gray-400">Pick a plant so this machine shows up when that plant is selected on the ticket form.</p>
         <textarea placeholder="Specifications" value={form.specifications} onChange={(e) => set("specifications", e.target.value)} rows={2} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <div className="grid grid-cols-3 gap-3">
           <div>

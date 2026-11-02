@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { assignableRoles } from "@/features/users/permissions";
 import { useUserMutations } from "@/features/users/hooks";
 import { fetchDepartments } from "@/api/departments";
+import { fetchDesignations } from "@/api/designations";
 import type { Role, Workstream } from "@/lib/types";
 
 const WORKSTREAM_OPTIONS: { value: Workstream; label: string }[] = [
@@ -27,6 +28,8 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
   const { create } = useUserMutations();
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible });
   const departmentOptions = [{ value: "", label: "No department" }, ...departments.map((d) => ({ value: d.name, label: d.name }))];
+  const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: fetchDesignations, enabled: visible });
+  const designationOptions = [{ value: "", label: "No designation" }, ...designations.map((d) => ({ value: d.name, label: d.name }))];
 
   const [employeeId, setEmployeeId] = useState("");
   const [name, setName] = useState("");
@@ -34,6 +37,7 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
   const [role, setRole] = useState<Role | undefined>();
   const [workstream, setWorkstream] = useState<Workstream | undefined>();
   const [department, setDepartment] = useState("");
+  const [designation, setDesignation] = useState("");
   const [phone, setPhone] = useState("");
 
   function reset() {
@@ -43,6 +47,7 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
     setRole(undefined);
     setWorkstream(undefined);
     setDepartment("");
+    setDesignation("");
     setPhone("");
   }
 
@@ -56,6 +61,7 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
         role,
         workstream: workstream ?? null,
         department: department.trim() || undefined,
+        designation: designation.trim() || undefined,
         phone: phone.trim() || undefined,
       },
       {
@@ -81,6 +87,7 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream (optional)" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
         <SelectField label="Department (optional)" value={department} options={departmentOptions} onChange={setDepartment} />
+        <SelectField label="Designation (optional)" value={designation} options={designationOptions} onChange={setDesignation} />
         <Button title="Create" onPress={handleSubmit} disabled={!canSubmit} loading={create.isPending} />
       </View>
     </Modal>

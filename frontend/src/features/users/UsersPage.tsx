@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { Plus, KeyRound, Pencil, UploadCloud } from "lucide-react";
 import { fetchUsers, createUser, updateUser, resetPassword, CreateUserInput } from "./api";
 import { fetchDepartments } from "../departments/api";
+import { fetchDesignations } from "../designations/api";
 import { Modal } from "../../components/Modal";
 import { Avatar } from "../../components/Avatar";
 import { Spinner } from "../../components/Spinner";
@@ -116,11 +117,13 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
   const actor = useAuthStore((s) => s.user);
   const roles = assignableRoles(actor?.role);
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: () => fetchDepartments() });
+  const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: () => fetchDesignations() });
   const [form, setForm] = useState({
     name: user.name,
     role: user.role,
     workstream: user.workstream,
     department: user.department ?? "",
+    designation: user.designation ?? "",
     email: user.email ?? "",
     phone: user.phone ?? "",
   });
@@ -131,6 +134,7 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
       updateUser(user.id, {
         ...form,
         department: form.department || undefined,
+        designation: form.designation || undefined,
         email: form.email.trim() || undefined,
         phone: form.phone.trim() || null,
       }),
@@ -167,17 +171,30 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
             <option value="IT">IT</option>
           </select>
         </div>
-        <select value={form.department} onChange={(e) => set("department", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-          <option value="">No department</option>
-          {form.department && !departments.some((d) => d.name === form.department) && (
-            <option value={form.department}>{form.department} (not in the admin-managed list)</option>
-          )}
-          {departments.map((d) => (
-            <option key={d.id} value={d.name}>
-              {d.name}
-            </option>
-          ))}
-        </select>
+        <div className="grid grid-cols-2 gap-3">
+          <select value={form.department} onChange={(e) => set("department", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+            <option value="">No department</option>
+            {form.department && !departments.some((d) => d.name === form.department) && (
+              <option value={form.department}>{form.department} (not in the admin-managed list)</option>
+            )}
+            {departments.map((d) => (
+              <option key={d.id} value={d.name}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <select value={form.designation} onChange={(e) => set("designation", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+            <option value="">No designation</option>
+            {form.designation && !designations.some((d) => d.name === form.designation) && (
+              <option value={form.designation}>{form.designation} (not in the admin-managed list)</option>
+            )}
+            {designations.map((d) => (
+              <option key={d.id} value={d.name}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <input placeholder="Email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <input placeholder="Mobile number" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm" />
         <button
@@ -196,7 +213,8 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
   const actor = useAuthStore((s) => s.user);
   const roles = assignableRoles(actor?.role);
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: () => fetchDepartments() });
-  const [form, setForm] = useState<CreateUserInput>({ employeeId: "", name: "", email: "", phone: "", role: "MECHANIC", workstream: "MAINTENANCE", department: "" });
+  const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: () => fetchDesignations() });
+  const [form, setForm] = useState<CreateUserInput>({ employeeId: "", name: "", email: "", phone: "", role: "MECHANIC", workstream: "MAINTENANCE", department: "", designation: "" });
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -239,16 +257,26 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
             <option value="IT">IT</option>
           </select>
         </div>
-        <select value={form.department} onChange={(e) => set("department", e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-          <option value="">No department</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.name}>
-              {d.name}
-            </option>
-          ))}
-        </select>
+        <div className="grid grid-cols-2 gap-3">
+          <select value={form.department} onChange={(e) => set("department", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+            <option value="">No department</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.name}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <select value={form.designation} onChange={(e) => set("designation", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+            <option value="">No designation</option>
+            {designations.map((d) => (
+              <option key={d.id} value={d.name}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
-          onClick={() => mutation.mutate({ ...form, email: form.email?.trim() || undefined, phone: form.phone?.trim() || undefined })}
+          onClick={() => mutation.mutate({ ...form, email: form.email?.trim() || undefined, phone: form.phone?.trim() || undefined, designation: form.designation || undefined })}
           disabled={!form.employeeId || !form.name || (!form.email?.trim() && !form.phone?.trim()) || mutation.isPending}
           className="w-full rounded-lg bg-soliflex-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-soliflex-orange-600 disabled:opacity-50"
         >

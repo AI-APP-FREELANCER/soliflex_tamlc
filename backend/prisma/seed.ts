@@ -167,7 +167,7 @@ async function main() {
       create: { name, createdById: adminUser.id },
     });
   }
-  const departmentNames = ["Fabric", "Cutting", "Finishing", "Utility", "Container liner", "RP", "General"];
+  const departmentNames = ["Fabric", "Container", "Cutting", "Finishing", "Utility", "Lab", "Recycling Plant", "Production", "Quality"];
   const departments: Record<string, { id: string }> = {};
   for (const name of departmentNames) {
     departments[name] = await prisma.department.upsert({
@@ -176,7 +176,7 @@ async function main() {
       create: { name, createdById: adminUser.id },
     });
   }
-  const designationNames = ["Supervisor", "In Charge", "Electrician", "Engineer"];
+  const designationNames = ["Supervisor", "Shift Incharge", "Electrician", "Engineer"];
   for (const name of designationNames) {
     await prisma.designation.upsert({
       where: { name },

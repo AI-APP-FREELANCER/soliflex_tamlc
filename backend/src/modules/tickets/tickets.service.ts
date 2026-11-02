@@ -623,13 +623,16 @@ export interface VerifyAndCloseInput {
 export const PRODUCTION_CERTIFY_STATEMENT = "I certify that the asset/machine has been repaired and is now in safe, workable condition.";
 
 export async function verifyAndClose(actor: Actor, ticketId: string, input: VerifyAndCloseInput) {
-  const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+  const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { comments: true } });
   assertAction(ticket, actor, "VERIFY_AND_CLOSE");
   if (!input.certify) {
     throw new ApiError(400, PRODUCTION_CERTIFY_STATEMENT);
   }
   if (!input.qualityRating) {
     throw new ApiError(400, "Rate the quality of the maintenance resolution before closing");
+  }
+  if (ticket.comments.length === 0 && !input.qualityFeedback?.trim()) {
+    throw new ApiError(400, "Add a resolution note (in Actions, or the field below) summarizing what was done before closing");
   }
 
   return prisma.$transaction(async (tx) => {

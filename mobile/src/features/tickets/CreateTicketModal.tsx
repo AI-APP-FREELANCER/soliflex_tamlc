@@ -50,6 +50,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     [user?.role, workstream]
   );
   const { data: plants = [] } = useQuery({ queryKey: ["plants"], queryFn: fetchPlants, enabled: visible && isMaintenance });
+  const selectedPlantName = plants.find((p) => p.id === plantId)?.name;
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible && isMaintenance });
   const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: fetchDesignations, enabled: visible && isMaintenance });
 
@@ -121,7 +122,10 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   return (
     <Modal visible={visible} title="Raise a ticket" onClose={onClose}>
       <View className="gap-4 pb-4">
-        <View className="flex-row justify-end">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-xs text-soliflex-gray-500">
+            Raised by <Text className="font-semibold text-soliflex-ink">{user?.name}</Text>
+          </Text>
           <ISTClock />
         </View>
 
@@ -146,7 +150,10 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
               label="Plant Location"
               value={plantId}
               options={plants.map((p) => ({ value: p.id, label: p.name }))}
-              onChange={setPlantId}
+              onChange={(v) => {
+                setPlantId(v);
+                setMachine(null);
+              }}
             />
             <SelectField
               label="Department / Product Category"
@@ -160,7 +167,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
               options={[{ value: "", label: "Not specified" }, ...designations.map((d) => ({ value: d.id, label: d.name }))]}
               onChange={(v) => setDesignationId(v || undefined)}
             />
-            <MachinePicker value={machine} onChange={setMachine} />
+            <MachinePicker value={machine} onChange={setMachine} plantLocation={selectedPlantName} />
             <SelectField
               label="Type of Problem"
               value={problemType}

@@ -51,11 +51,16 @@ router.get("/picker", async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
   const cursor = req.query.cursor ? String(req.query.cursor) : undefined;
   const search = req.query.search ? String(req.query.search) : undefined;
+  // Plant Location is picked by name on the ticket form (it's a Plant admin-list
+  // entry, not an FK on MaintenanceAsset) - match case-insensitively on the
+  // asset's plantLocation text.
+  const plantLocation = req.query.plantLocation ? String(req.query.plantLocation) : undefined;
 
   const rows = await prisma.maintenanceAsset.findMany({
-    where: search
-      ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { itemCode: { contains: search, mode: "insensitive" } }] }
-      : undefined,
+    where: {
+      ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { itemCode: { contains: search, mode: "insensitive" } }] } : {}),
+      ...(plantLocation ? { plantLocation: { equals: plantLocation, mode: "insensitive" } } : {}),
+    },
     select: { id: true, itemCode: true, name: true, category: true, model: true, manufacturer: true, plantLocation: true, powerCapacity: true, status: true },
     orderBy: { name: "asc" },
     take: limit + 1,

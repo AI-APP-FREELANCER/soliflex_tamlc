@@ -12,8 +12,10 @@ export interface MachinePickerPage {
 }
 
 /** Paginated, lightweight machine listing for the "Machine Name" picker on the new-ticket form. */
-export async function fetchMachinePicker(params: { search?: string; cursor?: string | null }): Promise<MachinePickerPage> {
-  const res = await api.get("/assets/maintenance/picker", { params: { limit: 20, search: params.search || undefined, cursor: params.cursor || undefined } });
+export async function fetchMachinePicker(params: { search?: string; cursor?: string | null; plantLocation?: string }): Promise<MachinePickerPage> {
+  const res = await api.get("/assets/maintenance/picker", {
+    params: { limit: 20, search: params.search || undefined, cursor: params.cursor || undefined, plantLocation: params.plantLocation || undefined },
+  });
   return res.data;
 }
 

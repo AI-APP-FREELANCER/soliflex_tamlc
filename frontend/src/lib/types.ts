@@ -86,6 +86,7 @@ export interface User {
   role: Role;
   workstream: Workstream | null;
   department: string | null;
+  designation: string | null;
   phone: string | null;
   active: boolean;
   mustResetPassword: boolean;

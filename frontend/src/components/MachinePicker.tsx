@@ -9,7 +9,16 @@ import type { MachineSummary } from "../lib/types";
  * loads a page of maintenance assets at a time, fetching more as the
  * dropdown is scrolled rather than pulling the whole asset list at once.
  */
-export function MachinePicker({ value, onChange }: { value: MachineSummary | null; onChange: (machine: MachineSummary | null) => void }) {
+export function MachinePicker({
+  value,
+  onChange,
+  plantLocation,
+}: {
+  value: MachineSummary | null;
+  onChange: (machine: MachineSummary | null) => void;
+  /** When set, only machines onboarded with this Plant Location name are shown. */
+  plantLocation?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -30,8 +39,8 @@ export function MachinePicker({ value, onChange }: { value: MachineSummary | nul
   }, []);
 
   const { data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage } = useInfiniteQuery({
-    queryKey: ["machine-picker", debouncedSearch],
-    queryFn: ({ pageParam }) => fetchMachinePicker({ search: debouncedSearch, cursor: pageParam }),
+    queryKey: ["machine-picker", debouncedSearch, plantLocation],
+    queryFn: ({ pageParam }) => fetchMachinePicker({ search: debouncedSearch, cursor: pageParam, plantLocation }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled: open,
@@ -68,7 +77,11 @@ export function MachinePicker({ value, onChange }: { value: MachineSummary | nul
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading machines…
             </div>
           )}
-          {!isLoading && machines.length === 0 && <p className="px-3 py-3 text-xs text-soliflex-gray-400">No machines found</p>}
+          {!isLoading && machines.length === 0 && (
+            <p className="px-3 py-3 text-xs text-soliflex-gray-400">
+              {plantLocation ? `No machines onboarded for ${plantLocation} yet` : "No machines found"}
+            </p>
+          )}
           {machines.map((m) => (
             <button
               key={m.id}
