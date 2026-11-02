@@ -11,6 +11,8 @@ export function workstreamScopeFor(role: Role | undefined, workstream?: Workstre
   switch (role) {
     case "MECHANIC":
     case "PRODUCTION":
+    // Self-registered users may pick up and work Maintenance tickets (not IT).
+    case "EMPLOYEE":
       return "MAINTENANCE";
     case "IT_TEAM":
       return "IT";
@@ -26,7 +28,9 @@ function isManager(role: Role | undefined): boolean {
 }
 
 function isMechanic(role: Role | undefined): boolean {
-  return role === "MECHANIC";
+  // EMPLOYEE = a self-registered user picking up maintenance work - same
+  // self-assign/technician actions as a Mechanic.
+  return role === "MECHANIC" || role === "EMPLOYEE";
 }
 
 function isProduction(role: Role | undefined): boolean {

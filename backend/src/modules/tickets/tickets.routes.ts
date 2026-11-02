@@ -12,8 +12,10 @@ import { workstreamScope } from "../../lib/workstream-scope";
 import { ApiError } from "../../middleware/errors";
 
 const router = Router();
-// Maintenance/IT board data is for board roles only (helpdesk-only roles use /api/helpdesk).
-router.use(requireAuth, requireRole(...LEGACY_ROLES));
+// Maintenance/IT board data is for board roles only, plus EMPLOYEE (self-registered
+// users may view and pick up Maintenance tickets - see workflow.ts for exactly which
+// actions that role can perform; workstreamScope keeps them to Maintenance only).
+router.use(requireAuth, requireRole(...LEGACY_ROLES, Role.EMPLOYEE));
 
 function actorFromReq(req: Express.Request | any) {
   return { id: req.user.sub, role: req.user.role, workstream: req.user.workstream, name: req.user.name };

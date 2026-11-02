@@ -23,6 +23,9 @@ import type { Role } from "./lib/types";
 
 const HELPDESK_ROLES = new Set(["EMPLOYEE", "IT_SUPPORT_ENGINEER", "IT_TEAM_LEAD"]);
 const BOARD_ROLES: Role[] = ["MANAGER", "MECHANIC", "IT_TEAM", "PRODUCTION", "ADMIN"];
+// Self-registered users (EMPLOYEE) may view and pick up Maintenance tickets, but
+// not Assets or Reports - a narrower slice of BOARD_ROLES, ticket routes only.
+const TICKET_ACCESS_ROLES: Role[] = [...BOARD_ROLES, "EMPLOYEE"];
 
 function HomeRedirect() {
   const user = useAuthStore((s) => s.user);
@@ -41,9 +44,11 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<HomeRedirect />} />
-          <Route element={<ProtectedRoute roles={BOARD_ROLES} />}>
+          <Route element={<ProtectedRoute roles={TICKET_ACCESS_ROLES} />}>
             <Route path="/tickets" element={<TicketsListPage />} />
             <Route path="/tickets/:id" element={<TicketDetailPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={BOARD_ROLES} />}>
             <Route path="/assets" element={<AssetsPage />} />
             <Route path="/assets/:type/:id" element={<AssetDetailPage />} />
             <Route path="/reports" element={<DashboardPage />} />

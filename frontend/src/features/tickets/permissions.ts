@@ -23,6 +23,8 @@ export function workstreamScopeFor(user: { role: Role; workstream: Workstream | 
   switch (user.role) {
     case "MECHANIC":
     case "PRODUCTION":
+    // Self-registered users may pick up and work Maintenance tickets (not IT).
+    case "EMPLOYEE":
       return "MAINTENANCE";
     case "IT_TEAM":
       return "IT";

@@ -48,7 +48,7 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
     to: TicketStatus.IN_PROGRESS,
     // Manager/Admin can start work on an engineer's behalf (requireAssignee
     // below is bypassed for them, same as every other technician action).
-    roles: [Role.MECHANIC, Role.IT_TEAM, Role.MANAGER, Role.ADMIN],
+    roles: [Role.MECHANIC, Role.EMPLOYEE, Role.IT_TEAM, Role.MANAGER, Role.ADMIN],
     requireAssignee: true,
   },
   DIRECT_CLOSE: {
@@ -79,27 +79,28 @@ export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
   },
 
   ACKNOWLEDGE: {
-    // Self-assign (Mechanic) or manager-assign; sets the assignee and status together.
+    // Self-assign (Mechanic, or a self-registered Employee picking up maintenance
+    // work) or manager-assign; sets the assignee and status together.
     from: [TicketStatus.OPEN],
     to: TicketStatus.ACKNOWLEDGED,
-    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC],
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.EMPLOYEE],
   },
   MAINT_HOLD: {
     from: [TicketStatus.IN_PROGRESS],
     to: TicketStatus.ON_HOLD,
-    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC],
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.EMPLOYEE],
     requireAssignee: true,
   },
   MAINT_RESUME: {
     from: [TicketStatus.ON_HOLD],
     to: TicketStatus.IN_PROGRESS,
-    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC],
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.EMPLOYEE],
     requireAssignee: true,
   },
   MARK_VERIFICATION_NEEDED: {
     from: [TicketStatus.IN_PROGRESS],
     to: TicketStatus.VERIFICATION_NEEDED,
-    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC],
+    roles: [Role.MANAGER, Role.ADMIN, Role.MECHANIC, Role.EMPLOYEE],
     requireAssignee: true,
   },
   VERIFY_AND_CLOSE: {

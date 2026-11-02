@@ -122,13 +122,6 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   return (
     <Modal visible={visible} title="Raise a ticket" onClose={onClose}>
       <View className="gap-4 pb-4">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xs text-soliflex-gray-500">
-            Raised by <Text className="font-semibold text-soliflex-ink">{user?.name}</Text>
-          </Text>
-          <ISTClock />
-        </View>
-
         {workstreamOptions.length > 1 && (
           <SelectField
             label="Workstream"
@@ -161,6 +154,12 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
               options={departments.map((d) => ({ value: d.id, label: d.name }))}
               onChange={setDepartmentId}
             />
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xs text-soliflex-gray-500">
+                Raised by <Text className="font-semibold text-soliflex-ink">{user?.name}</Text>
+              </Text>
+              <ISTClock />
+            </View>
             <SelectField
               label="Designation (optional)"
               value={designationId}
@@ -189,7 +188,15 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
             </View>
           </>
         ) : (
-          <TextField label="Title" placeholder="Short summary (at least 3 characters)" value={title} onChangeText={setTitle} />
+          <>
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xs text-soliflex-gray-500">
+                Raised by <Text className="font-semibold text-soliflex-ink">{user?.name}</Text>
+              </Text>
+              <ISTClock />
+            </View>
+            <TextField label="Title" placeholder="Short summary (at least 3 characters)" value={title} onChangeText={setTitle} />
+          </>
         )}
 
         <TextField

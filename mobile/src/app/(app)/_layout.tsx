@@ -1,7 +1,7 @@
 import { Drawer } from "expo-router/drawer";
 import { LayoutGrid, LifeBuoy, Boxes, BarChart3, Users, ScrollText, UserCircle, MapPin, Building2, Contact } from "lucide-react-native";
 import { useAuthStore } from "@/store/auth.store";
-import { canSeeHelpdesk, canSeeLegacy, canSeeUsersAndAudit, isAdmin } from "@/lib/roles";
+import { canSeeHelpdesk, canSeeLegacy, canSeeMaintenanceTickets, canSeeUsersAndAudit, isAdmin } from "@/lib/roles";
 import { useRealtimeSync } from "@/lib/useRealtimeSync";
 
 export default function AppLayout() {
@@ -26,11 +26,14 @@ export default function AppLayout() {
         />
       </Drawer.Protected>
 
-      <Drawer.Protected guard={canSeeLegacy(role)}>
+      <Drawer.Protected guard={canSeeMaintenanceTickets(role)}>
         <Drawer.Screen
           name="tickets"
           options={{ title: "Board", drawerIcon: ({ color, size }) => <LayoutGrid color={color} size={size} /> }}
         />
+      </Drawer.Protected>
+
+      <Drawer.Protected guard={canSeeLegacy(role)}>
         <Drawer.Screen
           name="assets"
           options={{ title: "Assets", drawerIcon: ({ color, size }) => <Boxes color={color} size={size} /> }}

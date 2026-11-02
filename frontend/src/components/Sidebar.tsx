@@ -21,6 +21,8 @@ export function Sidebar() {
   const isAdmin = user?.role === "ADMIN";
   const showLegacy = isAdmin || (user && LEGACY_ROLES.has(user.role));
   const showHelpdesk = isAdmin || (user && HELPDESK_ROLES.has(user.role));
+  // Self-registered users may view/pick up Maintenance tickets, but not Assets/Reports.
+  const showMaintenanceTickets = user?.role === "EMPLOYEE";
   const pinnedWorkstream = user ? workstreamScopeFor(user) : null;
   const helpdeskLabel = user?.role === "IT_SUPPORT_ENGINEER" ? "My Queue" : user?.role === "EMPLOYEE" ? "My Requests" : "Helpdesk Queue";
 
@@ -81,9 +83,14 @@ export function Sidebar() {
             </NavLink>
           </>
         )}
+        {showMaintenanceTickets && (
+          <NavLink to="/tickets" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+            <List className="h-4 w-4" /> Maintenance Tickets
+          </NavLink>
+        )}
         {showHelpdesk && (
           <>
-            {showLegacy && <div className="my-2 border-t border-soliflex-gray-100" />}
+            {(showLegacy || showMaintenanceTickets) && <div className="my-2 border-t border-soliflex-gray-100" />}
             <NavLink to="/helpdesk" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
               <LifeBuoy className="h-4 w-4" /> {helpdeskLabel}
             </NavLink>

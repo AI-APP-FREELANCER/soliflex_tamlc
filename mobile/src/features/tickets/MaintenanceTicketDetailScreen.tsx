@@ -242,9 +242,11 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
   const [comment, setComment] = useState("");
 
   if (!ticket) return null;
-  const isMechanic = user?.role === "MECHANIC";
+  // EMPLOYEE = a self-registered user picking up maintenance work - same
+  // self-assign/technician actions as a Mechanic (see workflow.ts ACKNOWLEDGE).
+  const isMechanic = user?.role === "MECHANIC" || user?.role === "EMPLOYEE";
   const isManager = user?.role === "MANAGER" || user?.role === "ADMIN";
-  const isTechnician = user?.role === "MECHANIC";
+  const isTechnician = user?.role === "MECHANIC" || user?.role === "EMPLOYEE";
   const statusColor = TICKET_STATUS_COLORS[ticket.status];
   const hasChecklist = ticket.checklistToolsReclaimed || ticket.checklistMachineCleaned || ticket.checklistCableRouting;
 

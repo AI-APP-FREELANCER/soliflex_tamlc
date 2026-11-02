@@ -33,7 +33,8 @@ export function TicketRow({ ticket, onPress }: TicketRowProps) {
         ) : (
           <Text className="text-xs text-soliflex-gray-500">{TICKET_CATEGORY_LABELS[ticket.category]}</Text>
         )}
-        <Text className="text-xs text-soliflex-gray-500">{ticket.assignedTo?.name ?? "Unassigned"}</Text>
+        <Text className="text-xs text-soliflex-gray-500">Owner: {ticket.reportedBy?.name ?? "—"}</Text>
+        <Text className="text-xs text-soliflex-gray-500">Assignee: {ticket.assignedTo?.name ?? "Unassigned"}</Text>
         <Text className="text-xs text-soliflex-gray-500">{formatIST(ticket.createdAt, "dd MMM yyyy")}</Text>
       </View>
 

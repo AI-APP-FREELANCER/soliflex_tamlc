@@ -71,6 +71,7 @@ export default function TicketsListPage() {
                 <th className="px-4 py-3">Ticket</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Priority</th>
+                <th className="px-4 py-3">Owner</th>
                 <th className="px-4 py-3">Assignee</th>
                 <th className="px-4 py-3">Reported</th>
                 <th className="px-4 py-3">Flags</th>
@@ -94,7 +95,22 @@ export default function TicketsListPage() {
                   <td className="px-4 py-3">
                     <PriorityBadge priority={t.priority} />
                   </td>
-                  <td className="px-4 py-3">{t.assignedTo ? <Avatar name={t.assignedTo.name} size={24} /> : <span className="text-xs text-soliflex-gray-400">Unassigned</span>}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <Avatar name={t.reportedBy.name} size={24} />
+                      <span className="text-xs text-soliflex-gray-700">{t.reportedBy.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {t.assignedTo ? (
+                      <div className="flex items-center gap-1.5">
+                        <Avatar name={t.assignedTo.name} size={24} />
+                        <span className="text-xs text-soliflex-gray-700">{t.assignedTo.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-soliflex-gray-400">Unassigned</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-xs text-soliflex-gray-400">{format(new Date(t.createdAt), "dd MMM yyyy")}</td>
                   <td className="px-4 py-3 space-x-1">
                     {t.onHold && <OnHoldBadge />}

@@ -16,6 +16,12 @@ export function canSeeLegacy(role: Role | undefined): boolean {
   return !!role && (isAdmin(role) || LEGACY_ROLES.has(role));
 }
 
+/** Maintenance tickets screen only - self-registered users may view/pick up
+ * Maintenance tickets, but not Assets or Reports (narrower than canSeeLegacy). */
+export function canSeeMaintenanceTickets(role: Role | undefined): boolean {
+  return canSeeLegacy(role) || role === "EMPLOYEE";
+}
+
 export function canSeeUsersAndAudit(role: Role | undefined): boolean {
   return role === "MANAGER" || role === "ADMIN";
 }

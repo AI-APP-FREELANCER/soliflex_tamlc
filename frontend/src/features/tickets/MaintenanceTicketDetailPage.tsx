@@ -290,7 +290,9 @@ export default function MaintenanceTicketDetailPage() {
   if (isLoading || !ticket) return <Spinner />;
 
   const isManager = user?.role === "MANAGER" || user?.role === "ADMIN";
-  const isMechanic = user?.role === "MECHANIC";
+  // EMPLOYEE = a self-registered user picking up maintenance work - same
+  // self-assign/technician actions as a Mechanic (see workflow.ts ACKNOWLEDGE).
+  const isMechanic = user?.role === "MECHANIC" || user?.role === "EMPLOYEE";
   const isProduction = user?.role === "PRODUCTION" || isManager;
   const isAssignee = ticket.assignedToId === user?.id;
 

@@ -127,13 +127,6 @@ export function CreateTicketModal() {
     <>
       <Modal title="Raise a ticket" onClose={() => setOpen(false)} width="max-w-xl">
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-soliflex-gray-500">
-              Raised by <span className="font-semibold text-soliflex-ink">{user.name}</span>
-            </p>
-            <ISTClock />
-          </div>
-
           {allowedWorkstreams.length > 1 && (
             <div>
               <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Workstream</label>
@@ -218,7 +211,15 @@ export function CreateTicketModal() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Designation (optional)</label>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="block text-sm font-medium text-soliflex-gray-700">Designation (optional)</label>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-soliflex-gray-500">
+                      Raised by <span className="font-semibold text-soliflex-ink">{user.name}</span>
+                    </p>
+                    <ISTClock />
+                  </div>
+                </div>
                 <select value={designationId} onChange={(e) => setDesignationId(e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
                   <option value="">Not specified</option>
                   {designations.map((d) => (
@@ -259,7 +260,15 @@ export function CreateTicketModal() {
             </>
           ) : (
             <div>
-              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Title</label>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-sm font-medium text-soliflex-gray-700">Title</label>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-soliflex-gray-500">
+                    Raised by <span className="font-semibold text-soliflex-ink">{user.name}</span>
+                  </p>
+                  <ISTClock />
+                </div>
+              </div>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
