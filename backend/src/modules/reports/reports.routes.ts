@@ -90,6 +90,7 @@ router.get("/export", async (req, res) => {
     { header: "Actual Cost", key: "actualCost", width: 12 },
     { header: "Created At", key: "createdAt", width: 18 },
     { header: "Closed At", key: "closedAt", width: 18 },
+    { header: "Total Downtime (Hrs)", key: "downtimeHours", width: 16 },
   ];
   for (const t of ticketList) {
     sheet.addRow({
@@ -110,6 +111,7 @@ router.get("/export", async (req, res) => {
       actualCost: t.actualCost ?? 0,
       createdAt: t.createdAt.toISOString(),
       closedAt: t.closedAt?.toISOString() ?? "",
+      downtimeHours: t.closedAt ? Math.round(((t.closedAt.getTime() - t.createdAt.getTime()) / 3_600_000) * 10) / 10 : "",
     });
   }
 
@@ -137,10 +139,12 @@ router.get("/export", async (req, res) => {
       { header: "Created At", key: "createdAt", width: 20 },
       { header: "Resolved At", key: "resolvedAt", width: 20 },
       { header: "Closed At", key: "closedAt", width: 20 },
+      { header: "Total Downtime (Hrs)", key: "downtimeHours", width: 16 },
     ];
     const now = new Date();
     for (const h of helpdeskList) {
       const finished = h.status === "CLOSED" || h.status === "RESOLVED";
+      const finishedAt = h.closedAt ?? h.resolvedAt;
       hSheet.addRow({
         ticketNumber: h.ticketNumber,
         category: h.category,
@@ -155,6 +159,7 @@ router.get("/export", async (req, res) => {
         createdAt: h.createdAt.toISOString(),
         resolvedAt: h.resolvedAt?.toISOString() ?? "",
         closedAt: h.closedAt?.toISOString() ?? "",
+        downtimeHours: finishedAt ? Math.round(((finishedAt.getTime() - h.createdAt.getTime()) / 3_600_000) * 10) / 10 : "",
       });
     }
   }
