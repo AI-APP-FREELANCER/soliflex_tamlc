@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Plus } from "lucide-react";
 import { useWorkstreamStore } from "../../store/workstream.store";
+import { useAuthStore } from "../../store/auth.store";
+import { useUIStore } from "../../store/ui.store";
 import { useTickets } from "./hooks";
+import { allowedWorkstreamsForCreate } from "./permissions";
 import { StatusBadge, STATUS_LABELS, PriorityBadge, OnHoldBadge, SlaBreachBadge } from "../../components/badges";
 import { Avatar } from "../../components/Avatar";
 import { Spinner, EmptyState } from "../../components/Spinner";
@@ -12,6 +16,9 @@ import { format } from "date-fns";
 
 export default function TicketsListPage() {
   const workstream = useWorkstreamStore((s) => s.workstream);
+  const user = useAuthStore((s) => s.user);
+  const setCreateTicketOpen = useUIStore((s) => s.setCreateTicketOpen);
+  const canCreate = user ? allowedWorkstreamsForCreate(user.role).length > 0 : false;
   const [status, setStatus] = useState<TicketStatus | "">("");
   const [priority, setPriority] = useState<Priority | "">("");
   const [search, setSearch] = useState("");
@@ -57,6 +64,14 @@ export default function TicketsListPage() {
           ))}
         </select>
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
+        {canCreate && (
+          <button
+            onClick={() => setCreateTicketOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-soliflex-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-soliflex-orange-600"
+          >
+            <Plus className="h-4 w-4" /> Raise ticket
+          </button>
+        )}
       </div>
 
       {isLoading ? (

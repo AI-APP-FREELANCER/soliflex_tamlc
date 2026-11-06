@@ -46,7 +46,8 @@ export function allowedWorkstreamsForCreate(role: Role | undefined, workstream?:
     const scope = workstreamScopeFor(role, workstream);
     return scope ? [scope] : ["MAINTENANCE", "IT"];
   }
-  if (role === "PRODUCTION") return ["MAINTENANCE"];
+  // Self-registered users may raise Maintenance tickets (not IT) - see workstreamScopeFor.
+  if (role === "PRODUCTION" || role === "EMPLOYEE") return ["MAINTENANCE"];
   if (role === "IT_TEAM") return ["IT"];
   return [];
 }
@@ -56,7 +57,7 @@ const IT_CATEGORIES: TicketCategory[] = ["WORKSTATION", "LAPTOP", "NETWORK_GEAR"
 
 export function allowedCategoriesForCreate(role: Role | undefined, workstream: Workstream): TicketCategory[] {
   if (isManager(role)) return workstream === "MAINTENANCE" ? MAINTENANCE_CATEGORIES : IT_CATEGORIES;
-  if (role === "PRODUCTION" && workstream === "MAINTENANCE") return ["PRODUCTION_MACHINE"];
+  if ((role === "PRODUCTION" || role === "EMPLOYEE") && workstream === "MAINTENANCE") return ["PRODUCTION_MACHINE"];
   if (role === "IT_TEAM" && workstream === "IT") return IT_CATEGORIES;
   return [];
 }

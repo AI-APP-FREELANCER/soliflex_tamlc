@@ -45,6 +45,8 @@ export function allowedWorkstreamsForCreate(role: Role): Workstream[] {
     case "ADMIN":
       return ["MAINTENANCE", "IT"];
     case "PRODUCTION":
+    // Self-registered users may raise Maintenance tickets (not IT) - see workstreamScopeFor.
+    case "EMPLOYEE":
       return ["MAINTENANCE"];
     case "IT_TEAM":
       return ["IT"];
@@ -56,7 +58,7 @@ export function allowedWorkstreamsForCreate(role: Role): Workstream[] {
 export function allowedCategoriesForCreate(role: Role, workstream: Workstream): TicketCategory[] {
   if (role === "MANAGER" || role === "ADMIN") return categoriesFor(workstream).map((c) => c.value);
   if (workstream === "MAINTENANCE") {
-    if (role === "PRODUCTION") return ["PRODUCTION_MACHINE"];
+    if (role === "PRODUCTION" || role === "EMPLOYEE") return ["PRODUCTION_MACHINE"];
     return [];
   }
   if (workstream === "IT" && role === "IT_TEAM") return IT_CATEGORIES.map((c) => c.value);
