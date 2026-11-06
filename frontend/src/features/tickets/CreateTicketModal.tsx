@@ -16,7 +16,6 @@ import type { MachineStatus, MachineSummary, ProblemType, TicketCategory, Workst
 import { fetchITAssets } from "../assets/api";
 import { fetchPlants } from "../plants/api";
 import { fetchDepartments } from "../departments/api";
-import { fetchDesignations } from "../designations/api";
 
 const PROBLEM_TYPES: ProblemType[] = ["ELECTRICAL", "MECHANICAL", "PNEUMATIC", "HYDRAULIC", "OTHERS"];
 
@@ -34,7 +33,6 @@ export function CreateTicketModal() {
   const [description, setDescription] = useState("");
   const [plantId, setPlantId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
-  const [designationId, setDesignationId] = useState("");
   const [problemType, setProblemType] = useState<ProblemType | "">("");
   const [machineStatus, setMachineStatus] = useState<MachineStatus>("RUNNING");
   const [machine, setMachine] = useState<MachineSummary | null>(null);
@@ -62,7 +60,6 @@ export function CreateTicketModal() {
     setMachine(null);
     setPlantId("");
     setDepartmentId("");
-    setDesignationId("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -74,7 +71,6 @@ export function CreateTicketModal() {
   const { data: plants = [] } = useQuery({ queryKey: ["plants"], queryFn: () => fetchPlants(), enabled: open && isMaintenance });
   const selectedPlantName = plants.find((p) => p.id === plantId)?.name;
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: () => fetchDepartments(), enabled: open && isMaintenance });
-  const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: () => fetchDesignations(), enabled: open && isMaintenance });
 
   if (!open || !user) return null;
 
@@ -83,7 +79,6 @@ export function CreateTicketModal() {
     setDescription("");
     setPlantId("");
     setDepartmentId("");
-    setDesignationId("");
     setProblemType("");
     setMachineStatus("RUNNING");
     setMachine(null);
@@ -105,7 +100,6 @@ export function CreateTicketModal() {
             description,
             plantId,
             departmentId,
-            designationId: designationId || undefined,
             problemType: problemType as ProblemType,
             machineStatus,
             maintenanceAssetId: machine!.id,
@@ -210,24 +204,15 @@ export function CreateTicketModal() {
                 </div>
               </div>
 
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <label className="block text-sm font-medium text-soliflex-gray-700">Designation (optional)</label>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-soliflex-gray-500">
-                      Raised by <span className="font-semibold text-soliflex-ink">{user.name}</span>
-                    </p>
-                    <ISTClock />
-                  </div>
-                </div>
-                <select value={designationId} onChange={(e) => setDesignationId(e.target.value)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-                  <option value="">Not specified</option>
-                  {designations.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex items-center justify-between rounded-lg bg-soliflex-gray-50 px-3 py-2">
+                <p className="text-xs text-soliflex-gray-500">
+                  Raised by{" "}
+                  <span className="font-semibold text-soliflex-ink">
+                    {user.name}
+                    {user.designation ? ` (${user.designation})` : ""}
+                  </span>
+                </p>
+                <ISTClock />
               </div>
 
               <MachinePicker value={machine} onChange={setMachine} plantLocation={selectedPlantName} />

@@ -14,7 +14,6 @@ import { allowedCategoriesForCreate, allowedWorkstreamsForCreate } from "@/featu
 import { useTicketMutations } from "@/features/tickets/hooks";
 import { fetchPlants } from "@/api/plants";
 import { fetchDepartments } from "@/api/departments";
-import { fetchDesignations } from "@/api/designations";
 import type { MachineStatus, MachineSummary, ProblemType, TicketCategory, Workstream } from "@/lib/types";
 
 interface CreateTicketModalProps {
@@ -37,7 +36,6 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   const [description, setDescription] = useState("");
   const [plantId, setPlantId] = useState<string | undefined>();
   const [departmentId, setDepartmentId] = useState<string | undefined>();
-  const [designationId, setDesignationId] = useState<string | undefined>();
   const [problemType, setProblemType] = useState<ProblemType | undefined>();
   const [machineStatus, setMachineStatus] = useState<MachineStatus>("RUNNING");
   const [machine, setMachine] = useState<MachineSummary | null>(null);
@@ -52,7 +50,6 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   const { data: plants = [] } = useQuery({ queryKey: ["plants"], queryFn: fetchPlants, enabled: visible && isMaintenance });
   const selectedPlantName = plants.find((p) => p.id === plantId)?.name;
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible && isMaintenance });
-  const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: fetchDesignations, enabled: visible && isMaintenance });
 
   // Reset the form fields each time the modal opens. Adjusted during render
   // (React's documented pattern for "state that depends on a prop change")
@@ -69,7 +66,6 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
       setMachine(null);
       setPlantId(undefined);
       setDepartmentId(undefined);
-      setDesignationId(undefined);
     }
   }
 
@@ -80,7 +76,6 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     setDescription("");
     setPlantId(undefined);
     setDepartmentId(undefined);
-    setDesignationId(undefined);
     setProblemType(undefined);
     setMachineStatus("RUNNING");
     setMachine(null);
@@ -93,7 +88,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     if (!isMaintenance && !category) return;
     create.mutate(
       isMaintenance
-        ? { workstream, description: description.trim(), plantId, departmentId, designationId, problemType, machineStatus, maintenanceAssetId: machine?.id }
+        ? { workstream, description: description.trim(), plantId, departmentId, problemType, machineStatus, maintenanceAssetId: machine?.id }
         : { workstream, category, title: title.trim(), description: description.trim(), itAssetId: assetId },
       {
         onSuccess: (ticket) => {
@@ -154,18 +149,16 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
               options={departments.map((d) => ({ value: d.id, label: d.name }))}
               onChange={setDepartmentId}
             />
-            <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center justify-between rounded-lg bg-soliflex-gray-50 px-3 py-2">
               <Text className="text-xs text-soliflex-gray-500">
-                Raised by <Text className="font-semibold text-soliflex-ink">{user?.name}</Text>
+                Raised by{" "}
+                <Text className="font-semibold text-soliflex-ink">
+                  {user?.name}
+                  {user?.designation ? ` (${user.designation})` : ""}
+                </Text>
               </Text>
               <ISTClock />
             </View>
-            <SelectField
-              label="Designation (optional)"
-              value={designationId}
-              options={[{ value: "", label: "Not specified" }, ...designations.map((d) => ({ value: d.id, label: d.name }))]}
-              onChange={(v) => setDesignationId(v || undefined)}
-            />
             <MachinePicker value={machine} onChange={setMachine} plantLocation={selectedPlantName} />
             <SelectField
               label="Type of Problem"

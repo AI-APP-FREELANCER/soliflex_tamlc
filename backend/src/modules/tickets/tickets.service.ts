@@ -44,8 +44,6 @@ export interface CreateTicketInput {
   /** Maintenance only, going forward. */
   plantId?: string;
   departmentId?: string;
-  /** Optional - the designation of whoever raised the ticket (Supervisor, In Charge, Electrician, Engineer, ...). A label only, no permissions. */
-  designationId?: string;
   problemType?: ProblemType;
   machineStatus?: MachineStatus;
   maintenanceAssetId?: string;
@@ -155,6 +153,11 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
 
   let plant = null;
   let department = null;
+  // The raiser no longer picks a designation by hand - it's whatever is on
+  // their own profile, resolved here by matching that free-text profile value
+  // against the admin-managed Designation list (profile designation has no
+  // FK of its own - see the schema comment on User.designation).
+  let designationId: string | undefined;
 
   if (isMaintenance) {
     if (!input.plantId) throw new ApiError(400, "Select a plant location");
@@ -168,9 +171,10 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
     if (!department || !department.active) throw new ApiError(400, "Selected department is not available");
     const machine = await prisma.maintenanceAsset.findUnique({ where: { id: input.maintenanceAssetId } });
     if (!machine) throw new ApiError(400, "Selected machine is not available");
-    if (input.designationId) {
-      const designation = await prisma.designation.findUnique({ where: { id: input.designationId } });
-      if (!designation || !designation.active) throw new ApiError(400, "Selected designation is not available");
+    const actorUser = await prisma.user.findUnique({ where: { id: actor.id }, select: { designation: true } });
+    if (actorUser?.designation) {
+      const designation = await prisma.designation.findFirst({ where: { name: actorUser.designation, active: true } });
+      designationId = designation?.id;
     }
   } else if (!input.title || input.title.trim().length < 3) {
     throw new ApiError(400, "Title must be at least 3 characters");
@@ -190,7 +194,7 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
         itAssetId: isMaintenance ? undefined : input.itAssetId,
         plantId: isMaintenance ? input.plantId : undefined,
         departmentId: isMaintenance ? input.departmentId : undefined,
-        designationId: isMaintenance ? input.designationId : undefined,
+        designationId: isMaintenance ? designationId : undefined,
         problemType: isMaintenance ? input.problemType : undefined,
         machineStatus: isMaintenance ? input.machineStatus : undefined,
         maintenanceAssetId: isMaintenance ? input.maintenanceAssetId : undefined,
