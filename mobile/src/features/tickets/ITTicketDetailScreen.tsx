@@ -7,6 +7,7 @@ import { useTicketMutations, useTicket } from "@/features/tickets/hooks";
 import { AssignModal } from "@/features/tickets/AssignModal";
 import { CloseModal } from "@/features/tickets/CloseModal";
 import { HoldModal } from "@/features/tickets/HoldModal";
+import { ActionNoteModal } from "@/components/ActionNoteModal";
 import { AttachmentSection } from "@/features/tickets/AttachmentSection";
 import { CostSection } from "@/features/tickets/CostSection";
 import { TICKET_CATEGORY_LABELS, TICKET_STATUS_COLORS, TICKET_STATUS_LABELS } from "@/features/tickets/badges";
@@ -35,6 +36,8 @@ export default function ITTicketDetailScreen({ id }: { id: string }) {
   const [assignOpen, setAssignOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
+  const [startProgressOpen, setStartProgressOpen] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
   const [reopenReason, setReopenReason] = useState("");
   const [comment, setComment] = useState("");
 
@@ -82,24 +85,28 @@ export default function ITTicketDetailScreen({ id }: { id: string }) {
           {canAssign(ticket, user) && <Button title="Assign technician" onPress={() => setAssignOpen(true)} />}
           {canEditAssignment(ticket, user) && <Button title="Edit assignment" variant="outline" onPress={() => setAssignOpen(true)} />}
 
-          {canStartProgress(ticket, user) && (
-            <Button title="Start work" onPress={() => mutations.startProgress.mutate(ticket.id)} loading={mutations.startProgress.isPending} />
-          )}
+          {canStartProgress(ticket, user) && <Button title="Start work" onPress={() => setStartProgressOpen(true)} />}
 
           {canDirectClose(ticket, user) && <Button title="Resolve & close" onPress={() => setCloseOpen(true)} />}
 
           {canHold(ticket, user) && <Button title="Put on hold" variant="secondary" onPress={() => setHoldOpen(true)} />}
-          {canResume(ticket, user) && (
-            <Button title="Resume ticket" variant="secondary" onPress={() => mutations.resume.mutate(ticket.id)} loading={mutations.resume.isPending} />
-          )}
+          {canResume(ticket, user) && <Button title="Resume ticket" variant="secondary" onPress={() => setResumeOpen(true)} />}
 
           {canReopen(ticket, user) && (
             <View className="gap-2">
-              <TextField placeholder="Why does this need to be reopened?" value={reopenReason} onChangeText={setReopenReason} />
+              <TextField
+                placeholder="Why does this need to be reopened? (10-1000 characters)"
+                value={reopenReason}
+                onChangeText={setReopenReason}
+                multiline
+                numberOfLines={2}
+                textAlignVertical="top"
+                style={{ minHeight: 56 }}
+              />
               <Button
                 title="Reopen"
                 variant="outline"
-                disabled={!reopenReason.trim()}
+                disabled={reopenReason.trim().length < 10 || reopenReason.trim().length > 1000}
                 loading={mutations.reopen.isPending}
                 onPress={() => mutations.reopen.mutate({ id: ticket.id, reason: reopenReason.trim() }, { onSuccess: () => setReopenReason("") })}
               />
@@ -159,6 +166,22 @@ export default function ITTicketDetailScreen({ id }: { id: string }) {
       <AssignModal visible={assignOpen} ticket={ticket} onClose={() => setAssignOpen(false)} />
       <CloseModal visible={closeOpen} ticket={ticket} onClose={() => setCloseOpen(false)} />
       <HoldModal visible={holdOpen} ticket={ticket} onClose={() => setHoldOpen(false)} />
+      <ActionNoteModal
+        visible={startProgressOpen}
+        title="Start work"
+        confirmLabel="Start work"
+        pending={mutations.startProgress.isPending}
+        onClose={() => setStartProgressOpen(false)}
+        onSubmit={(note) => mutations.startProgress.mutate({ id: ticket.id, note }, { onSuccess: () => setStartProgressOpen(false) })}
+      />
+      <ActionNoteModal
+        visible={resumeOpen}
+        title="Resume ticket"
+        confirmLabel="Resume ticket"
+        pending={mutations.resume.isPending}
+        onClose={() => setResumeOpen(false)}
+        onSubmit={(note) => mutations.resume.mutate({ id: ticket.id, note }, { onSuccess: () => setResumeOpen(false) })}
+      />
     </SafeAreaView>
   );
 }

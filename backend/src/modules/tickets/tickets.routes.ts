@@ -89,16 +89,22 @@ router.post("/", async (req, res) => {
 
 // --------------------------------------------------------------- IT only ---
 
+// Every workflow transition below requires a fresh Actions note (10-1000 chars,
+// enforced again server-side in tickets.service.ts's assertActionNote) describing
+// what happened - not just a reused/empty comment.
+const actionNote = z.string().min(10).max(1000);
+
 const assignSchema = z.object({
   assignedToId: z.string(),
   priority: selectablePriority,
+  note: actionNote,
   targetCompletionDate: z.string().optional(),
   effortEstimateHours: z.number().min(0).optional(),
 });
 
 router.post("/:id/assign", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = assignSchema.parse(req.body);
-  const ticket = await tickets.assignTicket(actorFromReq(req), req.params.id, data.assignedToId, data.priority, data.targetCompletionDate, data.effortEstimateHours);
+  const ticket = await tickets.assignTicket(actorFromReq(req), req.params.id, data.assignedToId, data.priority, data.note, data.targetCompletionDate, data.effortEstimateHours);
   res.json(ticket);
 });
 
@@ -113,58 +119,63 @@ router.patch("/:id/assignment", requireRole(Role.MANAGER, Role.ADMIN), async (re
 });
 
 router.post("/:id/close-direct", async (req, res) => {
-  const data = z.object({ confirmEquipmentOperational: z.boolean(), closingComment: z.string().optional() }).parse(req.body);
+  const data = z.object({ confirmEquipmentOperational: z.boolean(), closingComment: actionNote }).parse(req.body);
   res.json(await tickets.closeDirect(actorFromReq(req), req.params.id, data.confirmEquipmentOperational, data.closingComment));
 });
 
-const reopenSchema = z.object({ reason: z.string().min(1) });
+const reopenSchema = z.object({ reason: actionNote });
 // Reopening un-closes a ticket - Admin has full powers everywhere else, but not this one.
 router.post("/:id/reopen", requireRole(Role.MANAGER), async (req, res) => {
   const data = reopenSchema.parse(req.body);
   res.json(await tickets.reopenTicket(actorFromReq(req), req.params.id, data.reason));
 });
 
-const holdSchema = z.object({ detail: z.string().min(1) });
+const holdSchema = z.object({ detail: actionNote });
 router.post("/:id/hold", async (req, res) => {
   const data = holdSchema.parse(req.body);
   res.json(await tickets.holdTicket(actorFromReq(req), req.params.id, data.detail));
 });
 
+const resumeSchema = z.object({ note: actionNote });
 router.post("/:id/resume", async (req, res) => {
-  res.json(await tickets.resumeTicket(actorFromReq(req), req.params.id));
+  const data = resumeSchema.parse(req.body);
+  res.json(await tickets.resumeTicket(actorFromReq(req), req.params.id, data.note));
 });
 
 // --------------------------------------------------------- Maintenance only ---
 
-const acknowledgeSchema = z.object({ assigneeId: z.string().optional() });
+const acknowledgeSchema = z.object({ note: actionNote, assigneeId: z.string().optional() });
 router.post("/:id/acknowledge", async (req, res) => {
   const data = acknowledgeSchema.parse(req.body);
-  res.json(await tickets.acknowledgeTicket(actorFromReq(req), req.params.id, data.assigneeId));
+  res.json(await tickets.acknowledgeTicket(actorFromReq(req), req.params.id, data.note, data.assigneeId));
 });
 
-const maintHoldSchema = z.object({ delayReason: z.nativeEnum(DelayReason).optional(), delayNotes: z.string().min(10).max(300).optional() });
+const maintHoldSchema = z.object({ delayReason: z.nativeEnum(DelayReason), delayNotes: actionNote });
 router.post("/:id/maint-hold", async (req, res) => {
   const data = maintHoldSchema.parse(req.body);
   res.json(await tickets.holdMaintenanceTicket(actorFromReq(req), req.params.id, data));
 });
 
+const maintResumeSchema = z.object({ note: actionNote });
 router.post("/:id/maint-resume", async (req, res) => {
-  res.json(await tickets.resumeMaintenanceTicket(actorFromReq(req), req.params.id));
+  const data = maintResumeSchema.parse(req.body);
+  res.json(await tickets.resumeMaintenanceTicket(actorFromReq(req), req.params.id, data.note));
 });
 
 const checklistSchema = z.object({
   toolsReclaimed: z.nativeEnum(ChecklistAnswer),
   machineCleaned: z.nativeEnum(ChecklistAnswer),
   cableRouting: z.nativeEnum(ChecklistAnswer),
+  note: actionNote,
 });
 router.post("/:id/mark-verification-needed", async (req, res) => {
-  const data = checklistSchema.parse(req.body);
-  res.json(await tickets.markVerificationNeeded(actorFromReq(req), req.params.id, data));
+  const { note, ...checklist } = checklistSchema.parse(req.body);
+  res.json(await tickets.markVerificationNeeded(actorFromReq(req), req.params.id, checklist, note));
 });
 
 const verifyAndCloseSchema = z.object({
   qualityRating: z.nativeEnum(QualityRating),
-  qualityFeedback: z.string().optional(),
+  qualityFeedback: actionNote,
   certify: z.literal(true),
 });
 router.post("/:id/verify-and-close", requireRole(Role.MANAGER, Role.ADMIN, Role.PRODUCTION), async (req, res) => {
@@ -173,7 +184,7 @@ router.post("/:id/verify-and-close", requireRole(Role.MANAGER, Role.ADMIN, Role.
 });
 
 const rejectVerificationSchema = z.object({
-  reason: z.string().min(1),
+  reason: actionNote,
   qualityRating: z.nativeEnum(QualityRating).optional(),
   qualityFeedback: z.string().optional(),
 });
@@ -184,8 +195,10 @@ router.post("/:id/reject-verification", requireRole(Role.MANAGER, Role.ADMIN, Ro
 
 // -------------------------------------------------------------- shared ---
 
+const startProgressSchema = z.object({ note: actionNote });
 router.post("/:id/start-progress", async (req, res) => {
-  res.json(await tickets.startProgress(actorFromReq(req), req.params.id));
+  const data = startProgressSchema.parse(req.body);
+  res.json(await tickets.startProgress(actorFromReq(req), req.params.id, data.note));
 });
 
 const priorityUpdateSchema = z.object({ priority: selectablePriority });

@@ -10,6 +10,7 @@ import { Avatar } from "../../components/Avatar";
 import { AssignModal } from "./AssignModal";
 import { CloseModal } from "./CloseModal";
 import { HoldModal } from "./HoldModal";
+import { ActionNoteModal } from "../../components/ActionNoteModal";
 import { API_BASE_URL } from "../../lib/api";
 import type { AttachmentType } from "../../lib/types";
 
@@ -28,6 +29,8 @@ export default function ITTicketDetailPage() {
   const [showAssign, setShowAssign] = useState(false);
   const [showClose, setShowClose] = useState(false);
   const [showHold, setShowHold] = useState(false);
+  const [showStartProgress, setShowStartProgress] = useState(false);
+  const [showResume, setShowResume] = useState(false);
   const [reopenReason, setReopenReason] = useState("");
   const [costDesc, setCostDesc] = useState("");
   const [costAmount, setCostAmount] = useState("");
@@ -248,7 +251,7 @@ export default function ITTicketDetailPage() {
 
             {(isAssignee || isManager) && ticket.status === "ASSIGNED" && (
               <button
-                onClick={() => id && handleAction(() => mutations.startProgress.mutateAsync(id))}
+                onClick={() => setShowStartProgress(true)}
                 className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-200"
               >
                 <PlayCircle className="h-4 w-4" /> Start work
@@ -264,15 +267,20 @@ export default function ITTicketDetailPage() {
             {/* Reopening un-closes a ticket - Admin has full powers everywhere else, but not this one. */}
             {user?.role === "MANAGER" && ticket.status === "CLOSED" && (
               <div className="space-y-1.5">
-                <input
+                <textarea
                   value={reopenReason}
                   onChange={(e) => setReopenReason(e.target.value)}
-                  placeholder="Why is this being reopened?"
+                  rows={2}
+                  placeholder="Why is this being reopened? (10-1000 characters)"
                   className="w-full rounded-lg border border-soliflex-gray-200 px-2.5 py-1.5 text-xs"
                 />
                 <button
-                  onClick={() => id && reopenReason && handleAction(() => mutations.reopen.mutateAsync({ id, reason: reopenReason }).then(() => setReopenReason("")))}
-                  disabled={!reopenReason}
+                  onClick={() =>
+                    id &&
+                    reopenReason.trim().length >= 10 &&
+                    handleAction(() => mutations.reopen.mutateAsync({ id, reason: reopenReason.trim() }).then(() => setReopenReason("")))
+                  }
+                  disabled={reopenReason.trim().length < 10 || reopenReason.trim().length > 1000}
                   className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                 >
                   Reopen ticket
@@ -291,7 +299,7 @@ export default function ITTicketDetailPage() {
 
             {ticket.onHold && (isManager || isAssignee) && (
               <button
-                onClick={() => id && handleAction(() => mutations.resume.mutateAsync(id))}
+                onClick={() => setShowResume(true)}
                 className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-50"
               >
                 Resume ticket
@@ -332,7 +340,7 @@ export default function ITTicketDetailPage() {
                       Set priority
                     </option>
                   )}
-                  {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).map((p) => (
+                  {(["LOW", "MEDIUM", "HIGH"] as const).map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
@@ -368,6 +376,34 @@ export default function ITTicketDetailPage() {
       {showAssign && <AssignModal ticket={ticket} onClose={() => setShowAssign(false)} />}
       {showClose && <CloseModal ticket={ticket} onClose={() => setShowClose(false)} />}
       {showHold && <HoldModal ticket={ticket} onClose={() => setShowHold(false)} />}
+      {showStartProgress && id && (
+        <ActionNoteModal
+          title="Start work"
+          confirmLabel="Start work"
+          pending={mutations.startProgress.isPending}
+          onClose={() => setShowStartProgress(false)}
+          onSubmit={(note) =>
+            handleAction(async () => {
+              await mutations.startProgress.mutateAsync({ id, note });
+              setShowStartProgress(false);
+            })
+          }
+        />
+      )}
+      {showResume && id && (
+        <ActionNoteModal
+          title="Resume ticket"
+          confirmLabel="Resume ticket"
+          pending={mutations.resume.isPending}
+          onClose={() => setShowResume(false)}
+          onSubmit={(note) =>
+            handleAction(async () => {
+              await mutations.resume.mutateAsync({ id, note });
+              setShowResume(false);
+            })
+          }
+        />
+      )}
     </div>
   );
 }

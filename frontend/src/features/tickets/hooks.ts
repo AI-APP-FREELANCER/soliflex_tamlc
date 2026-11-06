@@ -52,11 +52,11 @@ export function useTicketMutations(ticketId?: string) {
     ),
     reopen: wrap((vars: { id: string; reason: string }) => ticketsApi.reopenTicket(vars.id, vars.reason), "Ticket reopened"),
     hold: wrap((vars: { id: string; detail: string }) => ticketsApi.holdTicket(vars.id, vars.detail), "Ticket put on hold"),
-    resume: wrap((id: string) => ticketsApi.resumeTicket(id), "Ticket resumed"),
+    resume: wrap((vars: { id: string; note: string }) => ticketsApi.resumeTicket(vars.id, vars.note), "Ticket resumed"),
     // maintenance only
-    acknowledge: wrap((vars: { id: string; assigneeId?: string }) => ticketsApi.acknowledgeTicket(vars.id, vars.assigneeId), "Ticket acknowledged"),
+    acknowledge: wrap((vars: { id: string; note: string; assigneeId?: string }) => ticketsApi.acknowledgeTicket(vars.id, vars.note, vars.assigneeId), "Ticket acknowledged"),
     maintHold: wrap((vars: { id: string; data: Parameters<typeof ticketsApi.holdMaintenanceTicket>[1] }) => ticketsApi.holdMaintenanceTicket(vars.id, vars.data), "Ticket put on hold"),
-    maintResume: wrap((id: string) => ticketsApi.resumeMaintenanceTicket(id), "Ticket resumed"),
+    maintResume: wrap((vars: { id: string; note: string }) => ticketsApi.resumeMaintenanceTicket(vars.id, vars.note), "Ticket resumed"),
     markVerificationNeeded: wrap(
       (vars: { id: string; data: ticketsApi.ChecklistInput }) => ticketsApi.markVerificationNeeded(vars.id, vars.data),
       "Sent for production verification"
@@ -70,7 +70,7 @@ export function useTicketMutations(ticketId?: string) {
       "Sent back to the maintenance team"
     ),
     // shared
-    startProgress: wrap((id: string) => ticketsApi.startProgress(id), "Work started"),
+    startProgress: wrap((vars: { id: string; note: string }) => ticketsApi.startProgress(vars.id, vars.note), "Work started"),
     updatePriority: wrap((vars: { id: string; priority: Parameters<typeof ticketsApi.updatePriority>[1] }) => ticketsApi.updatePriority(vars.id, vars.priority), "Priority updated"),
     addComment: wrap((vars: { id: string; body: string }) => ticketsApi.addComment(vars.id, vars.body)),
     addAttachment: wrap((vars: { id: string; file: File; type: Parameters<typeof ticketsApi.addAttachment>[2] }) => ticketsApi.addAttachment(vars.id, vars.file, vars.type), "File uploaded"),

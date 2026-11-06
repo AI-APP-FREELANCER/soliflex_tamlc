@@ -36,6 +36,7 @@ export function AssignModal({ visible, ticket, onClose }: AssignModalProps) {
 
   const [assignedToId, setAssignedToId] = useState(ticket.assignedToId ?? "");
   const [priority, setPriority] = useState<Priority>(ticket.priority ?? "MEDIUM");
+  const [note, setNote] = useState("");
   const [targetDate, setTargetDate] = useState<Date | undefined>(
     ticket.targetCompletionDate ? new Date(ticket.targetCompletionDate) : undefined
   );
@@ -57,13 +58,14 @@ export function AssignModal({ visible, ticket, onClose }: AssignModalProps) {
       );
       return;
     }
-    if (!assignedToId) return;
+    if (!assignedToId || !noteOk) return;
     assign.mutate(
       {
         id: ticket.id,
         input: {
           assignedToId,
           priority,
+          note: note.trim(),
           targetCompletionDate: targetDate ? targetDate.toISOString() : undefined,
           effortEstimateHours: effortHours ? Number(effortHours) : undefined,
         },
@@ -72,7 +74,8 @@ export function AssignModal({ visible, ticket, onClose }: AssignModalProps) {
     );
   }
 
-  const canSubmit = isEdit ? true : !!assignedToId;
+  const noteOk = isEdit || (note.trim().length >= 10 && note.trim().length <= 1000);
+  const canSubmit = isEdit ? true : !!assignedToId && noteOk;
   const pending = assign.isPending || updateAssignment.isPending;
 
   return (
@@ -85,6 +88,18 @@ export function AssignModal({ visible, ticket, onClose }: AssignModalProps) {
           onChange={setAssignedToId}
         />
         {!isEdit && <SelectField label="Priority" value={priority} options={PRIORITY_OPTIONS} onChange={setPriority} />}
+        {!isEdit && (
+          <TextField
+            label="Actions note (required)"
+            placeholder="Describe this assignment (10-1000 characters)"
+            value={note}
+            onChangeText={setNote}
+            multiline
+            numberOfLines={2}
+            textAlignVertical="top"
+            style={{ minHeight: 56 }}
+          />
+        )}
         <DateTimeField label="Target completion (optional)" value={targetDate} onChange={setTargetDate} minimumDate={new Date()} />
         <TextField
           label="Effort estimate, hours (optional)"

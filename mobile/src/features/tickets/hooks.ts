@@ -68,7 +68,7 @@ export function useTicketMutations(ticketId?: string) {
   });
 
   const closeDirect = useMutation({
-    mutationFn: ({ id, confirmEquipmentOperational, closingComment }: { id: string; confirmEquipmentOperational: boolean; closingComment?: string }) =>
+    mutationFn: ({ id, confirmEquipmentOperational, closingComment }: { id: string; confirmEquipmentOperational: boolean; closingComment: string }) =>
       closeTicketDirect(id, confirmEquipmentOperational, closingComment),
     onSuccess: invalidate,
     onError: onErr,
@@ -87,14 +87,14 @@ export function useTicketMutations(ticketId?: string) {
   });
 
   const resume = useMutation({
-    mutationFn: (id: string) => resumeTicket(id),
+    mutationFn: ({ id, note }: { id: string; note: string }) => resumeTicket(id, note),
     onSuccess: invalidate,
     onError: onErr,
   });
 
   // maintenance only
   const acknowledge = useMutation({
-    mutationFn: ({ id, assigneeId }: { id: string; assigneeId?: string }) => acknowledgeTicket(id, assigneeId),
+    mutationFn: ({ id, note, assigneeId }: { id: string; note: string; assigneeId?: string }) => acknowledgeTicket(id, note, assigneeId),
     onSuccess: invalidate,
     onError: onErr,
   });
@@ -106,13 +106,13 @@ export function useTicketMutations(ticketId?: string) {
   });
 
   const maintResume = useMutation({
-    mutationFn: (id: string) => resumeMaintenanceTicket(id),
+    mutationFn: ({ id, note }: { id: string; note: string }) => resumeMaintenanceTicket(id, note),
     onSuccess: invalidate,
     onError: onErr,
   });
 
   const markVerificationNeededM = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ChecklistInput }) => markVerificationNeeded(id, data),
+    mutationFn: ({ id, data }: { id: string; data: ChecklistInput & { note: string } }) => markVerificationNeeded(id, data),
     onSuccess: invalidate,
     onError: onErr,
   });
@@ -131,7 +131,7 @@ export function useTicketMutations(ticketId?: string) {
 
   // shared
   const startProgress = useMutation({
-    mutationFn: (id: string) => startTicketProgress(id),
+    mutationFn: ({ id, note }: { id: string; note: string }) => startTicketProgress(id, note),
     onSuccess: invalidate,
     onError: onErr,
   });

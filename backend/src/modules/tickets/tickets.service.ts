@@ -101,6 +101,17 @@ async function attachMachines<T extends { maintenanceAssetId: string | null }>(i
   return items.map((t) => ({ ...t, machine: t.maintenanceAssetId ? (byId.get(t.maintenanceAssetId) ?? null) : null }));
 }
 
+export const ACTION_NOTE_MIN = 10;
+export const ACTION_NOTE_MAX = 1000;
+
+/** Every workflow transition requires a fresh, actor-written Actions note describing the update. */
+function assertActionNote(note: string | undefined): asserts note is string {
+  const trimmed = (note ?? "").trim();
+  if (trimmed.length < ACTION_NOTE_MIN || trimmed.length > ACTION_NOTE_MAX) {
+    throw new ApiError(400, `Add an Actions note between ${ACTION_NOTE_MIN} and ${ACTION_NOTE_MAX} characters describing this update before continuing`);
+  }
+}
+
 /** On hold only applies to the legacy IT boolean-overlay flow; maintenance uses the ON_HOLD status directly. */
 function assertNotOnHold(ticket: { onHold: boolean }) {
   if (ticket.onHold) {
@@ -283,9 +294,18 @@ function assertAction(ticket: Ticket, actor: Actor, action: TicketAction) {
 
 // ============================================================ IT workflow ===
 
-export async function assignTicket(actor: Actor, ticketId: string, assignedToId: string, priority: Priority, targetCompletionDate?: string, effortEstimateHours?: number) {
+export async function assignTicket(
+  actor: Actor,
+  ticketId: string,
+  assignedToId: string,
+  priority: Priority,
+  note: string,
+  targetCompletionDate?: string,
+  effortEstimateHours?: number
+) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "ASSIGN");
+  assertActionNote(note);
 
   const assignee = await prisma.user.findUniqueOrThrow({ where: { id: assignedToId } });
   assertValidAssignee(assignee, ticket);
@@ -303,6 +323,7 @@ export async function assignTicket(actor: Actor, ticketId: string, assignedToId:
         status: TicketStatus.ASSIGNED,
       },
     });
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: note } });
     await tx.ticketStatusHistory.create({
       data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.ASSIGNED, changedById: actor.id, comment: `Assigned to ${assignee.name}` },
     });
@@ -378,15 +399,17 @@ export async function updatePriority(actor: Actor, ticketId: string, priority: P
   });
 }
 
-export async function startProgress(actor: Actor, ticketId: string) {
+export async function startProgress(actor: Actor, ticketId: string, note: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "START_PROGRESS");
   assertNotOnHold(ticket);
+  assertActionNote(note);
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({ where: { id: ticketId }, data: { status: TicketStatus.IN_PROGRESS } });
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: note } });
     await tx.ticketStatusHistory.create({
-      data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.IN_PROGRESS, changedById: actor.id },
+      data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.IN_PROGRESS, changedById: actor.id, comment: note },
     });
     if (ticket.managerId) {
       await notify(tx, ticket.managerId, NotificationType.STATUS_CHANGED, `${actor.name} started work on ${ticket.ticketNumber}`, `/tickets/${ticketId}`);
@@ -396,24 +419,20 @@ export async function startProgress(actor: Actor, ticketId: string) {
 }
 
 /** Fast close (IT only now - maintenance uses verifyAndClose). */
-export async function closeDirect(actor: Actor, ticketId: string, confirmResolved: boolean, closingComment?: string) {
+export async function closeDirect(actor: Actor, ticketId: string, confirmResolved: boolean, closingComment: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { attachments: true, comments: true } });
   assertAction(ticket, actor, "DIRECT_CLOSE");
   assertNotOnHold(ticket);
+  assertActionNote(closingComment);
 
   if (!confirmResolved) {
     throw new ApiError(400, "You must confirm the issue is resolved before closing");
   }
-  if (ticket.comments.length === 0 && !closingComment) {
-    throw new ApiError(400, "Add a closing comment summarizing the resolution before closing");
-  }
 
   return prisma.$transaction(async (tx) => {
-    if (closingComment) {
-      await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: closingComment } });
-    }
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: closingComment } });
     const updated = await tx.ticket.update({ where: { id: ticketId }, data: { status: TicketStatus.CLOSED, closedById: actor.id, closedAt: new Date() } });
-    await tx.ticketStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.CLOSED, changedById: actor.id, comment: "Resolved and closed" } });
+    await tx.ticketStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.CLOSED, changedById: actor.id, comment: closingComment } });
     await recordAudit(tx, { entityType: "Ticket", entityId: ticketId, action: "CLOSE", changedById: actor.id });
     const recipients = new Set([ticket.managerId, ticket.reportedById].filter(Boolean) as string[]);
     recipients.delete(actor.id);
@@ -427,9 +446,7 @@ export async function closeDirect(actor: Actor, ticketId: string, confirmResolve
 export async function reopenTicket(actor: Actor, ticketId: string, reason: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "REOPEN");
-  if (!reason.trim()) {
-    throw new ApiError(400, "Explain why this ticket is being reopened");
-  }
+  assertActionNote(reason);
 
   return prisma.$transaction(async (tx) => {
     await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: reason } });
@@ -449,11 +466,13 @@ export async function reopenTicket(actor: Actor, ticketId: string, reason: strin
 export async function holdTicket(actor: Actor, ticketId: string, detail: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "HOLD");
+  assertActionNote(detail);
   if (ticket.onHold) {
     throw new ApiError(400, "This ticket is already on hold");
   }
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({ where: { id: ticketId }, data: { onHold: true, onHoldDetail: detail, onHoldSince: new Date() } });
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: detail } });
     await recordAudit(tx, { entityType: "Ticket", entityId: ticketId, action: "HOLD", changedById: actor.id, newValue: detail });
     if (ticket.managerId) {
       await notify(tx, ticket.managerId, NotificationType.ON_HOLD, `${ticket.ticketNumber} put on hold`, `/tickets/${ticketId}`);
@@ -462,14 +481,16 @@ export async function holdTicket(actor: Actor, ticketId: string, detail: string)
   });
 }
 
-export async function resumeTicket(actor: Actor, ticketId: string) {
+export async function resumeTicket(actor: Actor, ticketId: string, note: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "RESUME");
+  assertActionNote(note);
   if (!ticket.onHold) {
     throw new ApiError(400, "This ticket is not on hold");
   }
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({ where: { id: ticketId }, data: { onHold: false, onHoldReason: null, onHoldDetail: null, onHoldSince: null } });
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: note } });
     await recordAudit(tx, { entityType: "Ticket", entityId: ticketId, action: "RESUME", changedById: actor.id });
     if (ticket.managerId) {
       await notify(tx, ticket.managerId, NotificationType.RESUMED, `${ticket.ticketNumber} resumed`, `/tickets/${ticketId}`);
@@ -481,9 +502,10 @@ export async function resumeTicket(actor: Actor, ticketId: string) {
 // ===================================================== Maintenance workflow ===
 
 /** Self-assign (Mechanic) or manager-assign; always sets the assignee and ACKNOWLEDGED together. */
-export async function acknowledgeTicket(actor: Actor, ticketId: string, assigneeId?: string) {
+export async function acknowledgeTicket(actor: Actor, ticketId: string, note: string, assigneeId?: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "ACKNOWLEDGE");
+  assertActionNote(note);
 
   let targetAssigneeId: string;
   if (actor.role === Role.MECHANIC || actor.role === Role.EMPLOYEE) {
@@ -507,6 +529,7 @@ export async function acknowledgeTicket(actor: Actor, ticketId: string, assignee
         managerId: actor.role === Role.MANAGER || actor.role === Role.ADMIN ? actor.id : ticket.managerId,
       },
     });
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: note } });
     await tx.ticketStatusHistory.create({
       data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.ACKNOWLEDGED, changedById: actor.id, comment: `Acknowledged, assigned to ${assignee.name}` },
     });
@@ -529,15 +552,10 @@ export interface DelayInput {
 }
 
 function assertValidDelay(input: DelayInput) {
-  if (input.delayReason && !input.delayNotes) {
-    throw new ApiError(400, "Add a short note explaining the delay");
-  }
-  if (input.delayNotes && !input.delayReason) {
+  if (!input.delayReason) {
     throw new ApiError(400, "Choose a reason for the delay");
   }
-  if (input.delayNotes && (input.delayNotes.length < 10 || input.delayNotes.length > 300)) {
-    throw new ApiError(400, "Delay notes must be between 10 and 300 characters");
-  }
+  assertActionNote(input.delayNotes);
 }
 
 export async function holdMaintenanceTicket(actor: Actor, ticketId: string, input: DelayInput) {
@@ -550,7 +568,8 @@ export async function holdMaintenanceTicket(actor: Actor, ticketId: string, inpu
       where: { id: ticketId },
       data: { status: TicketStatus.ON_HOLD, delayReason: input.delayReason ?? null, delayNotes: input.delayNotes ?? null },
     });
-    const comment = input.delayReason ? `On hold - ${input.delayReason.replace(/_/g, " ").toLowerCase()}: ${input.delayNotes}` : "On hold";
+    const comment = `On hold - ${input.delayReason!.replace(/_/g, " ").toLowerCase()}: ${input.delayNotes}`;
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: input.delayNotes! } });
     await tx.ticketStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.ON_HOLD, changedById: actor.id, comment } });
     const managers = await findManagersForWorkstream(ticket.workstream);
     for (const manager of managers) {
@@ -560,13 +579,15 @@ export async function holdMaintenanceTicket(actor: Actor, ticketId: string, inpu
   });
 }
 
-export async function resumeMaintenanceTicket(actor: Actor, ticketId: string) {
+export async function resumeMaintenanceTicket(actor: Actor, ticketId: string, note: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "MAINT_RESUME");
+  assertActionNote(note);
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({ where: { id: ticketId }, data: { status: TicketStatus.IN_PROGRESS } });
-    await tx.ticketStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.IN_PROGRESS, changedById: actor.id, comment: "Resumed" } });
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: note } });
+    await tx.ticketStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.IN_PROGRESS, changedById: actor.id, comment: note } });
     const managers = await findManagersForWorkstream(ticket.workstream);
     for (const manager of managers) {
       await notify(tx, manager.id, NotificationType.RESUMED, `${ticket.ticketNumber} resumed`, `/tickets/${ticketId}`);
@@ -592,10 +613,11 @@ function assertValidChecklist(input: Partial<ChecklistInput>): asserts input is 
 }
 
 /** Ready for Production to verify: requires the 5S post-maintenance checklist. */
-export async function markVerificationNeeded(actor: Actor, ticketId: string, checklist: Partial<ChecklistInput>) {
+export async function markVerificationNeeded(actor: Actor, ticketId: string, checklist: Partial<ChecklistInput>, note: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "MARK_VERIFICATION_NEEDED");
   assertValidChecklist(checklist);
+  assertActionNote(note);
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.ticket.update({
@@ -607,6 +629,7 @@ export async function markVerificationNeeded(actor: Actor, ticketId: string, che
         checklistCableRouting: checklist.cableRouting,
       },
     });
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: note } });
     await tx.ticketStatusHistory.create({
       data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.VERIFICATION_NEEDED, changedById: actor.id, comment: "Ready for production verification" },
     });
@@ -625,7 +648,7 @@ export async function markVerificationNeeded(actor: Actor, ticketId: string, che
 
 export interface VerifyAndCloseInput {
   qualityRating: QualityRating;
-  qualityFeedback?: string;
+  qualityFeedback: string;
   certify: boolean;
 }
 
@@ -640,12 +663,11 @@ export async function verifyAndClose(actor: Actor, ticketId: string, input: Veri
   if (!input.qualityRating) {
     throw new ApiError(400, "Rate the quality of the maintenance resolution before closing");
   }
-  if (ticket.comments.length === 0 && !input.qualityFeedback?.trim()) {
-    throw new ApiError(400, "Add a resolution note (in Actions, or the field below) summarizing what was done before closing");
-  }
+  assertActionNote(input.qualityFeedback);
 
   return prisma.$transaction(async (tx) => {
     const now = new Date();
+    await tx.ticketComment.create({ data: { ticketId, authorId: actor.id, body: input.qualityFeedback } });
     await tx.ticketStatusHistory.create({
       data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.VERIFIED, changedById: actor.id, comment: `Verified - quality: ${input.qualityRating}` },
     });
@@ -654,7 +676,7 @@ export async function verifyAndClose(actor: Actor, ticketId: string, input: Veri
       data: {
         status: TicketStatus.CLOSED,
         qualityRating: input.qualityRating,
-        qualityFeedback: input.qualityFeedback ?? null,
+        qualityFeedback: input.qualityFeedback,
         productionCertified: true,
         productionCertifiedAt: now,
         productionCertifiedById: actor.id,
@@ -682,9 +704,7 @@ export interface RejectVerificationInput {
 export async function rejectVerification(actor: Actor, ticketId: string, input: RejectVerificationInput) {
   const ticket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   assertAction(ticket, actor, "REJECT_VERIFICATION");
-  if (!input.reason || !input.reason.trim()) {
-    throw new ApiError(400, "Explain why the fix is being rejected");
-  }
+  assertActionNote(input.reason);
 
   return prisma.$transaction(async (tx) => {
     await tx.ticketStatusHistory.create({ data: { ticketId, fromStatus: ticket.status, toStatus: TicketStatus.REJECTED, changedById: actor.id, comment: input.reason } });

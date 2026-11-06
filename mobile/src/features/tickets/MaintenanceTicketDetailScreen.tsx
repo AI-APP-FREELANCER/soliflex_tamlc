@@ -24,6 +24,7 @@ import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { SelectField } from "@/components/SelectField";
 import { Modal } from "@/components/Modal";
+import { ActionNoteModal } from "@/components/ActionNoteModal";
 import { formatIST } from "@/lib/formatIST";
 import type { ChecklistAnswer, DelayReason, QualityRating } from "@/lib/types";
 
@@ -58,16 +59,28 @@ function AcknowledgeModal({ ticketId, visible, onClose }: { ticketId: string; vi
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: () => fetchUsers() });
   const mechanics = users.filter((u) => u.active && u.role === "MECHANIC");
   const [assigneeId, setAssigneeId] = useState<string | undefined>();
+  const [note, setNote] = useState("");
   const { acknowledge } = useTicketMutations(ticketId);
+  const noteOk = note.trim().length >= 10 && note.trim().length <= 1000;
 
   return (
     <Modal visible={visible} title="Acknowledge & assign" onClose={onClose}>
       <View className="gap-4 pb-4">
         <SelectField label="Assign to" value={assigneeId} options={mechanics.map((u) => ({ value: u.id, label: u.name }))} onChange={setAssigneeId} />
+        <TextField
+          label="Actions note (required)"
+          placeholder="Describe this update (10-1000 characters)"
+          value={note}
+          onChangeText={setNote}
+          multiline
+          numberOfLines={2}
+          textAlignVertical="top"
+          style={{ minHeight: 56 }}
+        />
         <Button
           title="Acknowledge"
-          onPress={() => acknowledge.mutate({ id: ticketId, assigneeId }, { onSuccess: onClose })}
-          disabled={!assigneeId}
+          onPress={() => acknowledge.mutate({ id: ticketId, note: note.trim(), assigneeId }, { onSuccess: onClose })}
+          disabled={!assigneeId || !noteOk}
           loading={acknowledge.isPending}
         />
       </View>
@@ -76,36 +89,28 @@ function AcknowledgeModal({ ticketId, visible, onClose }: { ticketId: string; vi
 }
 
 function MaintHoldModal({ ticketId, visible, onClose }: { ticketId: string; visible: boolean; onClose: () => void }) {
-  const [useReason, setUseReason] = useState(false);
   const [delayReason, setDelayReason] = useState<DelayReason>("WAITING_FOR_SPARES");
   const [delayNotes, setDelayNotes] = useState("");
   const { maintHold } = useTicketMutations(ticketId);
-  const notesOk = !useReason || (delayNotes.trim().length >= 10 && delayNotes.trim().length <= 300);
+  const notesOk = delayNotes.trim().length >= 10 && delayNotes.trim().length <= 1000;
 
   return (
     <Modal visible={visible} title="Put on hold" onClose={onClose}>
       <View className="gap-4 pb-4">
-        <Checkbox checked={useReason} onPress={() => setUseReason((v) => !v)}>
-          Record a reason for the delay (optional)
-        </Checkbox>
-        {useReason && (
-          <>
-            <SelectField label="Reason for delay" value={delayReason} options={DELAY_REASONS.map((r) => ({ value: r, label: DELAY_REASON_LABELS[r] }))} onChange={setDelayReason} />
-            <TextField
-              label="Notes"
-              placeholder="10-300 characters"
-              value={delayNotes}
-              onChangeText={setDelayNotes}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              style={{ minHeight: 72 }}
-            />
-          </>
-        )}
+        <SelectField label="Reason for delay" value={delayReason} options={DELAY_REASONS.map((r) => ({ value: r, label: DELAY_REASON_LABELS[r] }))} onChange={setDelayReason} />
+        <TextField
+          label="Actions note (required)"
+          placeholder="10-1000 characters"
+          value={delayNotes}
+          onChangeText={setDelayNotes}
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+          style={{ minHeight: 72 }}
+        />
         <Button
           title="Put on hold"
-          onPress={() => maintHold.mutate({ id: ticketId, data: useReason ? { delayReason, delayNotes: delayNotes.trim() } : {} }, { onSuccess: onClose })}
+          onPress={() => maintHold.mutate({ id: ticketId, data: { delayReason, delayNotes: delayNotes.trim() } }, { onSuccess: onClose })}
           disabled={!notesOk}
           loading={maintHold.isPending}
         />
@@ -118,8 +123,10 @@ function ChecklistModal({ ticketId, visible, onClose }: { ticketId: string; visi
   const [toolsReclaimed, setToolsReclaimed] = useState<ChecklistAnswer | undefined>();
   const [machineCleaned, setMachineCleaned] = useState<ChecklistAnswer | undefined>();
   const [cableRouting, setCableRouting] = useState<ChecklistAnswer | undefined>();
+  const [note, setNote] = useState("");
   const { markVerificationNeeded } = useTicketMutations(ticketId);
-  const complete = !!toolsReclaimed && !!machineCleaned && !!cableRouting;
+  const noteOk = note.trim().length >= 10 && note.trim().length <= 1000;
+  const complete = !!toolsReclaimed && !!machineCleaned && !!cableRouting && noteOk;
 
   return (
     <Modal visible={visible} title="Post-maintenance checklist (5S)" onClose={onClose}>
@@ -143,9 +150,22 @@ function ChecklistModal({ ticketId, visible, onClose }: { ticketId: string; visi
           options={CHECKLIST_ANSWERS.map((a) => ({ value: a, label: CHECKLIST_ANSWER_LABELS[a] }))}
           onChange={setCableRouting}
         />
+        <TextField
+          label="Actions note (required)"
+          placeholder="Describe the work done (10-1000 characters)"
+          value={note}
+          onChangeText={setNote}
+          multiline
+          numberOfLines={2}
+          textAlignVertical="top"
+          style={{ minHeight: 56 }}
+        />
         <Button
           title="Send for verification"
-          onPress={() => complete && markVerificationNeeded.mutate({ id: ticketId, data: { toolsReclaimed, machineCleaned, cableRouting } }, { onSuccess: onClose })}
+          onPress={() =>
+            complete && toolsReclaimed && machineCleaned && cableRouting &&
+            markVerificationNeeded.mutate({ id: ticketId, data: { toolsReclaimed, machineCleaned, cableRouting, note: note.trim() } }, { onSuccess: onClose })
+          }
           disabled={!complete}
           loading={markVerificationNeeded.isPending}
         />
@@ -159,6 +179,7 @@ function VerifyModal({ ticketId, visible, onClose }: { ticketId: string; visible
   const [qualityFeedback, setQualityFeedback] = useState("");
   const [certify, setCertify] = useState(false);
   const { verifyAndClose } = useTicketMutations(ticketId);
+  const feedbackOk = qualityFeedback.trim().length >= 10 && qualityFeedback.trim().length <= 1000;
 
   return (
     <Modal visible={visible} title="Verify & close" onClose={onClose}>
@@ -171,7 +192,7 @@ function VerifyModal({ ticketId, visible, onClose }: { ticketId: string; visible
         />
         <TextField
           label="Resolution note (required)"
-          placeholder="What was done to fix this?"
+          placeholder="What was done to fix this? (10-1000 characters)"
           value={qualityFeedback}
           onChangeText={setQualityFeedback}
           multiline
@@ -187,10 +208,10 @@ function VerifyModal({ ticketId, visible, onClose }: { ticketId: string; visible
           onPress={() =>
             qualityRating &&
             certify &&
-            qualityFeedback.trim().length >= 3 &&
+            feedbackOk &&
             verifyAndClose.mutate({ id: ticketId, data: { qualityRating, qualityFeedback: qualityFeedback.trim(), certify: true } }, { onSuccess: onClose })
           }
-          disabled={!qualityRating || !certify || qualityFeedback.trim().length < 3}
+          disabled={!qualityRating || !certify || !feedbackOk}
           loading={verifyAndClose.isPending}
         />
       </View>
@@ -201,13 +222,14 @@ function VerifyModal({ ticketId, visible, onClose }: { ticketId: string; visible
 function RejectModal({ ticketId, visible, onClose }: { ticketId: string; visible: boolean; onClose: () => void }) {
   const [reason, setReason] = useState("");
   const { rejectVerification } = useTicketMutations(ticketId);
+  const ok = reason.trim().length >= 10 && reason.trim().length <= 1000;
 
   return (
     <Modal visible={visible} title="Reject the fix" onClose={onClose}>
       <View className="gap-4 pb-4">
         <Text className="text-sm text-soliflex-gray-600">This sends the ticket back to the maintenance team to work on again.</Text>
         <TextField
-          placeholder="What still needs fixing?"
+          placeholder="What still needs fixing? (10-1000 characters)"
           value={reason}
           onChangeText={setReason}
           multiline
@@ -218,8 +240,8 @@ function RejectModal({ ticketId, visible, onClose }: { ticketId: string; visible
         <Button
           title="Reject & send back"
           variant="outline"
-          onPress={() => reason.trim() && rejectVerification.mutate({ id: ticketId, data: { reason: reason.trim() } }, { onSuccess: onClose })}
-          disabled={!reason.trim()}
+          onPress={() => ok && rejectVerification.mutate({ id: ticketId, data: { reason: reason.trim() } }, { onSuccess: onClose })}
+          disabled={!ok}
           loading={rejectVerification.isPending}
         />
       </View>
@@ -235,6 +257,9 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
   const mutations = useTicketMutations(id);
 
   const [showAcknowledge, setShowAcknowledge] = useState(false);
+  const [showSelfAcknowledge, setShowSelfAcknowledge] = useState(false);
+  const [showStartProgress, setShowStartProgress] = useState(false);
+  const [showMaintResume, setShowMaintResume] = useState(false);
   const [showHold, setShowHold] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [showVerify, setShowVerify] = useState(false);
@@ -357,19 +382,15 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
           <Text className="mb-1 text-sm font-semibold text-soliflex-ink">Workflow</Text>
 
           {canAcknowledge(ticket, user) && isMechanic && (
-            <Button title="Acknowledge & assign to myself" onPress={() => mutations.acknowledge.mutate({ id: ticket.id })} loading={mutations.acknowledge.isPending} />
+            <Button title="Acknowledge & assign to myself" onPress={() => setShowSelfAcknowledge(true)} />
           )}
           {canAcknowledge(ticket, user) && isManager && <Button title="Acknowledge & assign" onPress={() => setShowAcknowledge(true)} />}
 
-          {canStartProgress(ticket, user) && (
-            <Button title="Start work" onPress={() => mutations.startProgress.mutate(ticket.id)} loading={mutations.startProgress.isPending} />
-          )}
+          {canStartProgress(ticket, user) && <Button title="Start work" onPress={() => setShowStartProgress(true)} />}
 
           {canMarkVerificationNeeded(ticket, user) && <Button title="Send for verification" onPress={() => setShowChecklist(true)} />}
           {canMaintHold(ticket, user) && <Button title="Put on hold" variant="secondary" onPress={() => setShowHold(true)} />}
-          {canMaintResume(ticket, user) && (
-            <Button title="Resume ticket" variant="secondary" onPress={() => mutations.maintResume.mutate(ticket.id)} loading={mutations.maintResume.isPending} />
-          )}
+          {canMaintResume(ticket, user) && <Button title="Resume ticket" variant="secondary" onPress={() => setShowMaintResume(true)} />}
 
           {canVerifyOrReject(ticket, user) && (
             <View className="flex-row gap-2">
@@ -413,6 +434,31 @@ export default function MaintenanceTicketDetailScreen({ id }: { id: string }) {
       </ScrollView>
 
       <AcknowledgeModal ticketId={ticket.id} visible={showAcknowledge} onClose={() => setShowAcknowledge(false)} />
+      <ActionNoteModal
+        visible={showSelfAcknowledge}
+        title="Acknowledge & assign to myself"
+        description="This assigns the ticket to you and marks it Acknowledged."
+        confirmLabel="Acknowledge"
+        pending={mutations.acknowledge.isPending}
+        onClose={() => setShowSelfAcknowledge(false)}
+        onSubmit={(note) => mutations.acknowledge.mutate({ id: ticket.id, note }, { onSuccess: () => setShowSelfAcknowledge(false) })}
+      />
+      <ActionNoteModal
+        visible={showStartProgress}
+        title="Start work"
+        confirmLabel="Start work"
+        pending={mutations.startProgress.isPending}
+        onClose={() => setShowStartProgress(false)}
+        onSubmit={(note) => mutations.startProgress.mutate({ id: ticket.id, note }, { onSuccess: () => setShowStartProgress(false) })}
+      />
+      <ActionNoteModal
+        visible={showMaintResume}
+        title="Resume ticket"
+        confirmLabel="Resume ticket"
+        pending={mutations.maintResume.isPending}
+        onClose={() => setShowMaintResume(false)}
+        onSubmit={(note) => mutations.maintResume.mutate({ id: ticket.id, note }, { onSuccess: () => setShowMaintResume(false) })}
+      />
       <MaintHoldModal ticketId={ticket.id} visible={showHold} onClose={() => setShowHold(false)} />
       <ChecklistModal ticketId={ticket.id} visible={showChecklist} onClose={() => setShowChecklist(false)} />
       <VerifyModal ticketId={ticket.id} visible={showVerify} onClose={() => setShowVerify(false)} />

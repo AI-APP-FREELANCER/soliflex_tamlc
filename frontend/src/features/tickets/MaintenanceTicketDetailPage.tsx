@@ -7,6 +7,7 @@ import { useTicket, useTicketMutations } from "./hooks";
 import { useAuthStore } from "../../store/auth.store";
 import { Spinner } from "../../components/Spinner";
 import { Modal } from "../../components/Modal";
+import { ActionNoteModal } from "../../components/ActionNoteModal";
 import { StatusBadge, PriorityBadge, MachineStatusBadge, QualityRatingBadge, PROBLEM_TYPE_LABELS, DELAY_REASON_LABELS, CHECKLIST_ANSWER_LABELS } from "../../components/badges";
 import { Avatar } from "../../components/Avatar";
 import { API_BASE_URL } from "../../lib/api";
@@ -31,10 +32,12 @@ function AcknowledgeModal({ ticketId, isManager, onClose }: { ticketId: string; 
   const { data: users = [] } = useQuery({ queryKey: ["users", "MAINTENANCE"], queryFn: () => fetchUsers("MAINTENANCE") });
   const mechanics = users.filter((u) => u.active && u.role === "MECHANIC");
   const [assigneeId, setAssigneeId] = useState("");
+  const [note, setNote] = useState("");
   const { acknowledge } = useTicketMutations(ticketId);
+  const noteOk = note.trim().length >= 10 && note.trim().length <= 1000;
 
   async function handleSubmit() {
-    await acknowledge.mutateAsync({ id: ticketId, assigneeId: assigneeId || undefined });
+    await acknowledge.mutateAsync({ id: ticketId, note: note.trim(), assigneeId: assigneeId || undefined });
     onClose();
   }
 
@@ -59,9 +62,20 @@ function AcknowledgeModal({ ticketId, isManager, onClose }: { ticketId: string; 
             ? "Acknowledging and assigning happen together - the ticket moves straight to Acknowledged."
             : "This assigns the ticket to the selected mechanic and marks it Acknowledged."}
         </p>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Actions note (required)</label>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder="Describe this update (10-1000 characters)"
+            className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-soliflex-gray-400">{note.trim().length}/1000</p>
+        </div>
         <button
           onClick={handleSubmit}
-          disabled={!assigneeId || acknowledge.isPending}
+          disabled={!assigneeId || !noteOk || acknowledge.isPending}
           className="w-full rounded-lg bg-soliflex-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-soliflex-orange-600 disabled:opacity-50"
         >
           Acknowledge
@@ -72,50 +86,41 @@ function AcknowledgeModal({ ticketId, isManager, onClose }: { ticketId: string; 
 }
 
 function MaintHoldModal({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
-  const [useReason, setUseReason] = useState(false);
   const [delayReason, setDelayReason] = useState<DelayReason>("WAITING_FOR_SPARES");
   const [delayNotes, setDelayNotes] = useState("");
   const { maintHold } = useTicketMutations(ticketId);
 
-  const notesOk = !useReason || (delayNotes.trim().length >= 10 && delayNotes.trim().length <= 300);
+  const notesOk = delayNotes.trim().length >= 10 && delayNotes.trim().length <= 1000;
 
   async function handleSubmit() {
-    await maintHold.mutateAsync({ id: ticketId, data: useReason ? { delayReason, delayNotes: delayNotes.trim() } : {} });
+    await maintHold.mutateAsync({ id: ticketId, data: { delayReason, delayNotes: delayNotes.trim() } });
     onClose();
   }
 
   return (
     <Modal title="Put on hold" onClose={onClose}>
       <div className="space-y-4">
-        <label className="flex items-center gap-2 text-sm text-soliflex-gray-700">
-          <input type="checkbox" checked={useReason} onChange={(e) => setUseReason(e.target.checked)} />
-          Record a reason for the delay (optional)
-        </label>
-        {useReason && (
-          <>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Reason for delay</label>
-              <select value={delayReason} onChange={(e) => setDelayReason(e.target.value as DelayReason)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-                {DELAY_REASONS.map((r) => (
-                  <option key={r} value={r}>
-                    {DELAY_REASON_LABELS[r]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Notes</label>
-              <textarea
-                value={delayNotes}
-                onChange={(e) => setDelayNotes(e.target.value)}
-                rows={3}
-                placeholder="10-300 characters"
-                className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
-              />
-              <p className="mt-1 text-xs text-soliflex-gray-400">{delayNotes.trim().length}/300</p>
-            </div>
-          </>
-        )}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Reason for delay</label>
+          <select value={delayReason} onChange={(e) => setDelayReason(e.target.value as DelayReason)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+            {DELAY_REASONS.map((r) => (
+              <option key={r} value={r}>
+                {DELAY_REASON_LABELS[r]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Actions note (required)</label>
+          <textarea
+            value={delayNotes}
+            onChange={(e) => setDelayNotes(e.target.value)}
+            rows={3}
+            placeholder="10-1000 characters"
+            className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-soliflex-gray-400">{delayNotes.trim().length}/1000</p>
+        </div>
         <button
           onClick={handleSubmit}
           disabled={!notesOk || maintHold.isPending}
@@ -132,13 +137,15 @@ function ChecklistModal({ ticketId, onClose }: { ticketId: string; onClose: () =
   const [toolsReclaimed, setToolsReclaimed] = useState<ChecklistAnswer | "">("");
   const [machineCleaned, setMachineCleaned] = useState<ChecklistAnswer | "">("");
   const [cableRouting, setCableRouting] = useState<ChecklistAnswer | "">("");
+  const [note, setNote] = useState("");
   const { markVerificationNeeded } = useTicketMutations(ticketId);
 
-  const complete = !!toolsReclaimed && !!machineCleaned && !!cableRouting;
+  const noteOk = note.trim().length >= 10 && note.trim().length <= 1000;
+  const complete = !!toolsReclaimed && !!machineCleaned && !!cableRouting && noteOk;
 
   async function handleSubmit() {
-    if (!complete) return;
-    await markVerificationNeeded.mutateAsync({ id: ticketId, data: { toolsReclaimed, machineCleaned, cableRouting } });
+    if (!complete || !toolsReclaimed || !machineCleaned || !cableRouting) return;
+    await markVerificationNeeded.mutateAsync({ id: ticketId, data: { toolsReclaimed, machineCleaned, cableRouting, note: note.trim() } });
     onClose();
   }
 
@@ -162,6 +169,17 @@ function ChecklistModal({ ticketId, onClose }: { ticketId: string; onClose: () =
         <Row label="All tools reclaimed (5S)" value={toolsReclaimed} onChange={setToolsReclaimed} />
         <Row label="Machine cleaned against dust / oil (5S)" value={machineCleaned} onChange={setMachineCleaned} />
         <Row label="Proper cable routing (5S)" value={cableRouting} onChange={setCableRouting} />
+        <div>
+          <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Actions note (required)</label>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder="Describe the work done (10-1000 characters)"
+            className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-soliflex-gray-400">{note.trim().length}/1000</p>
+        </div>
         <button
           onClick={handleSubmit}
           disabled={!complete || markVerificationNeeded.isPending}
@@ -180,7 +198,7 @@ function VerifyModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
   const [certify, setCertify] = useState(false);
   const { verifyAndClose } = useTicketMutations(ticketId);
 
-  const canSubmit = !!qualityRating && !!certify && qualityFeedback.trim().length >= 3;
+  const canSubmit = !!qualityRating && !!certify && qualityFeedback.trim().length >= 10 && qualityFeedback.trim().length <= 1000;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -213,9 +231,10 @@ function VerifyModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
             value={qualityFeedback}
             onChange={(e) => setQualityFeedback(e.target.value)}
             rows={2}
-            placeholder="What was done to fix this?"
+            placeholder="What was done to fix this? (10-1000 characters)"
             className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
           />
+          <p className="mt-1 text-xs text-soliflex-gray-400">{qualityFeedback.trim().length}/1000</p>
         </div>
         <label className="flex items-start gap-2 rounded-lg bg-soliflex-gray-50 p-3 text-sm text-soliflex-gray-700">
           <input type="checkbox" checked={certify} onChange={(e) => setCertify(e.target.checked)} className="mt-0.5" />
@@ -236,9 +255,10 @@ function VerifyModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
 function RejectModal({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
   const [reason, setReason] = useState("");
   const { rejectVerification } = useTicketMutations(ticketId);
+  const ok = reason.trim().length >= 10 && reason.trim().length <= 1000;
 
   async function handleSubmit() {
-    if (!reason.trim()) return;
+    if (!ok) return;
     await rejectVerification.mutateAsync({ id: ticketId, data: { reason: reason.trim() } });
     onClose();
   }
@@ -251,12 +271,13 @@ function RejectModal({ ticketId, onClose }: { ticketId: string; onClose: () => v
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
-          placeholder="What still needs fixing?"
+          placeholder="What still needs fixing? (10-1000 characters)"
           className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
         />
+        <p className="text-xs text-soliflex-gray-400">{reason.trim().length}/1000</p>
         <button
           onClick={handleSubmit}
-          disabled={!reason.trim() || rejectVerification.isPending}
+          disabled={!ok || rejectVerification.isPending}
           className="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
         >
           Reject & send back
@@ -277,6 +298,9 @@ export default function MaintenanceTicketDetailPage() {
 
   const [comment, setComment] = useState("");
   const [showAcknowledge, setShowAcknowledge] = useState(false);
+  const [showSelfAcknowledge, setShowSelfAcknowledge] = useState(false);
+  const [showStartProgress, setShowStartProgress] = useState(false);
+  const [showMaintResume, setShowMaintResume] = useState(false);
   const [showHold, setShowHold] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [showVerify, setShowVerify] = useState(false);
@@ -544,7 +568,7 @@ export default function MaintenanceTicketDetailPage() {
               // A mechanic self-assigns directly - no picker needed (and the user list the
               // picker would use is only visible to managers/admins anyway).
               <button
-                onClick={() => id && handleAction(() => mutations.acknowledge.mutateAsync({ id }))}
+                onClick={() => setShowSelfAcknowledge(true)}
                 className="w-full rounded-lg bg-soliflex-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-soliflex-orange-600"
               >
                 Acknowledge & assign to myself
@@ -559,7 +583,7 @@ export default function MaintenanceTicketDetailPage() {
 
             {ticket.status === "ACKNOWLEDGED" && (isAssignee || isManager) && (
               <button
-                onClick={() => id && handleAction(() => mutations.startProgress.mutateAsync(id))}
+                onClick={() => setShowStartProgress(true)}
                 className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-200"
               >
                 <PlayCircle className="h-4 w-4" /> Start work
@@ -582,7 +606,7 @@ export default function MaintenanceTicketDetailPage() {
 
             {ticket.status === "ON_HOLD" && (isAssignee || isManager) && (
               <button
-                onClick={() => id && handleAction(() => mutations.maintResume.mutateAsync(id))}
+                onClick={() => setShowMaintResume(true)}
                 className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm font-semibold hover:bg-soliflex-gray-50"
               >
                 Resume ticket
@@ -662,7 +686,7 @@ export default function MaintenanceTicketDetailPage() {
                       Set priority
                     </option>
                   )}
-                  {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).map((p) => (
+                  {(["LOW", "MEDIUM", "HIGH"] as const).map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
@@ -684,6 +708,49 @@ export default function MaintenanceTicketDetailPage() {
       </div>
 
       {showAcknowledge && id && <AcknowledgeModal ticketId={id} isManager={isManager} onClose={() => setShowAcknowledge(false)} />}
+      {showSelfAcknowledge && id && (
+        <ActionNoteModal
+          title="Acknowledge & assign to myself"
+          description="This assigns the ticket to you and marks it Acknowledged."
+          confirmLabel="Acknowledge"
+          pending={mutations.acknowledge.isPending}
+          onClose={() => setShowSelfAcknowledge(false)}
+          onSubmit={(note) =>
+            handleAction(async () => {
+              await mutations.acknowledge.mutateAsync({ id, note });
+              setShowSelfAcknowledge(false);
+            })
+          }
+        />
+      )}
+      {showStartProgress && id && (
+        <ActionNoteModal
+          title="Start work"
+          confirmLabel="Start work"
+          pending={mutations.startProgress.isPending}
+          onClose={() => setShowStartProgress(false)}
+          onSubmit={(note) =>
+            handleAction(async () => {
+              await mutations.startProgress.mutateAsync({ id, note });
+              setShowStartProgress(false);
+            })
+          }
+        />
+      )}
+      {showMaintResume && id && (
+        <ActionNoteModal
+          title="Resume ticket"
+          confirmLabel="Resume ticket"
+          pending={mutations.maintResume.isPending}
+          onClose={() => setShowMaintResume(false)}
+          onSubmit={(note) =>
+            handleAction(async () => {
+              await mutations.maintResume.mutateAsync({ id, note });
+              setShowMaintResume(false);
+            })
+          }
+        />
+      )}
       {showHold && id && <MaintHoldModal ticketId={id} onClose={() => setShowHold(false)} />}
       {showChecklist && id && <ChecklistModal ticketId={id} onClose={() => setShowChecklist(false)} />}
       {showVerify && id && <VerifyModal ticketId={id} onClose={() => setShowVerify(false)} />}

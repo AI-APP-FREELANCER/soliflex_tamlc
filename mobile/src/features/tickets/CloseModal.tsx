@@ -18,10 +18,12 @@ export function CloseModal({ visible, ticket, onClose }: CloseModalProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [closingComment, setClosingComment] = useState("");
   const { closeDirect } = useTicketMutations(ticket.id);
+  const noteOk = closingComment.trim().length >= 10 && closingComment.trim().length <= 1000;
 
   function handleSubmit() {
+    if (!noteOk) return;
     closeDirect.mutate(
-      { id: ticket.id, confirmEquipmentOperational: confirmed, closingComment: closingComment.trim() || undefined },
+      { id: ticket.id, confirmEquipmentOperational: confirmed, closingComment: closingComment.trim() },
       { onSuccess: onClose }
     );
   }
@@ -30,8 +32,8 @@ export function CloseModal({ visible, ticket, onClose }: CloseModalProps) {
     <Modal visible={visible} title="Resolve & close" onClose={onClose}>
       <View className="gap-4 pb-4">
         <TextField
-          label="Resolution note"
-          placeholder="What was the problem and what did you do?"
+          label="Resolution note (required)"
+          placeholder="What was the problem and what did you do? (10-1000 characters)"
           value={closingComment}
           onChangeText={setClosingComment}
           multiline
@@ -49,7 +51,7 @@ export function CloseModal({ visible, ticket, onClose }: CloseModalProps) {
           </View>
           <Text className="flex-1 text-sm text-soliflex-ink">I confirm the issue is resolved</Text>
         </Pressable>
-        <Button title="Close ticket" onPress={handleSubmit} disabled={!confirmed} loading={closeDirect.isPending} />
+        <Button title="Close ticket" onPress={handleSubmit} disabled={!confirmed || !noteOk} loading={closeDirect.isPending} />
       </View>
     </Modal>
   );

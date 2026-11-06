@@ -57,7 +57,7 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
 
 // --------------------------------------------------------------- IT only ---
 
-export async function assignTicket(id: string, data: { assignedToId: string; priority: Priority; targetCompletionDate?: string; effortEstimateHours?: number }) {
+export async function assignTicket(id: string, data: { assignedToId: string; priority: Priority; note: string; targetCompletionDate?: string; effortEstimateHours?: number }) {
   const res = await api.post(`/tickets/${id}/assign`, data);
   return res.data;
 }
@@ -68,7 +68,7 @@ export async function updateAssignment(id: string, data: { assignedToId?: string
 }
 
 /** Engineer / manager fast close (IT only - maintenance uses verifyAndClose). */
-export async function closeTicketDirect(id: string, data: { confirmEquipmentOperational: boolean; closingComment?: string }) {
+export async function closeTicketDirect(id: string, data: { confirmEquipmentOperational: boolean; closingComment: string }) {
   const res = await api.post(`/tickets/${id}/close-direct`, data);
   return res.data;
 }
@@ -83,26 +83,26 @@ export async function holdTicket(id: string, detail: string) {
   return res.data;
 }
 
-export async function resumeTicket(id: string) {
-  const res = await api.post(`/tickets/${id}/resume`);
+export async function resumeTicket(id: string, note: string) {
+  const res = await api.post(`/tickets/${id}/resume`, { note });
   return res.data;
 }
 
 // --------------------------------------------------------- Maintenance only ---
 
 /** Self-assign (Mechanic) or manager-assign; always sets the assignee and ACKNOWLEDGED together. */
-export async function acknowledgeTicket(id: string, assigneeId?: string) {
-  const res = await api.post(`/tickets/${id}/acknowledge`, { assigneeId });
+export async function acknowledgeTicket(id: string, note: string, assigneeId?: string) {
+  const res = await api.post(`/tickets/${id}/acknowledge`, { note, assigneeId });
   return res.data;
 }
 
-export async function holdMaintenanceTicket(id: string, data: { delayReason?: DelayReason; delayNotes?: string }) {
+export async function holdMaintenanceTicket(id: string, data: { delayReason: DelayReason; delayNotes: string }) {
   const res = await api.post(`/tickets/${id}/maint-hold`, data);
   return res.data;
 }
 
-export async function resumeMaintenanceTicket(id: string) {
-  const res = await api.post(`/tickets/${id}/maint-resume`);
+export async function resumeMaintenanceTicket(id: string, note: string) {
+  const res = await api.post(`/tickets/${id}/maint-resume`, { note });
   return res.data;
 }
 
@@ -112,12 +112,12 @@ export interface ChecklistInput {
   cableRouting: ChecklistAnswer;
 }
 
-export async function markVerificationNeeded(id: string, data: ChecklistInput) {
+export async function markVerificationNeeded(id: string, data: ChecklistInput & { note: string }) {
   const res = await api.post(`/tickets/${id}/mark-verification-needed`, data);
   return res.data;
 }
 
-export async function verifyAndClose(id: string, data: { qualityRating: QualityRating; qualityFeedback?: string; certify: true }) {
+export async function verifyAndClose(id: string, data: { qualityRating: QualityRating; qualityFeedback: string; certify: true }) {
   const res = await api.post(`/tickets/${id}/verify-and-close`, data);
   return res.data;
 }
@@ -129,8 +129,8 @@ export async function rejectVerification(id: string, data: { reason: string; qua
 
 // -------------------------------------------------------------- shared ---
 
-export async function startProgress(id: string) {
-  const res = await api.post(`/tickets/${id}/start-progress`);
+export async function startProgress(id: string, note: string) {
+  const res = await api.post(`/tickets/${id}/start-progress`, { note });
   return res.data;
 }
 

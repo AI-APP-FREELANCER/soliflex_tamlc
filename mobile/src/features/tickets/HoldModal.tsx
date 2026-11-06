@@ -15,16 +15,27 @@ interface HoldModalProps {
 export function HoldModal({ visible, ticket, onClose }: HoldModalProps) {
   const [detail, setDetail] = useState("");
   const { hold } = useTicketMutations(ticket.id);
+  const ok = detail.trim().length >= 10 && detail.trim().length <= 1000;
 
   function handleSubmit() {
+    if (!ok) return;
     hold.mutate({ id: ticket.id, detail: detail.trim() }, { onSuccess: onClose });
   }
 
   return (
     <Modal visible={visible} title="Put on hold" onClose={onClose}>
       <View className="gap-4 pb-4">
-        <TextField label="Why is this on hold?" placeholder="e.g. Waiting on vendor" value={detail} onChangeText={setDetail} />
-        <Button title="Put on hold" onPress={handleSubmit} disabled={!detail.trim()} loading={hold.isPending} />
+        <TextField
+          label="Why is this on hold? (required)"
+          placeholder="e.g. Waiting on vendor (10-1000 characters)"
+          value={detail}
+          onChangeText={setDetail}
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+          style={{ minHeight: 72 }}
+        />
+        <Button title="Put on hold" onPress={handleSubmit} disabled={!ok} loading={hold.isPending} />
       </View>
     </Modal>
   );

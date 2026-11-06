@@ -12,11 +12,13 @@ export function AssignModal({ ticket, onClose }: { ticket: Ticket; onClose: () =
 
   const [assignedToId, setAssignedToId] = useState(ticket.assignedToId ?? "");
   const [priority, setPriority] = useState<Priority>(ticket.priority ?? "MEDIUM");
+  const [note, setNote] = useState("");
   const [targetCompletionDate, setTargetCompletionDate] = useState(ticket.targetCompletionDate ? ticket.targetCompletionDate.slice(0, 10) : "");
   const [effortEstimateHours, setEffortEstimateHours] = useState(ticket.effortEstimateHours ? String(ticket.effortEstimateHours) : "");
 
   const { assign, updateAssignment } = useTicketMutations(ticket.id);
   const pending = isEdit ? updateAssignment.isPending : assign.isPending;
+  const noteOk = isEdit || (note.trim().length >= 10 && note.trim().length <= 1000);
 
   async function handleSubmit() {
     if (isEdit) {
@@ -34,6 +36,7 @@ export function AssignModal({ ticket, onClose }: { ticket: Ticket; onClose: () =
         data: {
           assignedToId,
           priority,
+          note: note.trim(),
           targetCompletionDate: targetCompletionDate || undefined,
           effortEstimateHours: effortEstimateHours ? Number(effortEstimateHours) : undefined,
         },
@@ -75,6 +78,19 @@ export function AssignModal({ ticket, onClose }: { ticket: Ticket; onClose: () =
             </select>
           </div>
         )}
+        {!isEdit && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Actions note (required)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+              placeholder="Describe this assignment (10-1000 characters)"
+              className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-soliflex-gray-400">{note.trim().length}/1000</p>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Target completion</label>
@@ -87,7 +103,7 @@ export function AssignModal({ ticket, onClose }: { ticket: Ticket; onClose: () =
         </div>
         <button
           onClick={handleSubmit}
-          disabled={(!isEdit && !assignedToId) || pending}
+          disabled={(!isEdit && !assignedToId) || !noteOk || pending}
           className="w-full rounded-lg bg-soliflex-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-soliflex-orange-600 disabled:opacity-50"
         >
           {isEdit ? "Save changes" : "Assign ticket"}
