@@ -78,6 +78,7 @@ const createUserSchema = z
     role: z.nativeEnum(Role),
     workstream: z.nativeEnum(Workstream).optional().nullable(),
     department: z.string().optional(),
+    productCategory: z.string().optional(),
     designation: z.string().optional(),
     phone: z.string().trim().optional(),
   })
@@ -186,6 +187,7 @@ const updateUserSchema = z.object({
   role: z.nativeEnum(Role).optional(),
   workstream: z.nativeEnum(Workstream).optional().nullable(),
   department: z.string().optional(),
+  productCategory: z.string().optional(),
   designation: z.string().optional(),
   email: z.string().trim().email().optional(),
   phone: z.string().trim().nullable().optional(),

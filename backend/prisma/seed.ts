@@ -167,7 +167,8 @@ async function main() {
       create: { name, createdById: adminUser.id },
     });
   }
-  const departmentNames = ["Fabric", "Container", "Cutting", "Finishing", "Utility", "Lab", "Recycling Plant", "Production", "Quality"];
+  // Product Category list (the Department model - see its schema comment).
+  const departmentNames = ["Container", "Cutting", "Fabric", "Finishing", "General", "Lab", "Recycling Plant", "Utility"];
   const departments: Record<string, { id: string }> = {};
   for (const name of departmentNames) {
     departments[name] = await prisma.department.upsert({
@@ -176,7 +177,16 @@ async function main() {
       create: { name, createdById: adminUser.id },
     });
   }
-  const designationNames = ["Supervisor", "Shift Incharge", "Electrician", "Engineer"];
+  // Org department list for staff profiles (distinct from Product Category above).
+  const userDepartmentNames = ["Facility", "HR", "Maintenance", "Other", "Production", "Quality"];
+  for (const name of userDepartmentNames) {
+    await prisma.userDepartment.upsert({
+      where: { name },
+      update: {},
+      create: { name, createdById: adminUser.id },
+    });
+  }
+  const designationNames = ["Electrician", "Engineer", "In Charge", "Leader", "Manager", "Shift Supervisor", "Supervisor", "Welder"];
   for (const name of designationNames) {
     await prisma.designation.upsert({
       where: { name },
@@ -184,7 +194,7 @@ async function main() {
       create: { name, createdById: adminUser.id },
     });
   }
-  console.log("Seeded plants, departments and designations.");
+  console.log("Seeded plants, departments, user departments and designations.");
 
   // --- sample ticket ---
   const existingTicket = await prisma.ticket.findFirst({ where: { description: { startsWith: "Operator reported unusual vibration" } } });

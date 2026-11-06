@@ -112,6 +112,9 @@ export function Sidebar() {
               <MapPin className="h-4 w-4" /> Plants
             </NavLink>
             <NavLink to="/departments" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
+              <Building2 className="h-4 w-4" /> Product Categories
+            </NavLink>
+            <NavLink to="/user-departments" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>
               <Building2 className="h-4 w-4" /> Departments
             </NavLink>
             <NavLink to="/designations" onClick={() => setMobileMenuOpen(false)} className={({ isActive }) => clsx(navItem, isActive && navItemActive)}>

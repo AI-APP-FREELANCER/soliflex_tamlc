@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { assignableRoles } from "@/features/users/permissions";
 import { useUserMutations } from "@/features/users/hooks";
 import { fetchDepartments } from "@/api/departments";
+import { fetchUserDepartments } from "@/api/user-departments";
 import { fetchDesignations } from "@/api/designations";
 import type { Role, User, Workstream } from "@/lib/types";
 
@@ -27,11 +28,24 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
   const actorRole = useAuthStore((s) => s.user?.role);
   const roleOptions = assignableRoles(actorRole).map((r) => ({ value: r, label: r }));
   const { update, resetPassword } = useUserMutations();
-  const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible });
-  const departmentOptions = [
+  const { data: productCategories = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible });
+  const productCategoryOptions = [
+    { value: "", label: "No product category" },
+    ...(user.productCategory && !productCategories.some((d) => d.name === user.productCategory)
+      ? [{ value: user.productCategory, label: `${user.productCategory} (not in the admin-managed list)` }]
+      : []),
+    ...productCategories.map((d) => ({ value: d.name, label: d.name })),
+  ];
+  const { data: userDepartments = [] } = useQuery({ queryKey: ["user-departments"], queryFn: fetchUserDepartments, enabled: visible });
+  const userDepartmentOptions = [
     { value: "", label: "No department" },
-    ...(user.department && !departments.some((d) => d.name === user.department) ? [{ value: user.department, label: `${user.department} (not in the admin-managed list)` }] : []),
-    ...departments.map((d) => ({ value: d.name, label: d.name })),
+    ...(user.department && !userDepartments.some((d) => d.name === user.department) ? [{ value: user.department, label: `${user.department} (not in the admin-managed list)` }] : []),
+    ...userDepartments.map((d) => ({ value: d.name, label: d.name })),
+  ];
+  const itDepartmentOptions = [
+    { value: "", label: "No department" },
+    ...(user.department && !productCategories.some((d) => d.name === user.department) ? [{ value: user.department, label: `${user.department} (not in the admin-managed list)` }] : []),
+    ...productCategories.map((d) => ({ value: d.name, label: d.name })),
   ];
   const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: fetchDesignations, enabled: visible });
   const designationOptions = [
@@ -44,9 +58,11 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
   const [role, setRole] = useState<Role>(user.role);
   const [workstream, setWorkstream] = useState<Workstream | undefined>(user.workstream ?? undefined);
   const [department, setDepartment] = useState(user.department ?? "");
+  const [productCategory, setProductCategory] = useState(user.productCategory ?? "");
   const [designation, setDesignation] = useState(user.designation ?? "");
   const [email, setEmail] = useState(user.email ?? "");
   const [phone, setPhone] = useState(user.phone ?? "");
+  const isIT = workstream === "IT";
 
   function handleSubmit() {
     update.mutate(
@@ -57,6 +73,7 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
           role,
           workstream: workstream ?? null,
           department: department.trim() || undefined,
+          productCategory: isIT ? undefined : productCategory.trim() || undefined,
           designation: designation.trim() || undefined,
           email: email.trim() || undefined,
           phone: phone.trim() || null,
@@ -86,7 +103,14 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
         <TextField label="Name" value={name} onChangeText={setName} />
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
-        <SelectField label="Department" value={department} options={departmentOptions} onChange={setDepartment} />
+        {isIT ? (
+          <SelectField label="Department" value={department} options={itDepartmentOptions} onChange={setDepartment} />
+        ) : (
+          <>
+            <SelectField label="Product category" value={productCategory} options={productCategoryOptions} onChange={setProductCategory} />
+            <SelectField label="Department" value={department} options={userDepartmentOptions} onChange={setDepartment} />
+          </>
+        )}
         <SelectField label="Designation" value={designation} options={designationOptions} onChange={setDesignation} />
         <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <TextField label="Mobile number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />

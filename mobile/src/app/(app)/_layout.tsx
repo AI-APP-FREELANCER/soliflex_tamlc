@@ -58,6 +58,10 @@ export default function AppLayout() {
         />
         <Drawer.Screen
           name="departments"
+          options={{ title: "Product Categories", drawerIcon: ({ color, size }) => <Building2 color={color} size={size} /> }}
+        />
+        <Drawer.Screen
+          name="user-departments"
           options={{ title: "Departments", drawerIcon: ({ color, size }) => <Building2 color={color} size={size} /> }}
         />
         <Drawer.Screen

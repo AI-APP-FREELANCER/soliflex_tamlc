@@ -25,6 +25,7 @@ export interface User {
   role: Role;
   workstream: Workstream | null;
   department: string | null;
+  productCategory: string | null;
   designation: string | null;
   phone: string | null;
   active: boolean;
@@ -159,6 +160,12 @@ export interface Plant {
 }
 
 export interface Department {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface UserDepartment {
   id: string;
   name: string;
   active: boolean;

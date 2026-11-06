@@ -19,6 +19,7 @@ import auditRoutes from "./modules/audit/audit.routes";
 import helpdeskRoutes from "./modules/helpdesk/helpdesk.routes";
 import plantsRoutes from "./modules/plants/plants.routes";
 import departmentsRoutes from "./modules/departments/departments.routes";
+import userDepartmentsRoutes from "./modules/user-departments/user-departments.routes";
 import designationsRoutes from "./modules/designations/designations.routes";
 
 export function createApp() {
@@ -49,6 +50,7 @@ export function createApp() {
   app.use("/api/helpdesk", helpdeskRoutes);
   app.use("/api/plants", plantsRoutes);
   app.use("/api/departments", departmentsRoutes);
+  app.use("/api/user-departments", userDepartmentsRoutes);
   app.use("/api/designations", designationsRoutes);
 
   app.use(errorHandler);

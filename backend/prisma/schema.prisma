@@ -227,7 +227,14 @@ model User {
   passwordHash      String
   role              Role
   workstream        Workstream?
+  // Free-text, picked from the admin-managed Department list (org department,
+  // e.g. Production, Maintenance, Quality, HR) - distinct from the Department
+  // model, which despite its name is really a ticket/machine Product Category
+  // (Fabric, Cutting, Container, ...). No FK, same pattern as designation.
   department        String?
+  // Free-text, picked from the admin-managed Product Category list (the
+  // Department model) - only meaningful for Maintenance-stream staff.
+  productCategory   String?
   // Free-text label, same pattern as department — picked from the admin-managed
   // Designation list but stored as a plain string (no FK), not a Role.
   designation       String?
@@ -246,6 +253,7 @@ model User {
   productionCertifiedTickets Ticket[]              @relation("ProductionCertifiedBy")
   createdPlants              Plant[]
   createdDepartments         Department[]
+  createdUserDepartments     UserDepartment[]
   createdDesignations        Designation[]
   comments                   TicketComment[]
   attachments                TicketAttachment[]
@@ -392,7 +400,9 @@ model Plant {
   @@schema("tms")
 }
 
-// Admin-managed "Department / Product Category" list for maintenance tickets.
+// Admin-managed "Product Category" list for maintenance tickets/machines
+// (Fabric, Cutting, Container, ...). Named Department for historical reasons -
+// see UserDepartment below for the actual org-department list.
 model Department {
   id          String   @id @default(cuid())
   name        String   @unique
@@ -403,6 +413,22 @@ model Department {
   updatedAt   DateTime @updatedAt
 
   tickets Ticket[]
+
+  @@schema("tms")
+}
+
+// Admin-managed org-department list for staff profiles (Production,
+// Maintenance, Quality, HR, ...) - distinct from Department above, which is
+// really a ticket/machine Product Category. Free-text match against
+// User.department, same pattern as Designation.
+model UserDepartment {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  active      Boolean  @default(true)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@schema("tms")
 }

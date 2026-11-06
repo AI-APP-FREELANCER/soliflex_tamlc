@@ -14,6 +14,7 @@ export interface CreateUserInput {
   role: Role;
   workstream?: Workstream | null;
   department?: string;
+  productCategory?: string;
   designation?: string;
   phone?: string;
 }
@@ -28,6 +29,7 @@ export interface UpdateUserInput {
   role?: Role;
   workstream?: Workstream | null;
   department?: string;
+  productCategory?: string;
   designation?: string;
   email?: string;
   phone?: string | null;

@@ -86,6 +86,7 @@ export interface User {
   role: Role;
   workstream: Workstream | null;
   department: string | null;
+  productCategory: string | null;
   designation: string | null;
   phone: string | null;
   active: boolean;
@@ -225,6 +226,14 @@ export interface Designation {
 }
 
 export interface Department {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserDepartment {
   id: string;
   name: string;
   active: boolean;

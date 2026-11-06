@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/auth.store";
 import { assignableRoles } from "@/features/users/permissions";
 import { useUserMutations } from "@/features/users/hooks";
 import { fetchDepartments } from "@/api/departments";
+import { fetchUserDepartments } from "@/api/user-departments";
 import { fetchDesignations } from "@/api/designations";
 import type { Role, Workstream } from "@/lib/types";
 
@@ -26,8 +27,10 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
   const actorRole = useAuthStore((s) => s.user?.role);
   const roleOptions = assignableRoles(actorRole).map((r) => ({ value: r, label: r }));
   const { create } = useUserMutations();
-  const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible });
-  const departmentOptions = [{ value: "", label: "No department" }, ...departments.map((d) => ({ value: d.name, label: d.name }))];
+  const { data: productCategories = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments, enabled: visible });
+  const productCategoryOptions = [{ value: "", label: "No product category" }, ...productCategories.map((d) => ({ value: d.name, label: d.name }))];
+  const { data: userDepartments = [] } = useQuery({ queryKey: ["user-departments"], queryFn: fetchUserDepartments, enabled: visible });
+  const userDepartmentOptions = [{ value: "", label: "No department" }, ...userDepartments.map((d) => ({ value: d.name, label: d.name }))];
   const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: fetchDesignations, enabled: visible });
   const designationOptions = [{ value: "", label: "No designation" }, ...designations.map((d) => ({ value: d.name, label: d.name }))];
 
@@ -37,8 +40,10 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
   const [role, setRole] = useState<Role | undefined>();
   const [workstream, setWorkstream] = useState<Workstream | undefined>();
   const [department, setDepartment] = useState("");
+  const [productCategory, setProductCategory] = useState("");
   const [designation, setDesignation] = useState("");
   const [phone, setPhone] = useState("");
+  const isIT = workstream === "IT";
 
   function reset() {
     setEmployeeId("");
@@ -47,6 +52,7 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
     setRole(undefined);
     setWorkstream(undefined);
     setDepartment("");
+    setProductCategory("");
     setDesignation("");
     setPhone("");
   }
@@ -61,6 +67,7 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
         role,
         workstream: workstream ?? null,
         department: department.trim() || undefined,
+        productCategory: isIT ? undefined : productCategory.trim() || undefined,
         designation: designation.trim() || undefined,
         phone: phone.trim() || undefined,
       },
@@ -86,7 +93,14 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
         <Text className="-mt-2 text-xs text-soliflex-gray-500">At least one is required — the person signs in with whichever you enter.</Text>
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream (optional)" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
-        <SelectField label="Department (optional)" value={department} options={departmentOptions} onChange={setDepartment} />
+        {isIT ? (
+          <SelectField label="Department (optional)" value={department} options={productCategoryOptions} onChange={setDepartment} />
+        ) : (
+          <>
+            <SelectField label="Product category (optional)" value={productCategory} options={productCategoryOptions} onChange={setProductCategory} />
+            <SelectField label="Department (optional)" value={department} options={userDepartmentOptions} onChange={setDepartment} />
+          </>
+        )}
         <SelectField label="Designation (optional)" value={designation} options={designationOptions} onChange={setDesignation} />
         <Button title="Create" onPress={handleSubmit} disabled={!canSubmit} loading={create.isPending} />
       </View>

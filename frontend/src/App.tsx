@@ -12,6 +12,7 @@ import AssetDetailPage from "./features/assets/AssetDetailPage";
 import UsersPage from "./features/users/UsersPage";
 import PlantsPage from "./features/plants/PlantsPage";
 import DepartmentsPage from "./features/departments/DepartmentsPage";
+import UserDepartmentsPage from "./features/user-departments/UserDepartmentsPage";
 import DesignationsPage from "./features/designations/DesignationsPage";
 import DashboardPage from "./features/reports/DashboardPage";
 import AuditLogPage from "./features/audit/AuditLogPage";
@@ -65,6 +66,7 @@ export default function App() {
           <Route element={<ProtectedRoute roles={["ADMIN"]} />}>
             <Route path="/plants" element={<PlantsPage />} />
             <Route path="/departments" element={<DepartmentsPage />} />
+            <Route path="/user-departments" element={<UserDepartmentsPage />} />
             <Route path="/designations" element={<DesignationsPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={["MANAGER", "ADMIN"]} />}>

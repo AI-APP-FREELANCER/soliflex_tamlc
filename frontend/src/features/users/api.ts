@@ -13,7 +13,10 @@ export interface CreateUserInput {
   email?: string;
   role: Role;
   workstream?: Workstream | null;
+  /** Org department (Production, Maintenance, Quality, HR, ...) - see UserDepartment admin list. */
   department?: string;
+  /** Maintenance-only: product category (Fabric, Cutting, ...) - see Department admin list. */
+  productCategory?: string;
   designation?: string;
   phone?: string;
 }

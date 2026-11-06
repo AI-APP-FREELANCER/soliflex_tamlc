@@ -4,9 +4,9 @@ import { createDepartment, deleteDepartment, fetchAllDepartments, updateDepartme
 export default function DepartmentsScreen() {
   return (
     <NamedListAdminScreen
-      title="Departments"
-      itemLabel="department"
-      hint="Department / product category list used on maintenance tickets (e.g. Fabric, Cutting, Finishing)."
+      title="Product Categories"
+      itemLabel="product category"
+      hint="Product category list used on maintenance tickets and machines (e.g. Fabric, Cutting, Finishing). For staff org departments, see Departments."
       placeholder="e.g. Container liner"
       fetchAll={fetchAllDepartments}
       create={createDepartment}
