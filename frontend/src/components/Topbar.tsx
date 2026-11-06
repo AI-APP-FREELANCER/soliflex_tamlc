@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, KeyRound, ChevronDown, Search, Menu } from "lucide-react";
+import { LogOut, KeyRound, ChevronDown, Menu, Search } from "lucide-react";
 import { useAuthStore } from "../store/auth.store";
 import { useUIStore } from "../store/ui.store";
 import { api } from "../lib/api";
 import { Avatar } from "./Avatar";
 import { NotificationsBell } from "../features/notifications/NotificationsBell";
+import { GlobalSearch } from "./GlobalSearch";
 
 export function Topbar() {
   const user = useAuthStore((s) => s.user);
   const clearSession = useAuthStore((s) => s.clearSession);
   const setMobileMenuOpen = useUIStore((s) => s.setMobileMenuOpen);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const navigate = useNavigate();
 
   async function handleLogout() {
@@ -21,16 +23,14 @@ export function Topbar() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-soliflex-gray-100 bg-white px-3 sm:px-5">
+    <header className="relative flex h-14 shrink-0 items-center justify-between gap-2 border-b border-soliflex-gray-100 bg-white px-3 sm:px-5">
       <button onClick={() => setMobileMenuOpen(true)} className="rounded-lg p-2 text-soliflex-gray-500 hover:bg-soliflex-gray-100 md:hidden">
         <Menu className="h-5 w-5" />
       </button>
 
-      <div className="hidden max-w-md flex-1 items-center gap-2 rounded-lg bg-soliflex-gray-100 px-3 py-1.5 text-sm text-soliflex-gray-500 sm:flex">
-        <Search className="h-4 w-4" />
-        <span>Search tickets, assets...</span>
-      </div>
-      <button className="rounded-lg p-2 text-soliflex-gray-500 hover:bg-soliflex-gray-100 sm:hidden">
+      <GlobalSearch className="hidden max-w-md flex-1 sm:block" />
+      <GlobalSearch className={mobileSearchOpen ? "absolute inset-x-3 top-16 z-40 sm:hidden" : "hidden"} autoFocus={mobileSearchOpen} onNavigate={() => setMobileSearchOpen(false)} />
+      <button onClick={() => setMobileSearchOpen((v) => !v)} className="rounded-lg p-2 text-soliflex-gray-500 hover:bg-soliflex-gray-100 sm:hidden">
         <Search className="h-5 w-5" />
       </button>
 

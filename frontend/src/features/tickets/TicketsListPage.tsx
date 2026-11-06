@@ -64,8 +64,8 @@ export default function TicketsListPage() {
       ) : tickets.length === 0 ? (
         <EmptyState title="No tickets found" description="Try adjusting the filters or raise a new ticket." />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-soliflex-gray-100 bg-white">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-xl border border-soliflex-gray-100 bg-white">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-soliflex-gray-50 text-left text-xs font-semibold uppercase text-soliflex-gray-500">
               <tr>
                 <th className="px-4 py-3">Ticket</th>

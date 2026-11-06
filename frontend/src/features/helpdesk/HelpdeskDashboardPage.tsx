@@ -53,7 +53,8 @@ export default function HelpdeskDashboardPage() {
         {stats.perEngineerWorkload.length === 0 ? (
           <p className="text-sm text-soliflex-gray-400">No IT Support Engineers found.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
             <thead className="text-left text-xs font-semibold uppercase text-soliflex-gray-500">
               <tr>
                 <th className="py-2">Engineer</th>
@@ -73,6 +74,7 @@ export default function HelpdeskDashboardPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

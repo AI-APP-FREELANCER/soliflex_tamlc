@@ -57,8 +57,8 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-soliflex-gray-100 bg-white">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-soliflex-gray-100 bg-white">
+        <table className="w-full min-w-[560px] text-sm">
           <thead className="bg-soliflex-gray-50 text-left text-xs font-semibold uppercase text-soliflex-gray-500">
             <tr>
               <th className="px-4 py-3">Name</th>

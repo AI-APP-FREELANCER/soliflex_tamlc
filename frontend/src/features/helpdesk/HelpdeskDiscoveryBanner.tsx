@@ -33,20 +33,22 @@ export function HelpdeskDiscoveryBanner() {
   return (
     <button
       onClick={() => navigate("/helpdesk")}
-      className="mb-4 flex w-full items-center gap-3 rounded-xl border border-soliflex-orange-100 bg-soliflex-orange-50 px-4 py-3 text-left transition hover:bg-soliflex-orange-100"
+      className="mb-4 flex w-full flex-col items-start gap-2 rounded-xl border border-soliflex-orange-100 bg-soliflex-orange-50 px-4 py-3 text-left transition hover:bg-soliflex-orange-100 sm:flex-row sm:items-center sm:gap-3"
     >
-      <LifeBuoy className="h-5 w-5 shrink-0 text-soliflex-orange-600" />
-      <p className="flex-1 text-sm text-soliflex-orange-800">
-        <span className="font-semibold">{openCount}</span> open helpdesk ticket{openCount === 1 ? "" : "s"} raised by employees
-        {stats.overdueCount > 0 && (
-          <>
-            {" "}
-            · <span className="font-semibold text-red-700">{stats.overdueCount} overdue</span>
-          </>
-        )}
-        {" "}— these are tracked separately and don't appear here.
-      </p>
-      <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-soliflex-orange-700">
+      <div className="flex items-start gap-3">
+        <LifeBuoy className="mt-0.5 h-5 w-5 shrink-0 text-soliflex-orange-600" />
+        <p className="flex-1 text-sm text-soliflex-orange-800">
+          <span className="font-semibold">{openCount}</span> open helpdesk ticket{openCount === 1 ? "" : "s"} raised by employees
+          {stats.overdueCount > 0 && (
+            <>
+              {" "}
+              · <span className="font-semibold text-red-700">{stats.overdueCount} overdue</span>
+            </>
+          )}
+          {" "}— these are tracked separately and don't appear here.
+        </p>
+      </div>
+      <span className="flex shrink-0 items-center gap-1 pl-8 text-sm font-semibold text-soliflex-orange-700 sm:pl-0">
         View Helpdesk Queue <ArrowRight className="h-4 w-4" />
       </span>
     </button>

@@ -268,7 +268,8 @@ export default function DashboardPage() {
       <div className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
         <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Tickets past their target completion date</h2>
         {overdueTickets && overdueTickets.length > 0 ? (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <tbody>
               {overdueTickets.map((t) => (
                 <tr
@@ -298,24 +299,21 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="text-sm text-soliflex-gray-400">Nothing overdue right now.</p>
         )}
       </div>
       )}
 
+      {/* Maintenance doesn't track warranty/license expiry on its reports tab - this card is IT only. */}
+      {!isMaintenance && (
       <div className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
         <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Warranty / license expiring within 60 days</h2>
-        {expiring && (expiring.maintenance.length > 0 || expiring.it.length > 0) ? (
-          <table className="w-full text-sm">
+        {expiring && expiring.it.length > 0 ? (
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px] text-sm">
             <tbody>
-              {expiring.maintenance.map((a) => (
-                <tr key={a.id} className="border-t border-soliflex-gray-50">
-                  <td className="py-2 font-medium">{a.itemCode}</td>
-                  <td className="py-2">{a.name}</td>
-                  <td className="py-2 text-soliflex-gray-400">{a.warrantyEndDate && format(new Date(a.warrantyEndDate), "dd MMM yyyy")}</td>
-                </tr>
-              ))}
               {expiring.it.map((a) => (
                 <tr key={a.id} className="border-t border-soliflex-gray-50">
                   <td className="py-2 font-medium">{a.itemCode}</td>
@@ -327,10 +325,12 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="text-sm text-soliflex-gray-400">Nothing expiring soon.</p>
         )}
       </div>
+      )}
     </div>
   );
 }
