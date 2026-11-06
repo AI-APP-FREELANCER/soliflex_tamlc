@@ -113,10 +113,12 @@ function assertValidAssignee(assignee: User, ticket: { workstream: Workstream })
   if (!assignee.active) {
     throw new ApiError(400, "That user is inactive and cannot be assigned tickets");
   }
-  if (assignee.role !== Role.MECHANIC && assignee.role !== Role.IT_TEAM) {
-    throw new ApiError(400, "Tickets can only be assigned to a Mechanic or IT Team technician");
+  if (assignee.role !== Role.MECHANIC && assignee.role !== Role.IT_TEAM && assignee.role !== Role.EMPLOYEE) {
+    throw new ApiError(400, "Tickets can only be assigned to a Mechanic, IT Team technician, or self-registered employee");
   }
-  if (assignee.workstream !== ticket.workstream) {
+  // Self-registered employees always scope to Maintenance (see workstreamScope) but
+  // don't have a `workstream` column value set, so check via the scope helper.
+  if (workstreamScope(assignee) !== ticket.workstream) {
     throw new ApiError(400, "Assignee must belong to the same workstream as the ticket");
   }
 }
@@ -477,7 +479,7 @@ export async function acknowledgeTicket(actor: Actor, ticketId: string, assignee
   assertAction(ticket, actor, "ACKNOWLEDGE");
 
   let targetAssigneeId: string;
-  if (actor.role === Role.MECHANIC) {
+  if (actor.role === Role.MECHANIC || actor.role === Role.EMPLOYEE) {
     if (assigneeId && assigneeId !== actor.id) {
       throw new ApiError(403, "You can only acknowledge and assign this ticket to yourself");
     }

@@ -51,10 +51,16 @@ router.use(requireAuth);
 
 // The full user list (names, emails, phones) is only for people who manage or assign work.
 router.get("/", requireRole(Role.MANAGER, Role.ADMIN, Role.IT_TEAM_LEAD), async (req, res) => {
+  const workstream = req.query.workstream as Workstream | undefined;
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
     where: {
-      ...(req.query.workstream ? { workstream: req.query.workstream as Workstream } : {}),
+      // Self-registered employees always scope to Maintenance but have no
+      // `workstream` column value set (see workstreamScope), so they need an
+      // explicit OR branch rather than a plain workstream equality check.
+      ...(workstream
+        ? { OR: [{ workstream }, ...(workstream === Workstream.MAINTENANCE ? [{ role: Role.EMPLOYEE }] : [])] }
+        : {}),
       // A Team Lead only needs the people tickets can be assigned to.
       ...(req.user!.role === Role.IT_TEAM_LEAD ? { role: { in: [Role.IT_SUPPORT_ENGINEER, Role.IT_TEAM_LEAD, Role.ADMIN] } } : {}),
     },

@@ -23,7 +23,12 @@ export function AssignModal({ visible, ticket, onClose }: AssignModalProps) {
   const isEdit = ticket.status !== "OPEN";
   const { data: users } = useQuery({ queryKey: ["users"], queryFn: fetchUsers, enabled: visible });
   const technicians = useMemo(
-    () => (users ?? []).filter((u) => (u.role === "MECHANIC" || u.role === "IT_TEAM") && u.active && u.workstream === ticket.workstream),
+    () =>
+      (users ?? []).filter((u) => {
+        if (!u.active) return false;
+        if (u.role === "EMPLOYEE") return ticket.workstream === "MAINTENANCE";
+        return (u.role === "MECHANIC" || u.role === "IT_TEAM") && u.workstream === ticket.workstream;
+      }),
     [users, ticket.workstream]
   );
   const options = technicians.map((t) => ({ value: t.id, label: t.name }));

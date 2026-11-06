@@ -8,7 +8,7 @@ import type { Priority, Ticket } from "../../lib/types";
 export function AssignModal({ ticket, onClose }: { ticket: Ticket; onClose: () => void }) {
   const isEdit = ticket.status !== "OPEN";
   const { data: users = [] } = useQuery({ queryKey: ["users", ticket.workstream], queryFn: () => fetchUsers(ticket.workstream) });
-  const assignable = users.filter((u) => u.active && (u.role === "MECHANIC" || u.role === "IT_TEAM"));
+  const assignable = users.filter((u) => u.active && (u.role === "MECHANIC" || u.role === "IT_TEAM" || u.role === "EMPLOYEE"));
 
   const [assignedToId, setAssignedToId] = useState(ticket.assignedToId ?? "");
   const [priority, setPriority] = useState<Priority>(ticket.priority ?? "MEDIUM");
@@ -53,13 +53,13 @@ export function AssignModal({ ticket, onClose }: { ticket: Ticket; onClose: () =
             </option>
             {assignable.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} ({u.role === "MECHANIC" ? "Mechanic" : "IT Team"})
+                {u.name} ({u.role === "MECHANIC" ? "Mechanic" : u.role === "IT_TEAM" ? "IT Team" : "Employee"})
               </option>
             ))}
           </select>
           {isEdit && assignable.length === 0 && (
             <p className="mt-1 text-xs text-soliflex-gray-400">
-              No active Mechanic/IT Team users found for this workstream — check their role and workstream under Users.
+              No active Mechanic/IT Team/Employee users found for this workstream — check their role and workstream under Users.
             </p>
           )}
         </div>
