@@ -31,6 +31,8 @@ export interface CreateTicketInput {
   /** IT only; maintenance no longer collects a title. */
   title?: string;
   description: string;
+  /** Mandatory. CRITICAL is retired - LOW/MEDIUM/HIGH only. */
+  priority: Exclude<Priority, "CRITICAL">;
   plantId?: string;
   departmentId?: string;
   problemType?: ProblemType;

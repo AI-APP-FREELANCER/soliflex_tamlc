@@ -12,12 +12,13 @@ import { useUIStore } from "../../store/ui.store";
 import { useWorkstreamStore } from "../../store/workstream.store";
 import { allowedCategoriesForCreate, allowedWorkstreamsForCreate, categoriesFor } from "./permissions";
 import { useTicketMutations } from "./hooks";
-import type { MachineStatus, MachineSummary, ProblemType, TicketCategory, Workstream } from "../../lib/types";
+import type { MachineStatus, MachineSummary, Priority, ProblemType, TicketCategory, Workstream } from "../../lib/types";
 import { fetchITAssets } from "../assets/api";
 import { fetchPlants } from "../plants/api";
 import { fetchDepartments } from "../departments/api";
 
 const PROBLEM_TYPES: ProblemType[] = ["ELECTRICAL", "MECHANICAL", "PNEUMATIC", "HYDRAULIC", "OTHERS"];
+const SELECTABLE_PRIORITIES: Exclude<Priority, "CRITICAL">[] = ["LOW", "MEDIUM", "HIGH"];
 
 export function CreateTicketModal() {
   const open = useUIStore((s) => s.createTicketOpen);
@@ -33,6 +34,7 @@ export function CreateTicketModal() {
   const [description, setDescription] = useState("");
   const [plantId, setPlantId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
+  const [priority, setPriority] = useState<Exclude<Priority, "CRITICAL"> | "">("");
   const [problemType, setProblemType] = useState<ProblemType | "">("");
   const [machineStatus, setMachineStatus] = useState<MachineStatus>("RUNNING");
   const [machine, setMachine] = useState<MachineSummary | null>(null);
@@ -60,6 +62,7 @@ export function CreateTicketModal() {
     setMachine(null);
     setPlantId("");
     setDepartmentId("");
+    setPriority("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -79,6 +82,7 @@ export function CreateTicketModal() {
     setDescription("");
     setPlantId("");
     setDepartmentId("");
+    setPriority("");
     setProblemType("");
     setMachineStatus("RUNNING");
     setMachine(null);
@@ -87,8 +91,8 @@ export function CreateTicketModal() {
   }
 
   const canSubmit = isMaintenance
-    ? description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType && !!machine
-    : !!category && title.trim().length >= 3 && description.trim().length >= 3;
+    ? description.trim().length >= 3 && !!plantId && !!departmentId && !!priority && !!problemType && !!machine
+    : !!category && title.trim().length >= 3 && description.trim().length >= 3 && !!priority;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -98,6 +102,7 @@ export function CreateTicketModal() {
         ? {
             workstream,
             description,
+            priority: priority as Exclude<Priority, "CRITICAL">,
             plantId,
             departmentId,
             problemType: problemType as ProblemType,
@@ -109,6 +114,7 @@ export function CreateTicketModal() {
             category: category as TicketCategory,
             title,
             description,
+            priority: priority as Exclude<Priority, "CRITICAL">,
             itAssetId: assetId ?? undefined,
           }
     );
@@ -217,18 +223,37 @@ export function CreateTicketModal() {
 
               <MachinePicker value={machine} onChange={setMachine} plantLocation={selectedPlantName} />
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Type of Problem</label>
-                <select value={problemType} onChange={(e) => setProblemType(e.target.value as ProblemType)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-                  <option value="" disabled>
-                    Select problem type
-                  </option>
-                  {PROBLEM_TYPES.map((pt) => (
-                    <option key={pt} value={pt}>
-                      {PROBLEM_TYPE_LABELS[pt]}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Type of Problem</label>
+                  <select value={problemType} onChange={(e) => setProblemType(e.target.value as ProblemType)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
+                    <option value="" disabled>
+                      Select problem type
                     </option>
-                  ))}
-                </select>
+                    {PROBLEM_TYPES.map((pt) => (
+                      <option key={pt} value={pt}>
+                        {PROBLEM_TYPE_LABELS[pt]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Priority</label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as Exclude<Priority, "CRITICAL">)}
+                    className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+                  >
+                    <option value="" disabled>
+                      Select priority
+                    </option>
+                    {SELECTABLE_PRIORITIES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -273,6 +298,26 @@ export function CreateTicketModal() {
               className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm outline-none focus:border-soliflex-orange-500"
             />
           </div>
+
+          {!isMaintenance && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Priority</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as Exclude<Priority, "CRITICAL">)}
+                className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm"
+              >
+                <option value="" disabled>
+                  Select priority
+                </option>
+                {SELECTABLE_PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {!isMaintenance && (
             <div>

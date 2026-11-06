@@ -50,7 +50,7 @@ export default function TicketsListPage() {
         </select>
         <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} className="rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm">
           <option value="">All priorities</option>
-          {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as Priority[]).map((p) => (
+          {(["LOW", "MEDIUM", "HIGH"] as Priority[]).map((p) => (
             <option key={p} value={p}>
               {p}
             </option>
@@ -79,14 +79,26 @@ export default function TicketsListPage() {
             </thead>
             <tbody>
               {tickets.map((t) => (
-                <tr key={t.id} onClick={() => navigate(`/tickets/${t.id}`)} className="cursor-pointer border-t border-soliflex-gray-50 hover:bg-soliflex-gray-50">
+                <tr
+                  key={t.id}
+                  onClick={() => navigate(`/tickets/${t.id}`)}
+                  className={`cursor-pointer border-t border-soliflex-gray-50 hover:bg-soliflex-gray-50 ${t.priority === "HIGH" ? "border-l-2 border-l-red-400" : ""}`}
+                >
                   <td className="px-4 py-3">
-                    <p className="font-medium text-soliflex-ink">{t.ticketNumber}</p>
-                    <p className="text-xs text-soliflex-gray-400">{t.displayTitle}</p>
-                    {t.machine && (
-                      <p className="text-xs text-soliflex-gray-400">
-                        {t.machine.name} ({t.machine.itemCode})
-                      </p>
+                    {t.machine ? (
+                      <>
+                        <p className={`font-semibold ${t.priority === "HIGH" ? "text-red-700" : "text-soliflex-ink"}`}>
+                          {t.machine.name} <span className="font-normal text-soliflex-gray-400">({t.machine.itemCode})</span>
+                        </p>
+                        <p className="text-xs text-soliflex-gray-400">
+                          {t.ticketNumber} · {t.displayTitle}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className={`font-semibold ${t.priority === "HIGH" ? "text-red-700" : "text-soliflex-ink"}`}>{t.ticketNumber}</p>
+                        <p className="text-xs text-soliflex-gray-400">{t.displayTitle}</p>
+                      </>
                     )}
                   </td>
                   <td className="px-4 py-3">

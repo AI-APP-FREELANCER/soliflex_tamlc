@@ -11,7 +11,8 @@ import { PRIORITY_LABELS } from "@/features/helpdesk/badges";
 import { useTicketMutations } from "@/features/tickets/hooks";
 import type { Priority, Ticket } from "@/lib/types";
 
-const PRIORITY_OPTIONS = (Object.keys(PRIORITY_LABELS) as Priority[]).map((value) => ({ value, label: PRIORITY_LABELS[value] }));
+// CRITICAL is retired for tickets (kept for Helpdesk, which still uses PRIORITY_LABELS directly).
+const PRIORITY_OPTIONS = (["LOW", "MEDIUM", "HIGH"] as Priority[]).map((value) => ({ value, label: PRIORITY_LABELS[value] }));
 
 interface AssignModalProps {
   visible: boolean;

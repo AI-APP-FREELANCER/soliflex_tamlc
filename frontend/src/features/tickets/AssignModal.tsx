@@ -67,7 +67,7 @@ export function AssignModal({ ticket, onClose }: { ticket: Ticket; onClose: () =
           <div>
             <label className="mb-1 block text-sm font-medium text-soliflex-gray-700">Priority</label>
             <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} className="w-full rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-              {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as Priority[]).map((p) => (
+              {(["LOW", "MEDIUM", "HIGH"] as Priority[]).map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>

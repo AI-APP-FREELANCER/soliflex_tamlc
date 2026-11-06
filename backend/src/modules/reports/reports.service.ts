@@ -21,6 +21,7 @@ export interface SourceStats {
   open: number;
   closed: number;
   onHold: number;
+  inProgress: number;
   slaBreached: number;
   overdue: number;
 }
@@ -107,6 +108,7 @@ export async function buildDashboardReport(workstream: Workstream | undefined, r
     tTotal,
     tClosed,
     tOnHold,
+    tInProgress,
     tBreached,
     tOverdue,
     tClosedRows,
@@ -117,6 +119,7 @@ export async function buildDashboardReport(workstream: Workstream | undefined, r
     prisma.ticket.count({ where: tWhere }),
     prisma.ticket.count({ where: { ...tWhere, status: TicketStatus.CLOSED } }),
     prisma.ticket.count({ where: { AND: [tWhere, ticketOnHoldWhere()] } }),
+    prisma.ticket.count({ where: { ...tWhere, status: TicketStatus.IN_PROGRESS } }),
     prisma.ticket.count({ where: { AND: [tWhere, ticketBreachedWhere(now)] } }),
     prisma.ticket.count({ where: { AND: [tWhere, ticketOverdueWhere(now)] } }),
     prisma.ticket.findMany({ where: { ...tWhere, status: TicketStatus.CLOSED, closedAt: { not: null } }, select: { createdAt: true, closedAt: true } }),
@@ -128,6 +131,7 @@ export async function buildDashboardReport(workstream: Workstream | undefined, r
     open: tTotal - tClosed,
     closed: tClosed,
     onHold: tOnHold,
+    inProgress: tInProgress,
     slaBreached: tBreached,
     overdue: tOverdue,
   };
@@ -140,12 +144,13 @@ export async function buildDashboardReport(workstream: Workstream | undefined, r
 
   let helpdesk: SourceStats | null = null;
   if (withHelpdesk) {
-    const [hByStatus, hByPriority, hTotal, hClosed, hOnHold, hBreached, hOverdue, hResolvedRows] = await Promise.all([
+    const [hByStatus, hByPriority, hTotal, hClosed, hOnHold, hInProgress, hBreached, hOverdue, hResolvedRows] = await Promise.all([
       prisma.helpdeskTicket.groupBy({ by: ["status"], where: hWhere, _count: true }),
       prisma.helpdeskTicket.groupBy({ by: ["priority"], where: hWhere, _count: true }),
       prisma.helpdeskTicket.count({ where: hWhere }),
       prisma.helpdeskTicket.count({ where: { ...hWhere, status: HelpdeskStatus.CLOSED } }),
       prisma.helpdeskTicket.count({ where: { ...hWhere, onHold: true } }),
+      prisma.helpdeskTicket.count({ where: { ...hWhere, status: HelpdeskStatus.IN_PROGRESS } }),
       prisma.helpdeskTicket.count({ where: { AND: [hWhere, helpdeskBreachedWhere(now)] } }),
       prisma.helpdeskTicket.count({ where: { AND: [hWhere, helpdeskOverdueWhere(now)] } }),
       prisma.helpdeskTicket.findMany({
@@ -159,6 +164,7 @@ export async function buildDashboardReport(workstream: Workstream | undefined, r
       open: hTotal - hClosed,
       closed: hClosed,
       onHold: hOnHold,
+      inProgress: hInProgress,
       slaBreached: hBreached,
       overdue: hOverdue,
     };
@@ -176,6 +182,7 @@ export async function buildDashboardReport(workstream: Workstream | undefined, r
     open: tickets.open + (helpdesk?.open ?? 0),
     closed: tickets.closed + (helpdesk?.closed ?? 0),
     onHold: tickets.onHold + (helpdesk?.onHold ?? 0),
+    inProgress: tickets.inProgress + (helpdesk?.inProgress ?? 0),
     slaBreached: tickets.slaBreached + (helpdesk?.slaBreached ?? 0),
     overdue: tickets.overdue + (helpdesk?.overdue ?? 0),
   };
@@ -318,7 +325,12 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
     const history = t.statusHistory;
     for (let i = 0; i < history.length; i++) {
       const start = history[i].createdAt;
-      const end = i + 1 < history.length ? history[i + 1].createdAt : t.closedAt ?? now;
+      const end = i + 1 < history.length ? history[i + 1].createdAt : t.closedAt;
+      // A ticket still sitting in this status hasn't actually finished that
+      // phase yet - counting elapsed-so-far (vs. "now") would inflate the
+      // average every time the report is refreshed, so skip it until the
+      // phase actually ends (next transition, or the ticket closes).
+      if (!end) continue;
       const ms = Math.max(0, end.getTime() - start.getTime());
       const status = history[i].toStatus;
       const bucket = hoursByStatus.get(status) ?? { total: 0, count: 0 };

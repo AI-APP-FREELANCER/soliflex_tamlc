@@ -6,6 +6,7 @@ import { LEGACY_ROLES } from "../../lib/roles";
 import { prisma } from "../../lib/prisma";
 import { resolveDateRange } from "../../lib/date-range";
 import { buildDashboardReport, buildMaintenanceAnalytics, buildOverdueReport, helpdeskWhere, includesHelpdesk, ticketWhere } from "./reports.service";
+import { formatMsAsClock } from "../../lib/format-duration";
 
 const router = Router();
 router.use(requireAuth, requireRole(...LEGACY_ROLES));
@@ -66,6 +67,8 @@ router.get("/export", async (req, res) => {
       assignedTo: { select: { name: true } },
       plant: true,
       department: true,
+      // First ACKNOWLEDGED entry = time to first response (create -> accepted).
+      statusHistory: { where: { toStatus: "ACKNOWLEDGED" }, orderBy: { createdAt: "asc" }, take: 1 },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -90,9 +93,15 @@ router.get("/export", async (req, res) => {
     { header: "Actual Cost", key: "actualCost", width: 12 },
     { header: "Created At", key: "createdAt", width: 18 },
     { header: "Closed At", key: "closedAt", width: 18 },
-    { header: "Total Downtime (Hrs)", key: "downtimeHours", width: 16 },
+    { header: "Time to First Response (hh:mm:ss)", key: "firstResponse", width: 20 },
+    { header: "Downtime (hh:mm:ss)", key: "downtime", width: 16 },
   ];
   for (const t of ticketList) {
+    const firstAck = t.statusHistory[0]?.createdAt;
+    // Downtime only means something for a Maintenance ticket where the machine
+    // was actually stopped - a ticket on a running machine has no downtime to
+    // report, and IT tickets have no machine/stop concept at all.
+    const isDowntimeEligible = t.workstream === "MAINTENANCE" && t.machineStatus === "STOPPED" && t.closedAt;
     sheet.addRow({
       ticketNumber: t.ticketNumber,
       workstream: t.workstream,
@@ -111,7 +120,8 @@ router.get("/export", async (req, res) => {
       actualCost: t.actualCost ?? 0,
       createdAt: t.createdAt.toISOString(),
       closedAt: t.closedAt?.toISOString() ?? "",
-      downtimeHours: t.closedAt ? Math.round(((t.closedAt.getTime() - t.createdAt.getTime()) / 3_600_000) * 10) / 10 : "",
+      firstResponse: firstAck ? formatMsAsClock(firstAck.getTime() - t.createdAt.getTime()) : "",
+      downtime: isDowntimeEligible ? formatMsAsClock(t.closedAt!.getTime() - t.createdAt.getTime()) : "",
     });
   }
 
@@ -139,7 +149,7 @@ router.get("/export", async (req, res) => {
       { header: "Created At", key: "createdAt", width: 20 },
       { header: "Resolved At", key: "resolvedAt", width: 20 },
       { header: "Closed At", key: "closedAt", width: 20 },
-      { header: "Total Downtime (Hrs)", key: "downtimeHours", width: 16 },
+      { header: "Resolution Time (hh:mm:ss)", key: "resolutionTime", width: 20 },
     ];
     const now = new Date();
     for (const h of helpdeskList) {
@@ -159,7 +169,7 @@ router.get("/export", async (req, res) => {
         createdAt: h.createdAt.toISOString(),
         resolvedAt: h.resolvedAt?.toISOString() ?? "",
         closedAt: h.closedAt?.toISOString() ?? "",
-        downtimeHours: finishedAt ? Math.round(((finishedAt.getTime() - h.createdAt.getTime()) / 3_600_000) * 10) / 10 : "",
+        resolutionTime: finishedAt ? formatMsAsClock(finishedAt.getTime() - h.createdAt.getTime()) : "",
       });
     }
   }

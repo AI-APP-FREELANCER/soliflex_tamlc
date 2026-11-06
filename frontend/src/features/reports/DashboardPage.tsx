@@ -9,9 +9,11 @@ import { PROBLEM_TYPE_LABELS, DELAY_REASON_LABELS, MACHINE_STATUS_LABELS, QUALIT
 import { Spinner, EmptyState } from "../../components/Spinner";
 import { statusLabel, StatusBadge, PriorityBadge } from "../../components/badges";
 import { StatCard } from "../../components/StatCard";
+import { StatTicketsModal, StatFilterKey } from "./StatTicketsModal";
 import { DateRangeFilter, DateRangeValue } from "../../components/DateRangeFilter";
 import { api } from "../../lib/api";
 import { format, formatDistanceToNow } from "date-fns";
+import { formatHoursAsClock } from "../../lib/format-duration";
 import type { Priority, TicketStatus } from "../../lib/types";
 
 const BREAKDOWN_COLORS = ["#F26522", "#A6392B", "#5D616B", "#DD5216"];
@@ -74,6 +76,8 @@ export default function DashboardPage() {
     ...live,
   });
 
+  const [statModal, setStatModal] = useState<StatFilterKey | null>(null);
+
   async function handleExport() {
     const res = await api.get("/reports/export", { params: { workstream, ...dateRange }, responseType: "blob" });
     const url = URL.createObjectURL(res.data);
@@ -123,18 +127,18 @@ export default function DashboardPage() {
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-        <StatCard label="Total tickets" value={stats.total} />
-        <StatCard label="Open" value={stats.open} />
-        <StatCard label="Closed" value={stats.closed} />
-        <StatCard label="On hold" value={stats.onHold} tone="warn" />
+        <StatCard label="Total tickets" value={stats.total} onClick={() => setStatModal("total")} />
+        <StatCard label="Open" value={stats.open} onClick={() => setStatModal("open")} />
+        <StatCard label="In progress" value={stats.inProgress} onClick={() => setStatModal("inProgress")} />
+        <StatCard label="Closed" value={stats.closed} onClick={() => setStatModal("closed")} />
         {!isMaintenance && (
           <>
             <StatCard label="Deadline breached" value={stats.slaBreached} tone="danger" />
             <StatCard label="Overdue now" value={stats.overdue} tone="danger" />
           </>
         )}
-        <StatCard label="Avg resolution (hrs)" value={isMaintenance ? (maintAnalytics?.avgTotalResolutionHours ?? 0) : stats.avgResolutionHours} />
-        {isMaintenance && <StatCard label="Avg downtime (hrs)" value={maintAnalytics?.avgDowntimeHours ?? 0} tone="warn" />}
+        <StatCard label="Avg resolution" value={formatHoursAsClock(isMaintenance ? (maintAnalytics?.avgTotalResolutionHours ?? 0) : stats.avgResolutionHours)} />
+        {isMaintenance && <StatCard label="Avg downtime" value={formatHoursAsClock(maintAnalytics?.avgDowntimeHours ?? 0)} tone="warn" />}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -172,7 +176,7 @@ export default function DashboardPage() {
                     <li key={s.status} className="flex items-center justify-between">
                       <span className="text-soliflex-gray-600">{statusLabel(s.status)}</span>
                       <span className="font-medium text-soliflex-ink">
-                        {s.avgHours}h <span className="text-xs text-soliflex-gray-400">({s.count})</span>
+                        {formatHoursAsClock(s.avgHours)} <span className="text-xs text-soliflex-gray-400">({s.count})</span>
                       </span>
                     </li>
                   ))}
@@ -330,6 +334,10 @@ export default function DashboardPage() {
           <p className="text-sm text-soliflex-gray-400">Nothing expiring soon.</p>
         )}
       </div>
+      )}
+
+      {statModal && (
+        <StatTicketsModal filterKey={statModal} workstream={workstream} dateRange={dateRange} onClose={() => setStatModal(null)} onDownload={handleExport} />
       )}
     </div>
   );

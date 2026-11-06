@@ -16,6 +16,7 @@ import { Badge } from "@/components/Badge";
 import { Spinner } from "@/components/Spinner";
 import { apiErrorMessage } from "@/lib/api-client";
 import { formatIST } from "@/lib/formatIST";
+import { formatHoursAsClock } from "@/lib/format-duration";
 import { anyStatusColors, anyStatusLabel } from "@/features/tickets/badges";
 import { PRIORITY_COLORS, PRIORITY_LABELS } from "@/features/helpdesk/badges";
 import type { DateRangeValue, Workstream } from "@/lib/types";
@@ -136,7 +137,7 @@ export default function ReportsScreen() {
               <StatCard label="Closed" value={stats.closed} />
             </View>
             <View className="mt-3 flex-row gap-3">
-              <StatCard label="On hold" value={stats.onHold} tone="warn" />
+              <StatCard label="In progress" value={stats.inProgress} />
               {workstream === "IT" && (
                 <>
                   <StatCard label="Deadline breached" value={stats.slaBreached} tone="danger" />
@@ -145,7 +146,7 @@ export default function ReportsScreen() {
               )}
             </View>
             <View className="mt-3 flex-row gap-3">
-              <StatCard label="Avg resolution" value={`${stats.avgResolutionHours.toFixed(1)}h`} />
+              <StatCard label="Avg resolution" value={formatHoursAsClock(stats.avgResolutionHours)} />
               {workstream === "IT" && stats.sources.helpdesk ? (
                 <StatCard label="Helpdesk / Board" value={`${stats.sources.helpdesk.total} / ${stats.sources.tickets.total}`} />
               ) : (
@@ -203,10 +204,11 @@ export default function ReportsScreen() {
             </View>
             )}
 
+            {workstream === "IT" && (
             <View className="mt-4 rounded-xl border border-soliflex-gray-100 bg-white p-4">
               <Text className="mb-2 text-sm font-semibold text-soliflex-ink">Warranty / license expiring within 60 days</Text>
               {(() => {
-                const list = workstream === "MAINTENANCE" ? expiring?.maintenance ?? [] : expiring?.it ?? [];
+                const list = expiring?.it ?? [];
                 if (!list.length) return <Text className="text-sm text-soliflex-gray-500">Nothing expiring soon.</Text>;
                 return list.map((a) => {
                   const expiryDate = a.warrantyEndDate ?? ("licenseExpiryDate" in a ? a.licenseExpiryDate : null);
@@ -221,6 +223,7 @@ export default function ReportsScreen() {
                 });
               })()}
             </View>
+            )}
           </>
         )}
       </ScrollView>

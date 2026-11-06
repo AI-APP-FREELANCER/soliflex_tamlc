@@ -1,8 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Pencil, Upload } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import {
   fetchMaintenanceAsset,
@@ -11,8 +11,10 @@ import {
   uploadMaintenanceAssetInvoice,
   uploadITAssetInvoice,
 } from "./api";
+import { EditITAssetModal, EditMaintenanceAssetModal } from "./EditAssetModal";
 import { API_BASE_URL, apiErrorMessage } from "../../lib/api";
 import { Spinner } from "../../components/Spinner";
+import { useAuthStore } from "../../store/auth.store";
 import { format } from "date-fns";
 import type { ITAsset, MaintenanceAsset } from "../../lib/types";
 
@@ -23,6 +25,8 @@ export default function AssetDetailPage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
   const isMaintenance = type === "maintenance";
+  const isAdmin = useAuthStore((s) => s.user?.role === "ADMIN");
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: asset, isLoading } = useQuery<MaintenanceAsset | ITAsset>({
     queryKey: [isMaintenance ? "maintenance-asset" : "it-asset", id],
@@ -56,9 +60,19 @@ export default function AssetDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <button onClick={() => navigate(-1)} className="mb-3 flex items-center gap-1 text-sm text-soliflex-gray-500 hover:text-soliflex-ink">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+      <div className="mb-3 flex items-center justify-between">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-soliflex-gray-500 hover:text-soliflex-ink">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setEditOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-soliflex-gray-100 px-3 py-1.5 text-xs font-semibold text-soliflex-gray-700 hover:bg-soliflex-gray-200"
+          >
+            <Pencil className="h-3.5 w-3.5" /> Edit asset
+          </button>
+        )}
+      </div>
 
       <div className="rounded-xl border border-soliflex-gray-100 bg-white p-5">
         <div className="flex items-start justify-between">
@@ -139,6 +153,13 @@ export default function AssetDetailPage() {
           {asset.invoices.length === 0 && <p className="text-sm text-soliflex-gray-400">No invoices yet.</p>}
         </div>
       </div>
+
+      {editOpen &&
+        (isMaintenance ? (
+          <EditMaintenanceAssetModal asset={asset as MaintenanceAsset} onClose={() => setEditOpen(false)} />
+        ) : (
+          <EditITAssetModal asset={asset as ITAsset} onClose={() => setEditOpen(false)} />
+        ))}
     </div>
   );
 }

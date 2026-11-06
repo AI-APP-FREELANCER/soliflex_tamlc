@@ -12,27 +12,35 @@ interface TicketRowProps {
 
 export function TicketRow({ ticket, onPress }: TicketRowProps) {
   const statusColor = TICKET_STATUS_COLORS[ticket.status];
+  const isHigh = ticket.priority === "HIGH";
 
   return (
-    <Pressable onPress={onPress} className="border-b border-soliflex-gray-100 bg-white px-4 py-3">
+    <Pressable onPress={onPress} className={`border-b border-soliflex-gray-100 bg-white px-4 py-3 ${isHigh ? "border-l-2 border-l-red-400" : ""}`}>
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1">
-          <Text className="text-xs font-semibold text-soliflex-gray-500">{ticket.ticketNumber}</Text>
-          <Text className="mt-0.5 text-sm font-semibold text-soliflex-ink" numberOfLines={2}>
-            {ticket.displayTitle}
-          </Text>
+          {ticket.machine ? (
+            <>
+              <Text className={`text-sm font-semibold ${isHigh ? "text-red-700" : "text-soliflex-ink"}`}>
+                {ticket.machine.name} <Text className="font-normal text-soliflex-gray-400">({ticket.machine.itemCode})</Text>
+              </Text>
+              <Text className="text-xs text-soliflex-gray-500" numberOfLines={1}>
+                {ticket.ticketNumber} · {ticket.displayTitle}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text className={`text-xs font-semibold ${isHigh ? "text-red-700" : "text-soliflex-gray-500"}`}>{ticket.ticketNumber}</Text>
+              <Text className="mt-0.5 text-sm font-semibold text-soliflex-ink" numberOfLines={2}>
+                {ticket.displayTitle}
+              </Text>
+            </>
+          )}
         </View>
         <Badge label={TICKET_STATUS_LABELS[ticket.status]} bg={statusColor.bg} text={statusColor.text} />
       </View>
 
       <View className="mt-2 flex-row flex-wrap items-center gap-x-4 gap-y-1">
-        {ticket.machine ? (
-          <Text className="text-xs text-soliflex-gray-500">
-            {ticket.machine.name} ({ticket.machine.itemCode})
-          </Text>
-        ) : (
-          <Text className="text-xs text-soliflex-gray-500">{TICKET_CATEGORY_LABELS[ticket.category]}</Text>
-        )}
+        {!ticket.machine && <Text className="text-xs text-soliflex-gray-500">{TICKET_CATEGORY_LABELS[ticket.category]}</Text>}
         <Text className="text-xs text-soliflex-gray-500">Owner: {ticket.reportedBy?.name ?? "—"}</Text>
         <Text className="text-xs text-soliflex-gray-500">Assignee: {ticket.assignedTo?.name ?? "Unassigned"}</Text>
         <Text className="text-xs text-soliflex-gray-500">{formatIST(ticket.createdAt, "dd MMM yyyy")}</Text>

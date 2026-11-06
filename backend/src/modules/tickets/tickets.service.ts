@@ -41,6 +41,8 @@ export interface CreateTicketInput {
   /** IT: required. Maintenance: no longer collected (kept for API back-compat only). */
   title?: string;
   description: string;
+  /** Mandatory at creation, both workstreams. CRITICAL is retired - LOW/MEDIUM/HIGH only. */
+  priority: Priority;
   /** Maintenance only, going forward. */
   plantId?: string;
   departmentId?: string;
@@ -191,6 +193,7 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
         category,
         title: isMaintenance ? null : input.title!.trim(),
         description: input.description,
+        priority: input.priority,
         itAssetId: isMaintenance ? undefined : input.itAssetId,
         plantId: isMaintenance ? input.plantId : undefined,
         departmentId: isMaintenance ? input.departmentId : undefined,

@@ -59,6 +59,11 @@ router.get("/:id", async (req, res) => {
   res.json(await tickets.getTicket(req.params.id));
 });
 
+// CRITICAL is retired as a selectable priority (existing CRITICAL tickets are
+// a one-time data fix to HIGH - see migration notes) - LOW/MEDIUM/HIGH only
+// for anything newly chosen, at creation or later.
+const selectablePriority = z.enum(["LOW", "MEDIUM", "HIGH"]);
+
 const createSchema = z.object({
   workstream: z.nativeEnum(Workstream),
   // IT only; validated server-side as required for IT. Maintenance no longer
@@ -67,6 +72,7 @@ const createSchema = z.object({
   // IT only; validated server-side as required for IT, unused for Maintenance.
   title: z.string().optional(),
   description: z.string().min(3),
+  priority: selectablePriority,
   plantId: z.string().optional(),
   departmentId: z.string().optional(),
   problemType: z.nativeEnum(ProblemType).optional(),
@@ -85,7 +91,7 @@ router.post("/", async (req, res) => {
 
 const assignSchema = z.object({
   assignedToId: z.string(),
-  priority: z.nativeEnum(Priority),
+  priority: selectablePriority,
   targetCompletionDate: z.string().optional(),
   effortEstimateHours: z.number().min(0).optional(),
 });
@@ -182,7 +188,7 @@ router.post("/:id/start-progress", async (req, res) => {
   res.json(await tickets.startProgress(actorFromReq(req), req.params.id));
 });
 
-const priorityUpdateSchema = z.object({ priority: z.nativeEnum(Priority) });
+const priorityUpdateSchema = z.object({ priority: selectablePriority });
 router.patch("/:id/priority", requireRole(Role.MANAGER, Role.ADMIN), async (req, res) => {
   const data = priorityUpdateSchema.parse(req.body);
   res.json(await tickets.updatePriority(actorFromReq(req), req.params.id, data.priority));

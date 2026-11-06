@@ -340,6 +340,7 @@ export interface SourceStats {
   open: number;
   closed: number;
   onHold: number;
+  inProgress: number;
   slaBreached: number;
   overdue: number;
 }

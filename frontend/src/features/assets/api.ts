@@ -47,6 +47,11 @@ export async function createMaintenanceAsset(input: CreateMaintenanceAssetInput)
   return res.data;
 }
 
+export async function updateMaintenanceAsset(id: string, input: Partial<CreateMaintenanceAssetInput>): Promise<MaintenanceAsset> {
+  const res = await api.patch(`/assets/maintenance/${id}`, input);
+  return res.data;
+}
+
 export async function uploadMaintenanceAssetPhotos(id: string, files: File[], caption?: string) {
   const form = new FormData();
   files.forEach((f) => form.append("photos", f));
@@ -113,6 +118,11 @@ export interface CreateITAssetInput {
 
 export async function createITAsset(input: CreateITAssetInput): Promise<ITAsset> {
   const res = await api.post("/assets/it", input);
+  return res.data;
+}
+
+export async function updateITAsset(id: string, input: Partial<CreateITAssetInput>): Promise<ITAsset> {
+  const res = await api.patch(`/assets/it/${id}`, input);
   return res.data;
 }
 

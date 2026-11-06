@@ -14,7 +14,7 @@ import { allowedCategoriesForCreate, allowedWorkstreamsForCreate } from "@/featu
 import { useTicketMutations } from "@/features/tickets/hooks";
 import { fetchPlants } from "@/api/plants";
 import { fetchDepartments } from "@/api/departments";
-import type { MachineStatus, MachineSummary, ProblemType, TicketCategory, Workstream } from "@/lib/types";
+import type { MachineStatus, MachineSummary, Priority, ProblemType, TicketCategory, Workstream } from "@/lib/types";
 
 interface CreateTicketModalProps {
   visible: boolean;
@@ -24,6 +24,7 @@ interface CreateTicketModalProps {
 
 const PROBLEM_TYPES: ProblemType[] = ["ELECTRICAL", "MECHANICAL", "PNEUMATIC", "HYDRAULIC", "OTHERS"];
 const MACHINE_STATUSES: MachineStatus[] = ["RUNNING", "STOPPED"];
+const SELECTABLE_PRIORITIES: Exclude<Priority, "CRITICAL">[] = ["LOW", "MEDIUM", "HIGH"];
 
 export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketModalProps) {
   const user = useAuthStore((s) => s.user);
@@ -36,6 +37,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   const [description, setDescription] = useState("");
   const [plantId, setPlantId] = useState<string | undefined>();
   const [departmentId, setDepartmentId] = useState<string | undefined>();
+  const [priority, setPriority] = useState<Exclude<Priority, "CRITICAL"> | undefined>();
   const [problemType, setProblemType] = useState<ProblemType | undefined>();
   const [machineStatus, setMachineStatus] = useState<MachineStatus>("RUNNING");
   const [machine, setMachine] = useState<MachineSummary | null>(null);
@@ -66,6 +68,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
       setMachine(null);
       setPlantId(undefined);
       setDepartmentId(undefined);
+      setPriority(undefined);
     }
   }
 
@@ -76,6 +79,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
     setDescription("");
     setPlantId(undefined);
     setDepartmentId(undefined);
+    setPriority(undefined);
     setProblemType(undefined);
     setMachineStatus("RUNNING");
     setMachine(null);
@@ -86,10 +90,11 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   function handleSubmit() {
     if (!workstream) return;
     if (!isMaintenance && !category) return;
+    if (!priority) return;
     create.mutate(
       isMaintenance
-        ? { workstream, description: description.trim(), plantId, departmentId, problemType, machineStatus, maintenanceAssetId: machine?.id }
-        : { workstream, category, title: title.trim(), description: description.trim(), itAssetId: assetId },
+        ? { workstream, description: description.trim(), priority, plantId, departmentId, problemType, machineStatus, maintenanceAssetId: machine?.id }
+        : { workstream, category, title: title.trim(), description: description.trim(), priority, itAssetId: assetId },
       {
         onSuccess: (ticket) => {
           reset();
@@ -101,8 +106,8 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
   }
 
   const canSubmit = isMaintenance
-    ? description.trim().length >= 3 && !!plantId && !!departmentId && !!problemType && !!machine
-    : !!workstream && !!category && title.trim().length >= 3 && description.trim().length >= 3;
+    ? description.trim().length >= 3 && !!plantId && !!departmentId && !!priority && !!problemType && !!machine
+    : !!workstream && !!category && title.trim().length >= 3 && description.trim().length >= 3 && !!priority;
 
   if (workstreamOptions.length === 0) {
     return (
@@ -166,6 +171,12 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
               options={PROBLEM_TYPES.map((pt) => ({ value: pt, label: PROBLEM_TYPE_LABELS[pt] }))}
               onChange={setProblemType}
             />
+            <SelectField
+              label="Priority"
+              value={priority}
+              options={SELECTABLE_PRIORITIES.map((p) => ({ value: p, label: p }))}
+              onChange={setPriority}
+            />
             <View>
               <Text className="mb-1 text-sm font-medium text-soliflex-gray-700">Machine Status</Text>
               <View className="flex-row gap-2">
@@ -189,6 +200,12 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
               <ISTClock />
             </View>
             <TextField label="Title" placeholder="Short summary (at least 3 characters)" value={title} onChangeText={setTitle} />
+            <SelectField
+              label="Priority"
+              value={priority}
+              options={SELECTABLE_PRIORITIES.map((p) => ({ value: p, label: p }))}
+              onChange={setPriority}
+            />
           </>
         )}
 
