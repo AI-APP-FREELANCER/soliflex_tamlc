@@ -394,13 +394,6 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
         stoppedResolutionMs += resolutionMs;
         stoppedResolutionCount++;
         monthBucket.downtimeMs += resolutionMs;
-
-        if (t.maintenanceAssetId) {
-          const stats = machineStats.get(t.maintenanceAssetId) ?? { ticketCount: 0, downtimeMs: 0, lastFailureAt: t.createdAt };
-          stats.downtimeMs += resolutionMs;
-          if (t.createdAt > stats.lastFailureAt) stats.lastFailureAt = t.createdAt;
-          machineStats.set(t.maintenanceAssetId, stats);
-        }
       } else {
         notStoppedResolutionMs += resolutionMs;
         notStoppedResolutionCount++;
@@ -412,6 +405,15 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
       const stats = machineStats.get(t.maintenanceAssetId) ?? { ticketCount: 0, downtimeMs: 0, lastFailureAt: t.createdAt };
       stats.ticketCount += 1;
       if (t.createdAt > stats.lastFailureAt) stats.lastFailureAt = t.createdAt;
+      // Per-machine downtime feeds unit/machine availability, a live snapshot -
+      // a ticket that is still open with the machine stopped has been down from
+      // creation until now, not zero just because it hasn't closed yet (unlike
+      // avgDowntimeHours/MTTR above, which are historical repair-time metrics
+      // and intentionally only count tickets that have actually closed).
+      if (t.machineStatus === "STOPPED") {
+        const downtimeEnd = t.closedAt ?? now;
+        stats.downtimeMs += Math.max(0, downtimeEnd.getTime() - t.createdAt.getTime());
+      }
       machineStats.set(t.maintenanceAssetId, stats);
     }
   }
@@ -434,7 +436,7 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
       ticketCount,
       avgDowntimeHours: ticketCount > 0 ? Math.round((downtimeHours / ticketCount) * 10) / 10 : 0,
       mtbfHours: ticketCount > 0 ? Math.round((windowHours / ticketCount) * 10) / 10 : null,
-      uptimeHours: Math.round((windowHours - downtimeHours) * 10) / 10,
+      uptimeHours: Math.round(Math.max(0, windowHours - downtimeHours) * 10) / 10,
       lastFailureAt: stats?.lastFailureAt.toISOString() ?? null,
     };
   });
