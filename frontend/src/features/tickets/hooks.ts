@@ -58,7 +58,7 @@ export function useTicketMutations(ticketId?: string) {
     maintHold: wrap((vars: { id: string; data: Parameters<typeof ticketsApi.holdMaintenanceTicket>[1] }) => ticketsApi.holdMaintenanceTicket(vars.id, vars.data), "Ticket put on hold"),
     maintResume: wrap((vars: { id: string; note: string }) => ticketsApi.resumeMaintenanceTicket(vars.id, vars.note), "Ticket resumed"),
     markVerificationNeeded: wrap(
-      (vars: { id: string; data: ticketsApi.ChecklistInput }) => ticketsApi.markVerificationNeeded(vars.id, vars.data),
+      (vars: { id: string; data: ticketsApi.ChecklistInput & { note: string } }) => ticketsApi.markVerificationNeeded(vars.id, vars.data),
       "Sent for production verification"
     ),
     verifyAndClose: wrap(

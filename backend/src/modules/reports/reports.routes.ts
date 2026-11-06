@@ -6,7 +6,7 @@ import { LEGACY_ROLES } from "../../lib/roles";
 import { prisma } from "../../lib/prisma";
 import { resolveDateRange } from "../../lib/date-range";
 import { buildDashboardReport, buildMaintenanceAnalytics, buildOverdueReport, helpdeskWhere, includesHelpdesk, ticketWhere } from "./reports.service";
-import { formatMsAsClock } from "../../lib/format-duration";
+import { formatHoursAsClock, formatMsAsClock } from "../../lib/format-duration";
 
 const router = Router();
 router.use(requireAuth, requireRole(...LEGACY_ROLES));
@@ -172,6 +172,80 @@ router.get("/export", async (req, res) => {
         resolutionTime: finishedAt ? formatMsAsClock(finishedAt.getTime() - h.createdAt.getTime()) : "",
       });
     }
+  }
+
+  if (workstream === "MAINTENANCE") {
+    const analytics = await buildMaintenanceAnalytics(range);
+
+    const summarySheet = workbook.addWorksheet("Maintenance Summary");
+    summarySheet.columns = [
+      { header: "Metric", key: "metric", width: 32 },
+      { header: "Value", key: "value", width: 20 },
+    ];
+    summarySheet.addRows([
+      { metric: "Total tickets", value: analytics.ticketCount },
+      { metric: "Avg resolution (all)", value: formatHoursAsClock(analytics.avgTotalResolutionHours) },
+      { metric: "Avg downtime (machine stopped)", value: formatHoursAsClock(analytics.avgDowntimeHours) },
+      { metric: "MTTR - machine stopped", value: formatHoursAsClock(analytics.mttrStoppedHours) },
+      { metric: "MTTR - machine not stopped", value: formatHoursAsClock(analytics.mttrNotStoppedHours) },
+      { metric: "Rejected (sent back) count", value: analytics.rejectedCount },
+    ]);
+
+    const plantSheet = workbook.addWorksheet("By Plant");
+    plantSheet.columns = [
+      { header: "Plant", key: "plant", width: 20 },
+      { header: "Ticket Count", key: "count", width: 14 },
+    ];
+    plantSheet.addRows(analytics.byPlant);
+
+    const categorySheet = workbook.addWorksheet("By Product Category");
+    categorySheet.columns = [
+      { header: "Product Category", key: "department", width: 22 },
+      { header: "Ticket Count", key: "count", width: 14 },
+    ];
+    categorySheet.addRows(analytics.byDepartment);
+
+    const machineSheet = workbook.addWorksheet("By Machine (MTBF)");
+    machineSheet.columns = [
+      { header: "Item Code", key: "itemCode", width: 14 },
+      { header: "Machine", key: "name", width: 26 },
+      { header: "Plant", key: "plantLocation", width: 16 },
+      { header: "Ticket Count", key: "ticketCount", width: 14 },
+      { header: "Avg Downtime (hh:mm:ss)", key: "avgDowntime", width: 20 },
+      { header: "Uptime in window (hh:mm:ss)", key: "uptime", width: 22 },
+      { header: "MTBF (hh:mm:ss)", key: "mtbf", width: 18 },
+      { header: "Last Failure", key: "lastFailureAt", width: 20 },
+    ];
+    for (const m of analytics.byMachine) {
+      machineSheet.addRow({
+        itemCode: m.itemCode,
+        name: m.name,
+        plantLocation: m.plantLocation ?? "",
+        ticketCount: m.ticketCount,
+        avgDowntime: formatHoursAsClock(m.avgDowntimeHours),
+        uptime: formatHoursAsClock(m.uptimeHours),
+        mtbf: m.mtbfHours !== null ? formatHoursAsClock(m.mtbfHours) : "No occurrence",
+        lastFailureAt: m.lastFailureAt ?? "",
+      });
+    }
+
+    const trendSheet = workbook.addWorksheet("Monthly Trend");
+    trendSheet.columns = [
+      { header: "Month", key: "month", width: 12 },
+      { header: "Ticket Count", key: "ticketCount", width: 14 },
+      { header: "Downtime (hh:mm:ss)", key: "downtime", width: 18 },
+    ];
+    for (const p of analytics.monthlyTrend) {
+      trendSheet.addRow({ month: p.month, ticketCount: p.ticketCount, downtime: formatHoursAsClock(p.downtimeHours) });
+    }
+
+    const availabilitySheet = workbook.addWorksheet("Unit Availability");
+    availabilitySheet.columns = [
+      { header: "Plant (Unit)", key: "plant", width: 16 },
+      { header: "Machine Count", key: "machineCount", width: 14 },
+      { header: "Availability %", key: "availabilityPct", width: 16 },
+    ];
+    availabilitySheet.addRows(analytics.unitAvailability);
   }
 
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

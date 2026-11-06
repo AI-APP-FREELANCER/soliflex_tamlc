@@ -267,16 +267,47 @@ export async function buildOverdueReport(workstream: Workstream | undefined, ran
 // "time in verification", it's just not counted as asset downtime.
 // ======================================================================
 
+export interface MachineAnalytics {
+  machineId: string;
+  itemCode: string;
+  name: string;
+  plantLocation: string | null;
+  ticketCount: number;
+  avgDowntimeHours: number;
+  /** Classic MTBF = window duration / failure count. null = no ticket raised in the window ("no occurrence"). */
+  mtbfHours: number | null;
+  uptimeHours: number;
+  lastFailureAt: string | null;
+}
+
+export interface MonthlyTrendPoint {
+  month: string; // "yyyy-MM" (UTC calendar month)
+  ticketCount: number;
+  downtimeHours: number;
+}
+
+export interface UnitAvailability {
+  plant: string;
+  machineCount: number;
+  availabilityPct: number;
+}
+
 export interface MaintenanceAnalytics {
   ticketCount: number;
   avgHoursByStatus: { status: string; avgHours: number; count: number }[];
   avgTotalResolutionHours: number;
   avgDowntimeHours: number; // only while machineStatus = STOPPED, and only resolved tickets
+  // Mean Time To Repair, split by whether the machine was actually stopped.
+  mttrStoppedHours: number;
+  mttrNotStoppedHours: number;
   byProblemType: { problemType: string; count: number }[];
   byPlant: { plant: string; count: number }[];
   byDepartment: { department: string; count: number }[];
   byMachineStatus: { machineStatus: string; count: number }[];
   byDelayReason: { delayReason: string; count: number }[];
+  byMachine: MachineAnalytics[];
+  monthlyTrend: MonthlyTrendPoint[];
+  unitAvailability: UnitAvailability[];
   checklistCompliance: { field: string; yes: number; no: number; na: number }[];
   qualityRatings: { rating: string; count: number }[];
   rejectedCount: number;
@@ -294,6 +325,7 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
         closedAt: true,
         status: true,
         machineStatus: true,
+        maintenanceAssetId: true,
         qualityRating: true,
         checklistToolsReclaimed: true,
         checklistMachineCleaned: true,
@@ -309,7 +341,7 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
     prisma.ticket.count({ where: { ...where, statusHistory: { some: { toStatus: TicketStatus.REJECTED } } } }),
   ]);
 
-  const [plants, departments] = await Promise.all([prisma.plant.findMany(), prisma.department.findMany()]);
+  const [plants, departments, machines] = await Promise.all([prisma.plant.findMany(), prisma.department.findMany(), prisma.maintenanceAsset.findMany()]);
   const plantName = new Map(plants.map((p) => [p.id, p.name]));
   const deptName = new Map(departments.map((d) => [d.id, d.name]));
 
@@ -320,6 +352,15 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
   let resolvedCount = 0;
   let totalDowntimeMs = 0;
   let downtimeCount = 0;
+  // MTTR split by whether the machine was actually stopped for this ticket.
+  let stoppedResolutionMs = 0;
+  let stoppedResolutionCount = 0;
+  let notStoppedResolutionMs = 0;
+  let notStoppedResolutionCount = 0;
+  // Per-machine failure stats, keyed by maintenanceAssetId.
+  const machineStats = new Map<string, { ticketCount: number; downtimeMs: number; lastFailureAt: Date }>();
+  // Ticket count + downtime by UTC calendar month ("yyyy-MM").
+  const monthlyStats = new Map<string, { ticketCount: number; downtimeMs: number }>();
 
   for (const t of tickets) {
     const history = t.statusHistory;
@@ -338,15 +379,77 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
       bucket.count += 1;
       hoursByStatus.set(status, bucket);
     }
+
+    const monthKey = `${t.createdAt.getUTCFullYear()}-${String(t.createdAt.getUTCMonth() + 1).padStart(2, "0")}`;
+    const monthBucket = monthlyStats.get(monthKey) ?? { ticketCount: 0, downtimeMs: 0 };
+    monthBucket.ticketCount += 1;
+
     if (t.closedAt) {
-      totalResolutionMs += t.closedAt.getTime() - t.createdAt.getTime();
+      const resolutionMs = t.closedAt.getTime() - t.createdAt.getTime();
+      totalResolutionMs += resolutionMs;
       resolvedCount++;
       if (t.machineStatus === "STOPPED") {
-        totalDowntimeMs += t.closedAt.getTime() - t.createdAt.getTime();
+        totalDowntimeMs += resolutionMs;
         downtimeCount++;
+        stoppedResolutionMs += resolutionMs;
+        stoppedResolutionCount++;
+        monthBucket.downtimeMs += resolutionMs;
+
+        if (t.maintenanceAssetId) {
+          const stats = machineStats.get(t.maintenanceAssetId) ?? { ticketCount: 0, downtimeMs: 0, lastFailureAt: t.createdAt };
+          stats.downtimeMs += resolutionMs;
+          if (t.createdAt > stats.lastFailureAt) stats.lastFailureAt = t.createdAt;
+          machineStats.set(t.maintenanceAssetId, stats);
+        }
+      } else {
+        notStoppedResolutionMs += resolutionMs;
+        notStoppedResolutionCount++;
       }
     }
+    monthlyStats.set(monthKey, monthBucket);
+
+    if (t.maintenanceAssetId) {
+      const stats = machineStats.get(t.maintenanceAssetId) ?? { ticketCount: 0, downtimeMs: 0, lastFailureAt: t.createdAt };
+      stats.ticketCount += 1;
+      if (t.createdAt > stats.lastFailureAt) stats.lastFailureAt = t.createdAt;
+      machineStats.set(t.maintenanceAssetId, stats);
+    }
   }
+
+  // MTBF window: the selected date range, falling back to the span actually
+  // covered by the data (or the last 30 days if there's nothing to go on).
+  const windowStart = range?.gte ?? (tickets.length > 0 ? new Date(Math.min(...tickets.map((t) => t.createdAt.getTime()))) : new Date(now.getTime() - 30 * 86_400_000));
+  const windowEnd = range?.lte ?? now;
+  const windowHours = Math.max(1, (windowEnd.getTime() - windowStart.getTime()) / 3_600_000);
+
+  const byMachine: MachineAnalytics[] = machines.map((m) => {
+    const stats = machineStats.get(m.id);
+    const ticketCount = stats?.ticketCount ?? 0;
+    const downtimeHours = stats ? Math.round((stats.downtimeMs / 3_600_000) * 10) / 10 : 0;
+    return {
+      machineId: m.id,
+      itemCode: m.itemCode,
+      name: m.name,
+      plantLocation: m.plantLocation,
+      ticketCount,
+      avgDowntimeHours: ticketCount > 0 ? Math.round((downtimeHours / ticketCount) * 10) / 10 : 0,
+      mtbfHours: ticketCount > 0 ? Math.round((windowHours / ticketCount) * 10) / 10 : null,
+      uptimeHours: Math.round((windowHours - downtimeHours) * 10) / 10,
+      lastFailureAt: stats?.lastFailureAt.toISOString() ?? null,
+    };
+  });
+
+  const unitAvailability: UnitAvailability[] = [...new Set(machines.map((m) => m.plantLocation).filter((p): p is string => !!p))]
+    .map((plant) => {
+      const plantMachines = byMachine.filter((m) => m.plantLocation === plant);
+      const avgAvailability = plantMachines.reduce((sum, m) => sum + Math.max(0, Math.min(100, (m.uptimeHours / windowHours) * 100)), 0) / plantMachines.length;
+      return { plant, machineCount: plantMachines.length, availabilityPct: Math.round(avgAvailability * 10) / 10 };
+    })
+    .sort((a, b) => a.plant.localeCompare(b.plant));
+
+  const monthlyTrend: MonthlyTrendPoint[] = [...monthlyStats.entries()]
+    .map(([month, { ticketCount, downtimeMs }]) => ({ month, ticketCount, downtimeHours: Math.round((downtimeMs / 3_600_000) * 10) / 10 }))
+    .sort((a, b) => a.month.localeCompare(b.month));
 
   const checklistField = (vals: (string | null)[]) => ({
     yes: vals.filter((v) => v === "YES").length,
@@ -366,11 +469,16 @@ export async function buildMaintenanceAnalytics(range: DateRange | undefined, no
       .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)),
     avgTotalResolutionHours: resolvedCount > 0 ? Math.round((totalResolutionMs / resolvedCount / 3_600_000) * 10) / 10 : 0,
     avgDowntimeHours: downtimeCount > 0 ? Math.round((totalDowntimeMs / downtimeCount / 3_600_000) * 10) / 10 : 0,
+    mttrStoppedHours: stoppedResolutionCount > 0 ? Math.round((stoppedResolutionMs / stoppedResolutionCount / 3_600_000) * 10) / 10 : 0,
+    mttrNotStoppedHours: notStoppedResolutionCount > 0 ? Math.round((notStoppedResolutionMs / notStoppedResolutionCount / 3_600_000) * 10) / 10 : 0,
     byProblemType: byProblemType.map((r) => ({ problemType: r.problemType ?? "Not set", count: r._count })),
     byPlant: byPlant.map((r) => ({ plant: r.plantId ? plantName.get(r.plantId) ?? "Unknown" : "Not set", count: r._count })),
     byDepartment: byDepartment.map((r) => ({ department: r.departmentId ? deptName.get(r.departmentId) ?? "Unknown" : "Not set", count: r._count })),
     byMachineStatus: byMachineStatus.map((r) => ({ machineStatus: r.machineStatus ?? "Not set", count: r._count })),
     byDelayReason: byDelayReason.filter((r) => r.delayReason).map((r) => ({ delayReason: r.delayReason!, count: r._count })),
+    byMachine: byMachine.sort((a, b) => b.ticketCount - a.ticketCount),
+    monthlyTrend,
+    unitAvailability,
     checklistCompliance: [
       { field: "Tools reclaimed (5S)", ...checklistField(tickets.map((t) => t.checklistToolsReclaimed)) },
       { field: "Machine cleaned (5S)", ...checklistField(tickets.map((t) => t.checklistMachineCleaned)) },

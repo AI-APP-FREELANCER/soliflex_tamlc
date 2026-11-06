@@ -265,6 +265,87 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="MTTR — machine stopped" value={formatHoursAsClock(maintAnalytics.mttrStoppedHours)} tone="warn" />
+            <StatCard label="MTTR — machine not stopped" value={formatHoursAsClock(maintAnalytics.mttrNotStoppedHours)} />
+          </div>
+
+          <div className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
+            <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Monthly trend</h2>
+            {maintAnalytics.monthlyTrend.length === 0 ? (
+              <EmptyState title="No data yet" />
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={maintAnalytics.monthlyTrend.map((p) => ({ name: p.month, Tickets: p.ticketCount, "Downtime (hrs)": p.downtimeHours }))}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#EEEEF0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="Tickets" fill="#F26522" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Downtime (hrs)" fill="#A6392B" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
+            <h2 className="mb-3 text-sm font-bold text-soliflex-ink">Unit-wise asset availability</h2>
+            {maintAnalytics.unitAvailability.length === 0 ? (
+              <EmptyState title="No data yet" />
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {maintAnalytics.unitAvailability.map((u) => (
+                  <div key={u.plant} className="rounded-lg border border-soliflex-gray-100 p-3 text-center">
+                    <p className="text-xs text-soliflex-gray-400">{u.plant}</p>
+                    <p className={`mt-1 text-xl font-bold ${u.availabilityPct < 90 ? "text-red-600" : "text-soliflex-ink"}`}>{u.availabilityPct}%</p>
+                    <p className="text-xs text-soliflex-gray-400">{u.machineCount} machine(s)</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-soliflex-gray-100 bg-white p-4">
+            <h2 className="mb-3 text-sm font-bold text-soliflex-ink">By machine — MTBF &amp; downtime</h2>
+            {maintAnalytics.byMachine.length === 0 ? (
+              <EmptyState title="No data yet" />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead className="text-left text-xs font-semibold uppercase text-soliflex-gray-500">
+                    <tr>
+                      <th className="py-2 pr-3">Machine</th>
+                      <th className="py-2 pr-3">Plant</th>
+                      <th className="py-2 pr-3">Tickets</th>
+                      <th className="py-2 pr-3">Avg downtime</th>
+                      <th className="py-2 pr-3">Uptime (window)</th>
+                      <th className="py-2">MTBF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {maintAnalytics.byMachine
+                      .filter((m) => m.ticketCount > 0)
+                      .map((m) => (
+                        <tr key={m.machineId} className="border-t border-soliflex-gray-50">
+                          <td className="py-2 pr-3 font-medium text-soliflex-ink">
+                            {m.name} <span className="text-xs text-soliflex-gray-400">({m.itemCode})</span>
+                          </td>
+                          <td className="py-2 pr-3 text-soliflex-gray-600">{m.plantLocation ?? "—"}</td>
+                          <td className="py-2 pr-3 text-soliflex-gray-600">{m.ticketCount}</td>
+                          <td className="py-2 pr-3 text-soliflex-gray-600">{formatHoursAsClock(m.avgDowntimeHours)}</td>
+                          <td className="py-2 pr-3 text-soliflex-gray-600">{formatHoursAsClock(m.uptimeHours)}</td>
+                          <td className="py-2 text-soliflex-gray-600">{m.mtbfHours !== null ? formatHoursAsClock(m.mtbfHours) : "No occurrence"}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+                <p className="mt-2 text-xs text-soliflex-gray-400">
+                  {maintAnalytics.byMachine.filter((m) => m.ticketCount === 0).length} machine(s) had no tickets in this window (no occurrence).
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

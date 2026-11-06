@@ -241,16 +241,45 @@ export interface UserDepartment {
   updatedAt: string;
 }
 
+export interface MachineAnalytics {
+  machineId: string;
+  itemCode: string;
+  name: string;
+  plantLocation: string | null;
+  ticketCount: number;
+  avgDowntimeHours: number;
+  mtbfHours: number | null;
+  uptimeHours: number;
+  lastFailureAt: string | null;
+}
+
+export interface MonthlyTrendPoint {
+  month: string;
+  ticketCount: number;
+  downtimeHours: number;
+}
+
+export interface UnitAvailability {
+  plant: string;
+  machineCount: number;
+  availabilityPct: number;
+}
+
 export interface MaintenanceAnalytics {
   ticketCount: number;
   avgHoursByStatus: { status: string; avgHours: number; count: number }[];
   avgTotalResolutionHours: number;
   avgDowntimeHours: number;
+  mttrStoppedHours: number;
+  mttrNotStoppedHours: number;
   byProblemType: { problemType: string; count: number }[];
   byPlant: { plant: string; count: number }[];
   byDepartment: { department: string; count: number }[];
   byMachineStatus: { machineStatus: string; count: number }[];
   byDelayReason: { delayReason: string; count: number }[];
+  byMachine: MachineAnalytics[];
+  monthlyTrend: MonthlyTrendPoint[];
+  unitAvailability: UnitAvailability[];
   checklistCompliance: { field: string; yes: number; no: number; na: number }[];
   qualityRatings: { rating: string; count: number }[];
   rejectedCount: number;
