@@ -34,7 +34,7 @@ export default function TicketsListPage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search title or ticket #"
+          placeholder="Search ticket #, machine, plant, or category"
           className="rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm"
         />
         <select value={status} onChange={(e) => setStatus(e.target.value as TicketStatus)} className="rounded-lg border border-soliflex-gray-200 px-3 py-1.5 text-sm">

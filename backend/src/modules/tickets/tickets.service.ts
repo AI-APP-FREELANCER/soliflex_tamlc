@@ -246,7 +246,18 @@ export interface TicketFilter {
   createdAtRange?: { gte?: Date; lte?: Date };
 }
 
+/** Tickets link to assets/plant/department by plain id or relation; a free-text search has to resolve matching asset ids up front since maintenanceAssetId/itAssetId are cross-schema (no Prisma relation to filter through directly). */
+async function matchingAssetIds(search: string) {
+  const where = { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { itemCode: { contains: search, mode: "insensitive" as const } }] };
+  const [maintenanceAssets, itAssets] = await Promise.all([
+    prisma.maintenanceAsset.findMany({ where, select: { id: true } }),
+    prisma.iTAsset.findMany({ where, select: { id: true } }),
+  ]);
+  return { maintenanceAssetIds: maintenanceAssets.map((a) => a.id), itAssetIds: itAssets.map((a) => a.id) };
+}
+
 export async function listTickets(filter: TicketFilter) {
+  const { maintenanceAssetIds, itAssetIds } = filter.search ? await matchingAssetIds(filter.search) : { maintenanceAssetIds: [], itAssetIds: [] };
   const tickets = await prisma.ticket.findMany({
     where: {
       workstream: filter.workstream,
@@ -261,6 +272,10 @@ export async function listTickets(filter: TicketFilter) {
             OR: [
               { title: { contains: filter.search, mode: "insensitive" } },
               { ticketNumber: { contains: filter.search, mode: "insensitive" } },
+              { plant: { name: { contains: filter.search, mode: "insensitive" } } },
+              { department: { name: { contains: filter.search, mode: "insensitive" } } },
+              ...(maintenanceAssetIds.length ? [{ maintenanceAssetId: { in: maintenanceAssetIds } }] : []),
+              ...(itAssetIds.length ? [{ itAssetId: { in: itAssetIds } }] : []),
             ],
           }
         : {}),
