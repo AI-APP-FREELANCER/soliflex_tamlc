@@ -42,11 +42,6 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
     ...(user.department && !userDepartments.some((d) => d.name === user.department) ? [{ value: user.department, label: `${user.department} (not in the admin-managed list)` }] : []),
     ...userDepartments.map((d) => ({ value: d.name, label: d.name })),
   ];
-  const itDepartmentOptions = [
-    { value: "", label: "No department" },
-    ...(user.department && !productCategories.some((d) => d.name === user.department) ? [{ value: user.department, label: `${user.department} (not in the admin-managed list)` }] : []),
-    ...productCategories.map((d) => ({ value: d.name, label: d.name })),
-  ];
   const { data: designations = [] } = useQuery({ queryKey: ["designations"], queryFn: fetchDesignations, enabled: visible });
   const designationOptions = [
     { value: "", label: "No designation" },
@@ -72,9 +67,9 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
           name: name.trim(),
           role,
           workstream: workstream ?? null,
-          department: department.trim() || undefined,
+          department: isIT ? undefined : department.trim() || undefined,
           productCategory: isIT ? undefined : productCategory.trim() || undefined,
-          designation: designation.trim() || undefined,
+          designation: isIT ? undefined : designation.trim() || undefined,
           email: email.trim() || undefined,
           phone: phone.trim() || null,
         },
@@ -103,15 +98,13 @@ export function EditUserModal({ visible, user, onClose }: EditUserModalProps) {
         <TextField label="Name" value={name} onChangeText={setName} />
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
-        {isIT ? (
-          <SelectField label="Department" value={department} options={itDepartmentOptions} onChange={setDepartment} />
-        ) : (
+        {!isIT && (
           <>
             <SelectField label="Product category" value={productCategory} options={productCategoryOptions} onChange={setProductCategory} />
             <SelectField label="Department" value={department} options={userDepartmentOptions} onChange={setDepartment} />
+            <SelectField label="Designation" value={designation} options={designationOptions} onChange={setDesignation} />
           </>
         )}
-        <SelectField label="Designation" value={designation} options={designationOptions} onChange={setDesignation} />
         <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
         <TextField label="Mobile number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
         <Button title="Save" onPress={handleSubmit} loading={update.isPending} />

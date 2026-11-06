@@ -66,9 +66,9 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
         email: email.trim() || undefined,
         role,
         workstream: workstream ?? null,
-        department: department.trim() || undefined,
+        department: isIT ? undefined : department.trim() || undefined,
         productCategory: isIT ? undefined : productCategory.trim() || undefined,
-        designation: designation.trim() || undefined,
+        designation: isIT ? undefined : designation.trim() || undefined,
         phone: phone.trim() || undefined,
       },
       {
@@ -93,15 +93,13 @@ export function CreateUserModal({ visible, onClose }: CreateUserModalProps) {
         <Text className="-mt-2 text-xs text-soliflex-gray-500">At least one is required — the person signs in with whichever you enter.</Text>
         <SelectField label="Role" value={role} options={roleOptions} onChange={setRole} />
         <SelectField label="Workstream (optional)" value={workstream} options={WORKSTREAM_OPTIONS} onChange={setWorkstream} />
-        {isIT ? (
-          <SelectField label="Department (optional)" value={department} options={productCategoryOptions} onChange={setDepartment} />
-        ) : (
+        {!isIT && (
           <>
             <SelectField label="Product category (optional)" value={productCategory} options={productCategoryOptions} onChange={setProductCategory} />
             <SelectField label="Department (optional)" value={department} options={userDepartmentOptions} onChange={setDepartment} />
+            <SelectField label="Designation (optional)" value={designation} options={designationOptions} onChange={setDesignation} />
           </>
         )}
-        <SelectField label="Designation (optional)" value={designation} options={designationOptions} onChange={setDesignation} />
         <Button title="Create" onPress={handleSubmit} disabled={!canSubmit} loading={create.isPending} />
       </View>
     </Modal>

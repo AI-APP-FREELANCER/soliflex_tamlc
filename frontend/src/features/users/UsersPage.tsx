@@ -137,9 +137,9 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
     mutationFn: () =>
       updateUser(user.id, {
         ...form,
-        department: form.department || undefined,
+        department: isIT ? undefined : form.department || undefined,
         productCategory: isIT ? undefined : form.productCategory || undefined,
-        designation: form.designation || undefined,
+        designation: isIT ? undefined : form.designation || undefined,
         email: form.email.trim() || undefined,
         phone: form.phone.trim() || null,
       }),
@@ -176,32 +176,7 @@ function EditUserModal({ user, onClose }: { user: User; onClose: () => void }) {
             <option value="IT">IT</option>
           </select>
         </div>
-        {isIT ? (
-          <div className="grid grid-cols-2 gap-3">
-            <select value={form.department} onChange={(e) => set("department", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-              <option value="">No department</option>
-              {form.department && !productCategories.some((d) => d.name === form.department) && (
-                <option value={form.department}>{form.department} (not in the admin-managed list)</option>
-              )}
-              {productCategories.map((d) => (
-                <option key={d.id} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-            <select value={form.designation} onChange={(e) => set("designation", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-              <option value="">No designation</option>
-              {form.designation && !designations.some((d) => d.name === form.designation) && (
-                <option value={form.designation}>{form.designation} (not in the admin-managed list)</option>
-              )}
-              {designations.map((d) => (
-                <option key={d.id} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
+        {!isIT && (
           <>
             <div className="grid grid-cols-2 gap-3">
               <select value={form.productCategory} onChange={(e) => set("productCategory", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
@@ -314,26 +289,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
             <option value="IT">IT</option>
           </select>
         </div>
-        {isIT ? (
-          <div className="grid grid-cols-2 gap-3">
-            <select value={form.department} onChange={(e) => set("department", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-              <option value="">No department</option>
-              {productCategories.map((d) => (
-                <option key={d.id} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-            <select value={form.designation} onChange={(e) => set("designation", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
-              <option value="">No designation</option>
-              {designations.map((d) => (
-                <option key={d.id} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
+        {!isIT && (
           <>
             <div className="grid grid-cols-2 gap-3">
               <select value={form.productCategory} onChange={(e) => set("productCategory", e.target.value)} className="rounded-lg border border-soliflex-gray-200 px-3 py-2 text-sm">
@@ -369,7 +325,8 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
               ...form,
               email: form.email?.trim() || undefined,
               phone: form.phone?.trim() || undefined,
-              designation: form.designation || undefined,
+              designation: isIT ? undefined : form.designation || undefined,
+              department: isIT ? undefined : form.department || undefined,
               productCategory: isIT ? undefined : form.productCategory || undefined,
             })
           }
