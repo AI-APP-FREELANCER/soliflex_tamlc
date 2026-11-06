@@ -159,6 +159,7 @@ export function CreateTicketModal({ visible, onClose, onCreated }: CreateTicketM
                 Raised by{" "}
                 <Text className="font-semibold text-soliflex-ink">
                   {user?.name}
+                  {user?.department ? ` · ${user.department}` : ""}
                   {user?.designation ? ` (${user.designation})` : ""}
                 </Text>
               </Text>

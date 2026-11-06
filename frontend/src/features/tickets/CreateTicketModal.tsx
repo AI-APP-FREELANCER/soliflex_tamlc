@@ -215,6 +215,7 @@ export function CreateTicketModal() {
                   Raised by{" "}
                   <span className="font-semibold text-soliflex-ink">
                     {user.name}
+                    {user.department ? ` · ${user.department}` : ""}
                     {user.designation ? ` (${user.designation})` : ""}
                   </span>
                 </p>
